@@ -1,0 +1,54 @@
+{
+  "compilerOptions": {
+    // 📦 모듈 시스템: Node.js에서 일반적으로 쓰는 CommonJS 사용
+    "module": "commonjs",
+
+    // 📝 .d.ts 선언 파일 생성 여부 (라이브러리화할 경우 필요)
+    "declaration": true,
+
+    // 💬 주석 제거 여부 (빌드시 주석 제거하여 용량 줄임)
+    "removeComments": true,
+
+    // 🧠 데코레이터 메타데이터 활성화 (NestJS에 필수)
+    "emitDecoratorMetadata": true,
+
+    // 🎨 데코레이터 문법을 사용할 수 있게 함 (NestJS에서 필요)
+    "experimentalDecorators": true,
+
+    // ✅ default export를 ES6 스타일로 import 가능하게 허용
+    "allowSyntheticDefaultImports": true,
+
+    // 📅 JS 버전 타깃: 최신 ECMAScript 2023 사용 (예: `at()` 등 최신 문법 사용 가능)
+    "target": "ES2023",
+
+    // 🐞 sourcemap 생성 (디버깅 시 원본 코드 추적 가능)
+    "sourceMap": true,
+
+    // 📂 컴파일 결과물이 저장될 경로
+    "outDir": "./dist",
+
+    // 📍 기준 경로 설정 (import 절에서 base 경로를 기준으로 설정)
+    "baseUrl": "./",
+
+    // ⚡ 증분 빌드 활성화 (이전 결과를 활용하여 빠르게 재컴파일)
+    "incremental": true,
+
+    // 🔍 외부 라이브러리 타입 체크는 생략 (컴파일 속도 향상)
+    "skipLibCheck": true,
+
+    // 🛡️ null 관련 엄격한 타입 검사 활성화 (타입 안정성 ↑)
+    "strictNullChecks": true,
+
+    // 🧼 파일 이름 대소문자 일관성 검사 (Linux 호환성 ↑)
+    "forceConsistentCasingInFileNames": true,
+
+    // 🤷‍♂️ any 타입 허용 (false면 컴파일 에러 많아질 수 있음)
+    "noImplicitAny": false,
+
+    // ⛔ bind/call/apply의 타입 오류를 엄격하게 검사하지 않음
+    "strictBindCallApply": false,
+
+    // 🔁 switch 문에서 case 누락 검사 비활성화
+    "noFallthroughCasesInSwitch": false
+  }
+}
