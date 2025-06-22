@@ -1,6 +1,6 @@
 // src/modules/market-data/infra/binance.client.ts
 import * as WebSocket from 'ws';
-import { ExternalBinanceTradeResponse } from '../dto/ExternalBinanceTradeResponse';
+import { ExternalTradeTickResponse } from '../dto/ExternalTradeTickResponse';
 
 export class BinanceClient {
   private socket!: WebSocket;
@@ -23,7 +23,7 @@ export class BinanceClient {
     // 외부 응답은 dto 객체로 변환하여 onMessage 콜백으로 전달
     this.socket.on('message', (data) => {
       const raw = JSON.parse(data.toString());
-      const dto = ExternalBinanceTradeResponse.from(raw);
+      const dto = ExternalTradeTickResponse.from(raw);
       this.onMessage(dto);
     });
     this.socket.on('error', (err) =>

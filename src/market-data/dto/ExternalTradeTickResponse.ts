@@ -1,6 +1,4 @@
-// src/market-data/dto/ExternalBinanceTradeResponse.ts
-
-export class ExternalBinanceTradeResponse {
+export class ExternalTradeTickResponse {
   /** 이벤트 타입 (e.g., "trade") */
   e: string;
 
@@ -48,8 +46,8 @@ export class ExternalBinanceTradeResponse {
   /**
    * 외부 Binance 응답 객체를 DTO로 변환
    */
-  static from(raw: any): ExternalBinanceTradeResponse {
-    return new ExternalBinanceTradeResponse(
+  static from(raw: any): ExternalTradeTickResponse {
+    return new ExternalTradeTickResponse(
       raw.e,
       raw.E,
       raw.s,
