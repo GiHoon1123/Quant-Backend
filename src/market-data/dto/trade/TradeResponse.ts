@@ -1,6 +1,6 @@
 import { ExternalTradeResponse } from './ExternalTradeResponse';
 
-export class TradeTickResponse {
+export class TradeResponse {
   /** 거래 이벤트 유형 (e.g., "trade") */
   eventType: string;
 
@@ -45,8 +45,8 @@ export class TradeTickResponse {
     this.isBuyerMaker = isBuyerMaker;
   }
 
-  static from(external: ExternalTradeResponse): TradeTickResponse {
-    return new TradeTickResponse(
+  static from(external: ExternalTradeResponse): TradeResponse {
+    return new TradeResponse(
       external.e,
       external.E,
       external.s,
