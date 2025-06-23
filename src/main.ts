@@ -1,20 +1,24 @@
 // src/main.ts
 import { NestFactory } from '@nestjs/core';
+import { SwaggerModule } from '@nestjs/swagger';
+
+import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './AppModule';
-import { BinanceClient } from './market-data/infra/BinanceClient';
-import { MarketDataGateway } from './market-data/web/MarketDataGateway';
+import { swaggerConfig } from './common/config/SwaggerConfig';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  const gateway = app.get(MarketDataGateway);
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('api-docs', app, document);
 
-  // BinanceClient 인스턴스 생성 및 연결
-  const client = new BinanceClient('btcusdt', (data) => {
-    gateway.sendTradeData(data); // 웹소켓으로 프론트에 전송
-  });
-
-  client.connect();
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
 
   await app.listen(3000);
 }

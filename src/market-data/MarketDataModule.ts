@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
-import { BinanceClient } from './infra/BinanceClient';
-import { MarketDataGateway } from './web/MarketDataGateway';
+import { TradeService } from './service/trade/TradeService';
+import { TradeController } from './web/trade/TradeController';
+import { TradeGateway } from './web/trade/TradeGateway';
 
 @Module({
   imports: [],
-  controllers: [],
-  providers: [BinanceClient, MarketDataGateway],
+  controllers: [TradeController],
+  providers: [TradeGateway, TradeService],
   exports: [],
 })
 export class MarketDataModule {}

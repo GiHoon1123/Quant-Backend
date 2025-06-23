@@ -1,4 +1,4 @@
-import { ExternalTradeTickResponse } from './ExternalTradeTickResponse';
+import { ExternalTradeResponse } from './ExternalTradeResponse';
 
 export class TradeTickResponse {
   /** 거래 이벤트 유형 (e.g., "trade") */
@@ -45,7 +45,7 @@ export class TradeTickResponse {
     this.isBuyerMaker = isBuyerMaker;
   }
 
-  static from(external: ExternalTradeTickResponse): TradeTickResponse {
+  static from(external: ExternalTradeResponse): TradeTickResponse {
     return new TradeTickResponse(
       external.e,
       external.E,

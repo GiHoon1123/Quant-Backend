@@ -1,17 +1,17 @@
 // src/market-data/controller/market-data.gateway.ts
 import { WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import { Server } from 'socket.io';
-import { TradeTickResponse } from '../dto/TradeTickResponse';
-import { ExternalTradeTickResponse } from '../dto/ExternalTradeTickResponse';
+import { ExternalTradeResponse } from 'src/market-data/dto/trade/ExternalTradeResponse';
+import { TradeTickResponse } from 'src/market-data/dto/trade/TradeResponse';
 
 @WebSocketGateway({ cors: true })
-export class MarketDataGateway {
+export class TradeGateway {
   @WebSocketServer()
   server: Server;
 
-  sendTradeData(data: ExternalTradeTickResponse) {
+  sendTradeData(data: ExternalTradeResponse) {
     const response = TradeTickResponse.from(data);
     console.log('📤 클라이언트로 전송:', response);
-    this.server.emit('trade', response);
+    this.server.emit(`trade:${data.s}`, response);
   }
 }

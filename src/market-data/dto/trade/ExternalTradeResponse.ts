@@ -1,4 +1,4 @@
-export class ExternalTradeTickResponse {
+export class ExternalTradeResponse {
   /** 이벤트 타입 (e.g., "trade") */
   e: string;
 
@@ -46,8 +46,8 @@ export class ExternalTradeTickResponse {
   /**
    * 외부 Binance 응답 객체를 DTO로 변환
    */
-  static from(raw: any): ExternalTradeTickResponse {
-    return new ExternalTradeTickResponse(
+  static from(raw: any): ExternalTradeResponse {
+    return new ExternalTradeResponse(
       raw.e,
       raw.E,
       raw.s,
