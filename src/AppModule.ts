@@ -1,8 +1,9 @@
 import { Module } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { MarketDataModule } from './market-data/MarketDataModule';
 
 @Module({
-  imports: [MarketDataModule],
+  imports: [ScheduleModule.forRoot(), MarketDataModule],
   controllers: [],
   providers: [],
 })
