@@ -11,6 +11,6 @@ export class KlineGateway {
   sendKlinedata(data: ExternalKlineResponse) {
     const response = KlineResponse.from(data);
     console.log('📤 캔들차트 전송:', response);
-    this.server.emit(`kline:${data.symbol}`, response);
+    this.server.emit(`kline:${data.s}`, response);
   }
 }

@@ -52,7 +52,7 @@ export class KlineScheduler {
   private async poll(interval: string) {
     const symbols = this.klineService.getSubscribed();
     for (const symbol of symbols) {
-      await this.klineService.fetchAndEmitCandles(symbol, interval);
+      await this.klineService.fetchCandles(symbol, interval);
     }
   }
 }

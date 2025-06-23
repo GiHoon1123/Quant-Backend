@@ -38,20 +38,8 @@ export class KlineService implements OnModuleInit {
     return this.manager.getSubscribed();
   }
 
-  async fetchAndEmitCandles(symbol: string, interval: string) {
+  async fetchCandles(symbol: string, interval: string) {
     const raw = await this.restClient.fetchCandles(symbol, interval);
     console.log(`${symbol} ${interval} 캔들차트 데이터 가져오기:`, raw);
-    // raw.forEach((item) => {
-    //   this.gateway.sendKlinedata({
-    //     symbol,
-    //     interval,
-    //     openTime: item[0],
-    //     open: parseFloat(item[1]),
-    //     high: parseFloat(item[2]),
-    //     low: parseFloat(item[3]),
-    //     close: parseFloat(item[4]),
-    //     volume: parseFloat(item[5]),
-    //   });
-    // });
   }
 }
