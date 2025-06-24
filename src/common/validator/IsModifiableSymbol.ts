@@ -1,4 +1,3 @@
-// src/common/validator/IsModifiableSymbol.ts
 import {
   registerDecorator,
   ValidationArguments,

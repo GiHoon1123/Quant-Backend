@@ -1,4 +1,3 @@
-// src/common/exception/GlobalExceptionFilter.ts
 import {
   ArgumentsHost,
   Catch,

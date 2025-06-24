@@ -1,4 +1,3 @@
-// src/market-data/controller/market-data.gateway.ts
 import { WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import { Server } from 'socket.io';
 import { ExternalTradeResponse } from 'src/market-data/dto/trade/ExternalTradeResponse';

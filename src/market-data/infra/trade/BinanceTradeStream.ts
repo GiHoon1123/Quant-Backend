@@ -1,4 +1,3 @@
-// src/modules/market-data/infra/BinanceTradeStream.ts
 import * as WebSocket from 'ws';
 import { ExternalTradeResponse } from '../../dto/trade/ExternalTradeResponse';
 

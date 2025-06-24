@@ -10,7 +10,7 @@ export class BinanceKlineStream {
   ) {}
 
   connect() {
-    const streamUrl = `wss://stream.binance.com:9443/ws/${this.symbol.toLowerCase()}@kline_1m`; // 1분 봉 데이터 스트림 URL}`;
+    const streamUrl = `wss://stream.binance.com:9443/ws/${this.symbol.toLowerCase()}@kline_1m`;
     this.socket = new WebSocket(streamUrl);
 
     this.socket.on('open', () => {

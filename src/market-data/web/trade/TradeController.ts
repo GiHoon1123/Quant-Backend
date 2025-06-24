@@ -1,9 +1,8 @@
-// src/modules/market-data/controller/TradeStreamController.ts
 import { Body, Controller, Delete, Get, Post } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CommonResponse } from 'src/common/response/CommonResponse';
-import { TradeService } from '../../service/trade/TradeService';
 import { SubscribeDto } from 'src/market-data/dto/trade/SubscribeDto';
+import { TradeService } from '../../service/trade/TradeService';
 
 @ApiTags('실시간 체결 내역')
 @Controller('market-data/trade')

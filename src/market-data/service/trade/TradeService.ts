@@ -6,6 +6,7 @@ import { TradeEntity } from 'src/market-data/infra/trade/TradeEntity';
 import { TradeRepository } from 'src/market-data/infra/trade/TradeRepository';
 import { TradeGateway } from '../../web/trade/TradeGateway';
 import { KlineService } from '../kline/KlineService';
+import { DEFAULT_SYMBOLS } from 'src/common/constant/DefaultSymbols';
 
 @Injectable()
 export class TradeService implements OnModuleInit {
@@ -21,9 +22,9 @@ export class TradeService implements OnModuleInit {
 
   onModuleInit() {
     // 애플리케이션 시작 시 기본 심볼 구독
-    // for (const symbol of DEFAULT_SYMBOLS) {
-    //   this.manager.subscribe(symbol);
-    // }
+    for (const symbol of DEFAULT_SYMBOLS) {
+      this.manager.subscribe(symbol);
+    }
   }
 
   private async handleTick(tick: ExternalTradeResponse) {

@@ -1,4 +1,3 @@
-// src/common/validator/IsSupportedSymbol.ts
 import {
   registerDecorator,
   ValidationArguments,

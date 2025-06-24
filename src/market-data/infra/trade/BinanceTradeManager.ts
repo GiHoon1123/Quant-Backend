@@ -1,4 +1,3 @@
-// src/modules/market-data/infra/BinanceTradeManager.ts
 import { ExternalTradeResponse } from '../../dto/trade/ExternalTradeResponse';
 import { BinanceTradeStream } from './BinanceTradeStream';
 
