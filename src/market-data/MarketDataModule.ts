@@ -6,12 +6,12 @@ import { KlineScheduler } from './scheduler/kline/KlineScheduler';
 import { KlineService } from './service/kline/KlineService';
 import { TradeService } from './service/trade/TradeService';
 import { KlineGateway } from './web/kline/KlineGateway';
-import { TradeController } from './web/trade/TradeController';
 import { TradeGateway } from './web/trade/TradeGateway';
+import { TradeWatchlistController } from './web/trade/TradeWatchlistController';
 
 @Module({
   imports: [],
-  controllers: [TradeController],
+  controllers: [TradeWatchlistController],
   providers: [
     TradeService,
     TradeGateway,
