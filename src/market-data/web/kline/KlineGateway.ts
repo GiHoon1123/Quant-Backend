@@ -9,7 +9,7 @@ export class KlineGateway {
   server: Server;
 
   sendKlinedata(data: ExternalKlineResponse) {
-    const response = KlineResponse.from(data);
+    const response = KlineResponse.fromWebSocket(data);
     console.log('📤 캔들차트 전송:', response);
     this.server.emit(`kline:${data.s}`, response);
   }

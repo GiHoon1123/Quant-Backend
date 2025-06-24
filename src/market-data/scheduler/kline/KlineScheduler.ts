@@ -5,32 +5,27 @@ import { KlineService } from 'src/market-data/service/kline/KlineService';
 export class KlineScheduler {
   constructor(private readonly klineService: KlineService) {}
 
-  //   @Cron('*/2 * * * *')
-  @Cron('*/1 * * * *')
+  @Cron('*/2 * * * *')
   async poll3m() {
     await this.poll('3m');
   }
 
-  //   @Cron('*/4 * * * *')
-  @Cron('*/1 * * * *')
+  @Cron('*/4 * * * *')
   async poll5m() {
     await this.poll('5m');
   }
 
-  //   @Cron('*/14 * * * *')
-  @Cron('*/1 * * * *')
+  @Cron('*/14 * * * *')
   async poll15m() {
     await this.poll('15m');
   }
 
-  //   @Cron('*/29 * * * *')
-  @Cron('*/1 * * * *')
+  @Cron('*/29 * * * *')
   async poll30m() {
     await this.poll('30m');
   }
 
-  //   @Cron('0,30 * * * *')
-  @Cron('*/1 * * * *')
+  @Cron('0,30 * * * *')
   async pollLongIntervals() {
     const intervals = [
       '1h',
@@ -52,7 +47,7 @@ export class KlineScheduler {
   private async poll(interval: string) {
     const symbols = this.klineService.getSubscribed();
     for (const symbol of symbols) {
-      await this.klineService.fetchCandles(symbol, interval);
+      await this.klineService.fetchCandlesAndSave(symbol, interval);
     }
   }
 }

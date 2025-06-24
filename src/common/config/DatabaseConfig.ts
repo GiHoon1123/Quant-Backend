@@ -1,4 +1,5 @@
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
+import * as path from 'path';
 
 export const typeOrmConfig: TypeOrmModuleOptions = {
   type: 'postgres',
@@ -7,6 +8,6 @@ export const typeOrmConfig: TypeOrmModuleOptions = {
   username: 'root',
   password: '1234',
   database: 'market_data',
-  entities: [__dirname + '/../**/*.entity{.ts,.js}'],
-  synchronize: true, // ⚠️ 개발용에서만 true
+  entities: [path.resolve(__dirname, '..', '..', '**', '*Entity.{ts,js}')],
+  synchronize: false,
 };
