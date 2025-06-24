@@ -8,9 +8,11 @@ export class KlineGateway {
   @WebSocketServer()
   server: Server;
 
-  sendKlinedata(data: ExternalKlineResponse) {
+  async sendKlinedata(data: ExternalKlineResponse) {
     const response = KlineResponse.fromWebSocket(data);
-    console.log('📤 캔들차트 전송:', response);
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+    console.log(`[${new Date().toISOString()}] 캔들 차트 전송 완료: ${data.s}`);
+
     this.server.emit(`kline:${data.s}`, response);
   }
 }

@@ -14,7 +14,7 @@ export class BinanceTradeStream {
     this.socket = new WebSocket(streamUrl);
 
     this.socket.on('open', () => {
-      console.log(`✅ Connected: ${this.symbol}`);
+      console.log(`✅ [TRADE] Connected: ${this.symbol}`);
     });
 
     this.socket.on('message', (data) => {
@@ -24,11 +24,11 @@ export class BinanceTradeStream {
     });
 
     this.socket.on('error', (err) => {
-      console.error(`❌ Error [${this.symbol}]`, err);
+      console.error(`❌ [TRADE] Error [${this.symbol}]`, err);
     });
 
     this.socket.on('close', () => {
-      console.log(`🔌 Disconnected: ${this.symbol}`);
+      console.log(`🔌 [TRADE] Disconnected: ${this.symbol}`);
     });
   }
 

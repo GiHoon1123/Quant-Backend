@@ -1,4 +1,5 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
+import { DEFAULT_SYMBOLS } from 'src/common/constant/DefaultSymbols';
 import { ExternalTradeResponse } from 'src/market-data/dto/trade/ExternalTradeResponse';
 import { TradeResponse } from 'src/market-data/dto/trade/TradeResponse';
 import { BinanceTradeManager } from 'src/market-data/infra/trade/BinanceTradeManager';
@@ -6,7 +7,6 @@ import { TradeEntity } from 'src/market-data/infra/trade/TradeEntity';
 import { TradeRepository } from 'src/market-data/infra/trade/TradeRepository';
 import { TradeGateway } from '../../web/trade/TradeGateway';
 import { KlineService } from '../kline/KlineService';
-import { DEFAULT_SYMBOLS } from 'src/common/constant/DefaultSymbols';
 
 @Injectable()
 export class TradeService implements OnModuleInit {
@@ -35,7 +35,6 @@ export class TradeService implements OnModuleInit {
 
     // 2. 내부 응답 DTO → 엔티티 변환
     const entity = TradeEntity.from(trade);
-    console.log(`거래 데이터 처리: ${entity.symbol} ${entity.tradeId}`);
 
     // 3. 저장
     this.tradeRepository.save(entity);

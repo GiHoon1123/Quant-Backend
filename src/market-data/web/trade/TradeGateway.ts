@@ -8,9 +8,12 @@ export class TradeGateway {
   @WebSocketServer()
   server: Server;
 
-  sendTradeData(data: ExternalTradeResponse) {
+  async sendTradeData(data: ExternalTradeResponse) {
     const response = TradeResponse.from(data);
-    console.log('📤 체결내역 전송:', response);
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+    console.log(
+      `[${new Date().toISOString()}] 📤 5초 대기 후 체결 내역 전송 완료: ${data.s}`,
+    );
     this.server.emit(`trade:${data.s}`, response);
   }
 }
