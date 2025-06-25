@@ -1,6 +1,22 @@
+import { ApiProperty } from '@nestjs/swagger';
+
 export class CommonResponse<T> {
+  @ApiProperty({
+    example: 200,
+    description: 'HTTP 상태 코드',
+  })
   status: number;
+
+  @ApiProperty({
+    example: '요청이 성공적으로 처리되었습니다.',
+    description: '응답 메시지',
+  })
   message: string;
+
+  @ApiProperty({
+    description: '응답 데이터',
+    nullable: true,
+  })
   data: T | null;
 
   private constructor(status: number, message: string, data: T | null) {
