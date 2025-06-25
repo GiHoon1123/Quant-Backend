@@ -1,9 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { BalanceResponse } from '../dto/BalanceResponse';
 import { ExternalBalanceResponse } from '../dto/ExternalBalanceResponse';
 import { ExternalPriceResponse } from '../dto/ExternalPriceResponse';
 import { BinanceOrderClient } from '../infra/BinanceOrderClient';
 import { BinancePriceClient } from '../infra/BinancePriceClient';
-import { BalanceResponse } from '../dto/BalanceResponse';
 
 @Injectable()
 export class OrderService {
@@ -117,6 +117,7 @@ export class OrderService {
   // ------------------- ✅ 잔고 조회 -------------------
   async getBalances(): Promise<BalanceResponse[]> {
     const raw = await this.orderClient.fetchBalances();
+
     const external = ExternalBalanceResponse.fromList(raw);
     return BalanceResponse.fromList(external);
   }
