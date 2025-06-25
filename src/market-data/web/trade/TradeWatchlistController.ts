@@ -11,7 +11,17 @@ export class TradeWatchlistController {
 
   @Post()
   @ApiOperation({ summary: '관심 종목 등록 (실시간 체결 데이터 수신)' })
-  @ApiResponse({ status: 201, description: '관심 종목 등록 성공' })
+  @ApiResponse({
+    status: 201,
+    description: '관심 종목 등록 성공',
+    schema: {
+      example: {
+        status: 201,
+        message: 'BTCUSDT 등록에 성공했습니다.',
+        data: null,
+      },
+    },
+  })
   watch(@Body() dto: WatchSymbolRequest) {
     const symbol = dto.symbol.toUpperCase();
     this.tradeService.subscribe(symbol);
@@ -24,7 +34,17 @@ export class TradeWatchlistController {
 
   @Delete()
   @ApiOperation({ summary: '관심 종목 해제 (실시간 체결 데이터 중단)' })
-  @ApiResponse({ status: 200, description: '관심 종목 해제 성공' })
+  @ApiResponse({
+    status: 200,
+    description: '관심 종목 해제 성공',
+    schema: {
+      example: {
+        status: 200,
+        message: 'BTCUSDT 해제에 성공했습니다.',
+        data: null,
+      },
+    },
+  })
   unwatch(@Body() dto: WatchSymbolRequest) {
     const symbol = dto.symbol.toUpperCase();
     this.tradeService.unsubscribe(symbol);
@@ -40,6 +60,13 @@ export class TradeWatchlistController {
   @ApiResponse({
     status: 200,
     description: '등록된 관심 종목 목록 반환',
+    schema: {
+      example: {
+        status: 200,
+        message: '관심 종목 목록입니다.',
+        data: ['BTCUSDT', 'ETHUSDT', 'XRPUSDT'],
+      },
+    },
   })
   getWatchedSymbols() {
     const symbols = this.tradeService.getSubscribedSymbols();

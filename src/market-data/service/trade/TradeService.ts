@@ -7,6 +7,7 @@ import { TradeEntity } from 'src/market-data/infra/trade/TradeEntity';
 import { TradeRepository } from 'src/market-data/infra/trade/TradeRepository';
 import { TradeGateway } from '../../web/trade/TradeGateway';
 import { KlineService } from '../kline/KlineService';
+import { SubscribedSymbolsResponse } from './../../dto/trade/SubscribedSymbolsResponse';
 
 @Injectable()
 export class TradeService implements OnModuleInit {
@@ -50,7 +51,7 @@ export class TradeService implements OnModuleInit {
     this.klineService.unsubscribe(symbol);
   }
 
-  getSubscribedSymbols(): string[] {
-    return this.manager.getSubscribedSymbols();
+  getSubscribedSymbols(): SubscribedSymbolsResponse {
+    return SubscribedSymbolsResponse.from(this.manager.getSubscribedSymbols());
   }
 }
