@@ -1,9 +1,10 @@
 import { Body, Controller, Get, Post } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CommonResponse } from 'src/common/response/CommonResponse';
-import { CancelOrderRequest } from '../dto/CancelOrderRequest';
-import { LimitOrderRequest } from '../dto/LimitOrderRequest';
-import { MarketOrderRequest } from '../dto/MarketOrderRequest';
+import { CancelOrderRequest } from '../dto/request/CancelOrderRequest';
+import { LimitOrderRequest } from '../dto/request/LimitOrderRequest';
+import { MarketBuyRequest } from '../dto/request/MarketBuyRequest';
+import { MarketSellRequest } from '../dto/request/MarketSellRequest';
 import { OrderService } from '../service/OrderService';
 
 @ApiTags('주문')
@@ -23,15 +24,15 @@ export class OrderController {
       },
     },
   })
-  async placeMarketBuy(@Body() dto: MarketOrderRequest) {
+  async placeMarketBuy(@Body() dto: MarketBuyRequest) {
     const result = await this.orderService.placeMarketBuyOrder(
       dto.symbol,
-      dto.quantity,
+      dto.usdtAmount,
     );
     return CommonResponse.success({
       status: 200,
       message: `${dto.symbol} 시장가 매수 주문이 완료되었습니다.`,
-      data: null,
+      data: result,
     });
   }
 
@@ -47,7 +48,7 @@ export class OrderController {
       },
     },
   })
-  async placeMarketSell(@Body() dto: MarketOrderRequest) {
+  async placeMarketSell(@Body() dto: MarketSellRequest) {
     const result = await this.orderService.placeMarketSellOrder(
       dto.symbol,
       dto.quantity,
@@ -55,7 +56,7 @@ export class OrderController {
     return CommonResponse.success({
       status: 200,
       message: `${dto.symbol} 시장가 매도 주문이 완료되었습니다.`,
-      data: null,
+      data: result,
     });
   }
 
@@ -80,7 +81,7 @@ export class OrderController {
     return CommonResponse.success({
       status: 200,
       message: `${dto.symbol} 지정가 매수 주문이 완료되었습니다.`,
-      data: null,
+      data: result,
     });
   }
 
@@ -105,7 +106,7 @@ export class OrderController {
     return CommonResponse.success({
       status: 200,
       message: `${dto.symbol} 지정가 매도 주문이 완료되었습니다.`,
-      data: null,
+      data: result,
     });
   }
 
@@ -126,7 +127,7 @@ export class OrderController {
     return CommonResponse.success({
       status: 200,
       message: `주문이 취소되었습니다.`,
-      data: null,
+      data: result,
     });
   }
 

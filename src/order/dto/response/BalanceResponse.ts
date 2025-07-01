@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { ExternalBalanceResponse } from './ExternalBalanceResponse';
+import { ExternalBalanceResponse } from '../external/ExternalBalanceResponse';
 
 export class BalanceResponse {
   @ApiProperty({

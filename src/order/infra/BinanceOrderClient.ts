@@ -1,7 +1,8 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { CryptoUtil } from 'src/common/utils/CryptoUtil';
+import { handleBinanceAxiosError } from 'src/common/utils/binance/BinanceAxiosErrorHandler';
 
 const BASE_URL = 'https://api.binance.com';
 
@@ -16,11 +17,22 @@ export class BinanceOrderClient {
       this.configService.getOrThrow<string>('BINANCE_API_SECRET');
   }
 
-  async placeMarketOrder(symbol: string, side: string, quantity: number) {
+  async placeMarketOrder(
+    symbol: string,
+    side: 'BUY' | 'SELL',
+    quantityOrQuoteQty: number,
+  ) {
     try {
       const endpoint = '/api/v3/order';
       const timestamp = Date.now();
-      const query = `symbol=${symbol}&side=${side}&type=MARKET&quantity=${quantity}&timestamp=${timestamp}`;
+
+      const baseParams = `symbol=${symbol}&side=${side}&type=MARKET&timestamp=${timestamp}`;
+      const quantityParam =
+        side === 'BUY'
+          ? `quoteOrderQty=${quantityOrQuoteQty}`
+          : `quantity=${quantityOrQuoteQty}`;
+
+      const query = `${baseParams}&${quantityParam}`;
       const signature = CryptoUtil.generateBinanceSignature(
         query,
         this.apiSecret,
@@ -37,9 +49,10 @@ export class BinanceOrderClient {
 
       return res.data;
     } catch (error) {
-      console.error('Error placing market order:', error);
-      throw new InternalServerErrorException(
+      handleBinanceAxiosError(
+        error,
         '시장가 주문에 실패했습니다. 나중에 다시 시도해주세요.',
+        symbol,
       );
     }
   }
@@ -71,9 +84,10 @@ export class BinanceOrderClient {
 
       return res.data;
     } catch (error) {
-      console.error('Error placing limit order:', error);
-      throw new InternalServerErrorException(
+      handleBinanceAxiosError(
+        error,
         '지정가 주문에 실패했습니다. 나중에 다시 시도해주세요.',
+        symbol,
       );
     }
   }
@@ -92,11 +106,13 @@ export class BinanceOrderClient {
       const res = await axios.delete(`${BASE_URL}${endpoint}?${finalQuery}`, {
         headers: { 'X-MBX-APIKEY': this.apiKey },
       });
+
       return res.data;
     } catch (error) {
-      console.error('Error cancelling order:', error);
-      throw new InternalServerErrorException(
+      handleBinanceAxiosError(
+        error,
         '주문 취소에 실패했습니다. 나중에 다시 시도해주세요.',
+        symbol,
       );
     }
   }
@@ -128,8 +144,8 @@ export class BinanceOrderClient {
         }))
         .filter((b) => b.free > 0 || b.locked > 0);
     } catch (error) {
-      console.error('Error fetching balances:', error);
-      throw new InternalServerErrorException(
+      handleBinanceAxiosError(
+        error,
         '잔고 조회에 실패했습니다. 나중에 다시 시도해주세요.',
       );
     }

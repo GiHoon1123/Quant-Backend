@@ -1,6 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsNumber, IsPositive, IsString } from 'class-validator';
-import { IsModifiableSymbol } from 'src/common/validator/IsModifiableSymbol';
 import { IsSupportedSymbol } from 'src/common/validator/IsSupportedSymbol';
 
 export class CancelOrderRequest {
@@ -8,7 +7,6 @@ export class CancelOrderRequest {
     example: 'BTCUSDT',
     description: '주문을 취소할 심볼',
   })
-  @IsModifiableSymbol()
   @IsSupportedSymbol({ message: '지원하지 않는 코인 심볼입니다.' })
   @IsString()
   @IsNotEmpty()
