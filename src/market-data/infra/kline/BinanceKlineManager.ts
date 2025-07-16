@@ -1,3 +1,4 @@
+// test
 import { ExternalKlineResponse } from '../../dto/kline/ExternalKlineResponse';
 import { BinanceKlineStream } from './BinanceKlineStream';
 
