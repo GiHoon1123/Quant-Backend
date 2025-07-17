@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { BinanceWebSocketClient } from '../../common/binance/BinanceWebSocketClient';
-import { CandleData, TimeFrame } from '../types/TechnicalAnalysisTypes';
+import { BinanceWebSocketClient } from 'src/common/binance/BinanceWebSocketClient';
+import {
+  CandleData,
+  TimeFrame,
+} from 'src/technical-analysis/types/TechnicalAnalysisTypes';
 
 /**
  * 실시간 캔들 어그리게이터 서비스
@@ -210,8 +213,11 @@ export class RealtimeCandleAggregator {
 
     this.aggregatedCandles.set(aggregatedKey, aggregatedCandles);
 
-    // 새로운 캔들 완성 시 이벤트 발생
-    this.onCandleCompleted(baseKey, timeframe, aggregated);
+    // 새로운 캔들 완성 시 이벤트 발생 (마지막 캔들 전달)
+    if (aggregatedCandles.length > 0) {
+      const lastCandle = aggregatedCandles[aggregatedCandles.length - 1];
+      this.onCandleCompleted(baseKey, timeframe, lastCandle);
+    }
   }
 
   /**

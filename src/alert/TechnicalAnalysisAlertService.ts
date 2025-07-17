@@ -1,11 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { BinanceWebSocketClient } from '../../common/binance/BinanceWebSocketClient';
+
+import { BinanceWebSocketClient } from 'src/common/binance/BinanceWebSocketClient';
+import { TimeFrame } from 'src/technical-analysis/types/TechnicalAnalysisTypes';
 import { TechnicalAnalysisService } from '../technical-analysis/service/TechnicalAnalysisService';
-import {
-  TimeFrame,
-  SignalType,
-} from '../technical-analysis/types/StrategyTypes';
+import { SignalType } from '../technical-analysis/types/StrategyTypes';
 
 /**
  * 실시간 기술적 분석 알림 서비스
