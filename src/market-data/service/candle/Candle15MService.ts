@@ -1,14 +1,14 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { EventEmitter } from 'events';
 import { DEFAULT_SYMBOLS } from 'src/common/constant/DefaultSymbols';
+import { TelegramNotificationService } from 'src/common/notification/TelegramNotificationService';
+import { ExternalCandleResponse } from 'src/market-data/dto/candle/ExternalCandleResponse';
+import { BinanceCandle15MManager } from 'src/market-data/infra/candle/BinanceCandle15MManager';
 import {
   Candle15MEntity,
   CandleData,
 } from 'src/market-data/infra/candle/Candle15MEntity';
-import { ExternalCandleResponse } from 'src/market-data/dto/candle/ExternalCandleResponse';
-import { BinanceCandle15MManager } from 'src/market-data/infra/candle/BinanceCandle15MManager';
 import { Candle15MRepository } from 'src/market-data/infra/candle/Candle15MRepository';
-import { TelegramNotificationService } from '../notification/TelegramNotificationService';
 
 /**
  * 15분봉 캔들 서비스
@@ -119,9 +119,17 @@ export class Candle15MService implements OnModuleInit, OnModuleDestroy {
         takerBuyQuoteVolume: parseFloat(klineData.Q),
       };
 
-      console.log(
-        `[Candle15MService] 15분봉 데이터 수신: ${symbol} - ${new Date(candleData.openTime).toISOString()} (진행중)`,
-      );
+      // 진행중 로그는 30초마다만 출력 (로그 스팸 방지)
+      const now = Date.now();
+      const lastLogKey = `${symbol}_serviceLog`;
+      const lastLogTime = (this as any)[lastLogKey] || 0;
+
+      if (now - lastLogTime > 30000) {
+        console.log(
+          `[Candle15MService] 15분봉 데이터 수신: ${symbol} - ${new Date(candleData.openTime).toISOString()} (진행중)`,
+        );
+        (this as any)[lastLogKey] = now;
+      }
 
       // 진행 중인 캔들 데이터 업데이트
       this.ongoingCandles.set(symbol, candleData);
@@ -141,7 +149,10 @@ export class Candle15MService implements OnModuleInit, OnModuleDestroy {
         await this.performTechnicalAnalysis(symbol);
       }
 
-      console.log(`[Candle15MService] 15분봉 데이터 처리 완료: ${symbol}`);
+      // 처리 완료 로그도 30초마다만 출력
+      if (now - lastLogTime > 30000) {
+        console.log(`[Candle15MService] 15분봉 데이터 처리 완료: ${symbol}`);
+      }
     } catch (error) {
       console.error('[Candle15MService] Candle 데이터 처리 중 오류:', error);
     }
@@ -494,11 +505,14 @@ export class Candle15MService implements OnModuleInit, OnModuleDestroy {
     };
   }): Promise<void> {
     try {
-      // 텔레그램으로 분석 결과 알림 발송
+      // 새로운 템플릿을 사용한 기술적 분석 알림 발송
       await this.telegramNotificationService.sendAnalysisResult(
         data.symbol,
         data.result,
       );
+
+      // 추가로 특별한 상황에 대한 상세 알림
+      await this.sendDetailedTechnicalAlerts(data.symbol, data.result);
 
       console.log(
         `[Candle15MService] ${data.symbol} 분석 결과 텔레그램 알림 발송 완료`,
@@ -506,6 +520,118 @@ export class Candle15MService implements OnModuleInit, OnModuleDestroy {
     } catch (error) {
       console.error(
         `[Candle15MService] ${data.symbol} 텔레그램 알림 발송 실패:`,
+        error,
+      );
+    }
+  }
+
+  /**
+   * 상세 기술적 분석 알림 발송
+   *
+   * @param symbol 거래 심볼
+   * @param result 분석 결과
+   */
+  private async sendDetailedTechnicalAlerts(
+    symbol: string,
+    result: {
+      signal: 'BUY' | 'SELL' | 'HOLD';
+      indicators: Record<string, any>;
+      price: number;
+      timestamp: Date;
+    },
+  ): Promise<void> {
+    try {
+      const { indicators, price, timestamp } = result;
+
+      // 1. 이동평균선 관련 알림
+      if (indicators.SMA5 && indicators.SMA10 && indicators.SMA20) {
+        // SMA5가 SMA20을 상향 돌파한 경우
+        if (
+          indicators.SMA5 > indicators.SMA20 &&
+          indicators.SMA5 / indicators.SMA20 > 1.02 // 2% 이상 차이
+        ) {
+          await this.telegramNotificationService.sendMABreakoutAlert(
+            symbol,
+            '15m',
+            20,
+            price,
+            indicators.SMA20,
+            'breakout_up',
+            timestamp,
+          );
+        }
+        // SMA5가 SMA20을 하향 이탈한 경우
+        else if (
+          indicators.SMA5 < indicators.SMA20 &&
+          indicators.SMA5 / indicators.SMA20 < 0.98 // 2% 이상 차이
+        ) {
+          await this.telegramNotificationService.sendMABreakoutAlert(
+            symbol,
+            '15m',
+            20,
+            price,
+            indicators.SMA20,
+            'breakout_down',
+            timestamp,
+          );
+        }
+      }
+
+      // 2. 거래량 급증 알림
+      if (
+        indicators.VolumeRatio &&
+        indicators.VolumeRatio > 3 // 평균의 3배 이상
+      ) {
+        await this.telegramNotificationService.sendTextMessage(
+          `🔥 <b>${symbol} 거래량 급증!</b>\n\n` +
+            `📊 현재 거래량: ${indicators.Volume?.toFixed(2) || 'N/A'}\n` +
+            `📈 평균 거래량: ${indicators.AvgVolume?.toFixed(2) || 'N/A'}\n` +
+            `🚀 거래량 비율: <b>${indicators.VolumeRatio.toFixed(1)}배</b>\n` +
+            `💡 의미: 강한 관심 증가 → 큰 움직임 예상\n` +
+            `🕒 감지 시점: ${this.telegramNotificationService['formatTimeWithKST'](timestamp)}`,
+        );
+      }
+
+      // 3. 강한 모멘텀 알림 (3개 이동평균이 모두 정렬된 경우)
+      if (
+        indicators.SMA5 &&
+        indicators.SMA10 &&
+        indicators.SMA20 &&
+        result.signal !== 'HOLD'
+      ) {
+        const isStrongUptrend =
+          indicators.SMA5 > indicators.SMA10 &&
+          indicators.SMA10 > indicators.SMA20 &&
+          indicators.VolumeRatio > 1.5;
+
+        const isStrongDowntrend =
+          indicators.SMA5 < indicators.SMA10 &&
+          indicators.SMA10 < indicators.SMA20 &&
+          indicators.VolumeRatio > 1.5;
+
+        if (isStrongUptrend) {
+          await this.telegramNotificationService.sendTextMessage(
+            `🚀 <b>${symbol} 강한 상승 모멘텀!</b>\n\n` +
+              `📈 이동평균 정배열: SMA5 > SMA10 > SMA20\n` +
+              `📊 거래량 증가: ${indicators.VolumeRatio.toFixed(1)}배\n` +
+              `💡 의미: 강력한 상승 추세 → 지속 상승 기대\n` +
+              `🎯 전략: 추세 추종 매수 고려\n` +
+              `🕒 ${this.telegramNotificationService['formatTimeWithKST'](timestamp)}`,
+          );
+        } else if (isStrongDowntrend) {
+          await this.telegramNotificationService.sendTextMessage(
+            `📉 <b>${symbol} 강한 하락 모멘텀!</b>\n\n` +
+              `📉 이동평균 역배열: SMA5 < SMA10 < SMA20\n` +
+              `📊 거래량 증가: ${indicators.VolumeRatio.toFixed(1)}배\n` +
+              `💡 의미: 강력한 하락 추세 → 지속 하락 우려\n` +
+              `🎯 전략: 손절 또는 공매도 고려\n` +
+              `🕒 ${this.telegramNotificationService['formatTimeWithKST'](timestamp)}`,
+          );
+        }
+      }
+    } catch (error) {
+      console.error(
+        `[Candle15MService] ${symbol} 상세 기술적 분석 알림 실패:`,
         error,
       );
     }

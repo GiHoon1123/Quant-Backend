@@ -425,12 +425,12 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
         this.emitCandleCompletedEvent(symbol, candleData);
       } else {
         // 진행 중인 캔들 (실시간 업데이트)
-        // 5초마다 한 번씩만 로깅 (로그 스팸 방지)
+        // 30초마다 한 번씩만 로깅 (로그 스팸 방지)
         const now = Date.now();
         const lastLogKey = `${symbol}_lastLog`;
         const lastLogTime = (this as any)[lastLogKey] || 0;
 
-        if (now - lastLogTime > 5000) {
+        if (now - lastLogTime > 30000) {
           console.log(
             `📊 [${symbol}] 15분봉 업데이트: $${candleData.close.toFixed(2)} (거래량: ${candleData.volume.toFixed(2)})`,
           );
@@ -606,6 +606,7 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
       } else {
         // 새로운 시간의 캔들이면 추가
         candles.push({ ...newCandle });
+        // 새로운 캔들 추가는 중요한 이벤트이므로 로깅 유지
         console.log(
           `➕ [${cacheKey}] 메모리 캐시 추가: 새로운 캔들 (총 ${candles.length}개)`,
         );
@@ -615,6 +616,7 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
       if (candles.length > this.MAX_MEMORY_CANDLES) {
         const removedCount = candles.length - this.MAX_MEMORY_CANDLES;
         candles = candles.slice(-this.MAX_MEMORY_CANDLES);
+        // 메모리 정리는 가끔 발생하므로 로깅 유지
         console.log(
           `🗑️ [${cacheKey}] 오래된 캔들 ${removedCount}개 메모리에서 제거 (현재: ${candles.length}개)`,
         );

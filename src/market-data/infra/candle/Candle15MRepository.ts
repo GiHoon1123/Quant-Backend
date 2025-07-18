@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Candle15MEntity } from './Candle15MEntity';
 import { FindOptionsWhere, LessThan, MoreThan, Repository } from 'typeorm';
 import {
+  Candle15MEntity,
   CandleData,
   CandleQueryOptions,
   CandleStatistics,
@@ -118,9 +118,8 @@ export class Candle15MRepository {
         this.mapCandleDataToEntity(candle, candleData);
         operation = '업데이트';
 
-        console.log(
-          `🔄 [${symbol}_${market}] 기존 캔들 업데이트: ${new Date(candleData.openTime).toISOString()}`,
-        );
+        // 업데이트는 자주 발생하므로 로깅 제거
+        // console.log(`🔄 [${symbol}_${market}] 기존 캔들 업데이트: ${new Date(candleData.openTime).toISOString()}`);
       } else {
         // 새로운 캔들 생성
         candle = new Candle15MEntity();
@@ -139,9 +138,12 @@ export class Candle15MRepository {
       const savedCandle = await this.repository.save(candle);
 
       const duration = Date.now() - startTime;
-      console.log(
-        `✅ [${symbol}_${market}] 캔들 ${operation} 완료 - ID: ${savedCandle.id}, 소요시간: ${duration}ms`,
-      );
+      // 저장 완료 로그는 새로운 캔들일 때만 출력
+      if (operation === '생성') {
+        console.log(
+          `✅ [${symbol}_${market}] 캔들 ${operation} 완료 - ID: ${savedCandle.id}, 소요시간: ${duration}ms`,
+        );
+      }
 
       return savedCandle;
     } catch (error) {
@@ -789,6 +791,80 @@ export class Candle15MRepository {
     } catch (error) {
       console.error('❌ 캔들 데이터베이스 연결 상태 비정상:', error.message);
       return false;
+    }
+  }
+
+  /**
+   * 특정 시간의 캔들 존재 여부 확인
+   *
+   * @param symbol 심볼
+   * @param market 시장 구분
+   * @param openTime 캔들 시작 시간 (Unix timestamp)
+   * @returns 기존 캔들 엔티티 또는 null
+   */
+  async findByOpenTime(
+    symbol: string,
+    market: 'FUTURES' | 'SPOT',
+    openTime: number,
+  ): Promise<Candle15MEntity | null> {
+    try {
+      const candle = await this.repository.findOne({
+        where: {
+          symbol,
+          market,
+          openTime: new Date(openTime),
+        },
+      });
+
+      return candle || null;
+    } catch (error) {
+      console.error(`❌ [${symbol}] openTime으로 캔들 조회 실패:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * 심볼별 총 캔들 수 조회
+   *
+   * @param symbol 심볼
+   * @param market 시장 구분
+   * @returns 총 캔들 수
+   */
+  async countCandles(symbol: string, market: 'FUTURES' | 'SPOT'): Promise<number> {
+    try {
+      return await this.repository.count({
+        where: { symbol, market },
+      });
+    } catch (error) {
+      console.error(`❌ [${symbol}] 캔들 수 조회 실패:`, error);
+      return 0;
+    }
+  }
+
+  /**
+   * 가장 오래된 캔들 조회
+   *
+   * @param symbol 심볼
+   * @param market 시장 구분
+   * @param limit 조회할 개수
+   * @returns 가장 오래된 캔들 데이터 배열
+   */
+  async findEarliestCandles(
+    symbol: string,
+    market: 'FUTURES' | 'SPOT',
+    limit: number = 100,
+  ): Promise<CandleData[]> {
+    try {
+      const entities = await this.repository.find({
+        where: { symbol, market },
+        order: { openTime: 'ASC' }, // 오름차순 (가장 오래된 것부터)
+        take: limit,
+      });
+
+      return entities.map((entity) => entity.toCandleData());
+    } catch (error) {
+      console.error(`❌ [${symbol}] 가장 오래된 캔들 조회 실패:`, error);
+      return [];
     }
   }
 }

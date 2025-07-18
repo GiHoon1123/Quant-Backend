@@ -438,9 +438,8 @@ export class Candle15MEntity {
       this.timeframe = '15m';
     }
 
-    console.log(
-      `✅ [Candle15M] ${this.symbol}_${this.market} 캔들 삽입 전 검증 완료 - ${this.openTime.toISOString()}`,
-    );
+    // 검증 완료 (로그 제거 - 너무 verbose함)
+    // console.log(`✅ [Candle15M] ${this.symbol}_${this.market} 캔들 삽입 전 검증 완료 - ${this.openTime.toISOString()}`);
   }
 
   /**
@@ -453,9 +452,8 @@ export class Candle15MEntity {
   validateBeforeUpdate(): void {
     // 수정 시에도 동일한 검증 수행
     this.validateBeforeInsert();
-    console.log(
-      `🔄 [Candle15M] ${this.symbol}_${this.market} 캔들 수정 전 검증 완료 - ${this.openTime.toISOString()}`,
-    );
+    // 검증 완료 로그 제거 (너무 verbose함)
+    // console.log(`🔄 [Candle15M] ${this.symbol}_${this.market} 캔들 수정 전 검증 완료 - ${this.openTime.toISOString()}`);
   }
 
   /**
