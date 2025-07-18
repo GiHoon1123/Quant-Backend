@@ -7,10 +7,10 @@ import { TelegramNotificationService } from '../common/notification/TelegramNoti
 // 15분봉 관련 import
 import { Candle15MEntity } from './infra/candle/Candle15MEntity';
 import { Candle15MRepository } from './infra/candle/Candle15MRepository';
-import { Candle15MService } from './service/candle/Candle15MService';
 import { BinanceHistoryDataService } from './service/candle/BinanceHistoryDataService';
-import { Candle15MController } from './web/candle/Candle15MController';
+import { Candle15MService } from './service/candle/Candle15MService';
 import { BinanceHistoryController } from './web/candle/BinanceHistoryController';
+import { Candle15MController } from './web/candle/Candle15MController';
 
 @Module({
   imports: [

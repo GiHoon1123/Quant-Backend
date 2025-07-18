@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
-import { Candle15MRepository } from '../../infra/candle/Candle15MRepository';
 import { CandleData } from '../../infra/candle/Candle15MEntity';
+import { Candle15MRepository } from '../../infra/candle/Candle15MRepository';
 
 /**
  * 바이낸스 히스토리컬 데이터 수집 서비스
@@ -40,7 +40,7 @@ import { CandleData } from '../../infra/candle/Candle15MEntity';
 export class BinanceHistoryDataService {
   private readonly BASE_URL = 'https://fapi.binance.com';
   private readonly KLINES_ENDPOINT = '/fapi/v1/klines';
-  
+
   /**
    * API 제한 및 최적화 설정
    */
@@ -83,12 +83,14 @@ export class BinanceHistoryDataService {
     // 4년 전부터 시작 (더 확실한 과거 데이터)
     const fourYearsAgo = new Date();
     fourYearsAgo.setFullYear(fourYearsAgo.getFullYear() - 4);
-    
+
     const startTime = fourYearsAgo;
     const endTime = new Date();
 
     console.log(`🚀 [${symbol}] 4년치 히스토리컬 데이터 수집 시작`);
-    console.log(`📅 수집 범위: ${startTime.toISOString()} ~ ${endTime.toISOString()}`);
+    console.log(
+      `📅 수집 범위: ${startTime.toISOString()} ~ ${endTime.toISOString()}`,
+    );
 
     return await this.collectDataInRange(symbol, startTime, endTime);
   }
@@ -129,27 +131,37 @@ export class BinanceHistoryDataService {
 
       console.log(`📊 [${symbol}] 기존 데이터 상태 확인:`);
       if (firstCandle) {
-        console.log(`   • 첫 번째 캔들: ${new Date(firstCandle.openTime).toISOString()}`);
+        console.log(
+          `   • 첫 번째 캔들: ${new Date(firstCandle.openTime).toISOString()}`,
+        );
       }
       if (lastCandle) {
-        console.log(`   • 마지막 캔들: ${new Date(lastCandle.openTime).toISOString()}`);
+        console.log(
+          `   • 마지막 캔들: ${new Date(lastCandle.openTime).toISOString()}`,
+        );
       }
 
       // 기존 데이터가 있을 때 처리 방식 개선
       if (firstCandle && lastCandle) {
         const firstCandleTime = new Date(firstCandle.openTime);
         const lastCandleTime = new Date(lastCandle.openTime);
-        
+
         // 과거 데이터 부족 확인
         if (firstCandleTime > startTime) {
-          console.log(`📅 [${symbol}] 과거 데이터 부족 감지, ${startTime.toISOString()}부터 ${firstCandleTime.toISOString()}까지 수집`);
+          console.log(
+            `📅 [${symbol}] 과거 데이터 부족 감지, ${startTime.toISOString()}부터 ${firstCandleTime.toISOString()}까지 수집`,
+          );
           currentStartTime = startTime;
         } else if (lastCandleTime < endTime) {
           // 최신 데이터 부족 확인
           const timeDiffToEnd = endTime.getTime() - lastCandleTime.getTime();
           if (timeDiffToEnd > this.CANDLE_INTERVAL_MS) {
-            currentStartTime = new Date(lastCandleTime.getTime() + this.CANDLE_INTERVAL_MS);
-            console.log(`� [${symbol}] 최신 데이터 부족 감지, ${currentStartTime.toISOString()}부터 재개`);
+            currentStartTime = new Date(
+              lastCandleTime.getTime() + this.CANDLE_INTERVAL_MS,
+            );
+            console.log(
+              `� [${symbol}] 최신 데이터 부족 감지, ${currentStartTime.toISOString()}부터 재개`,
+            );
           } else {
             console.log(`✅ [${symbol}] 데이터가 이미 최신 상태입니다.`);
             return {
@@ -170,10 +182,12 @@ export class BinanceHistoryDataService {
 
       // 2. 시간 유효성 검증
       const timeDifference = endTime.getTime() - currentStartTime.getTime();
-      
+
       if (timeDifference <= 0) {
-        console.log(`ℹ️ [${symbol}] 수집할 데이터가 없습니다. (시작: ${currentStartTime.toISOString()}, 종료: ${endTime.toISOString()})`);
-        
+        console.log(
+          `ℹ️ [${symbol}] 수집할 데이터가 없습니다. (시작: ${currentStartTime.toISOString()}, 종료: ${endTime.toISOString()})`,
+        );
+
         const result = {
           success: true,
           totalCandles: 0,
@@ -184,14 +198,18 @@ export class BinanceHistoryDataService {
           duration: Date.now() - collectionStartTime,
           errors: [],
         };
-        
+
         console.log(`✅ [${symbol}] 데이터가 이미 최신 상태입니다.`);
         return result;
       }
 
       // 3. 예상 캔들 수 계산
-      const expectedCandles = Math.floor(timeDifference / this.CANDLE_INTERVAL_MS);
-      console.log(`📈 [${symbol}] 예상 수집 캔들 수: ${expectedCandles.toLocaleString()}개`);
+      const expectedCandles = Math.floor(
+        timeDifference / this.CANDLE_INTERVAL_MS,
+      );
+      console.log(
+        `📈 [${symbol}] 예상 수집 캔들 수: ${expectedCandles.toLocaleString()}개`,
+      );
 
       // 3. 배치 단위로 데이터 수집
       let currentTime = currentStartTime.getTime();
@@ -202,21 +220,22 @@ export class BinanceHistoryDataService {
       while (currentTime < endTimeMs) {
         try {
           batchCount++;
-          
+
           // 3-1. 바이낸스 API 호출
           const batchEndTime = Math.min(
-            currentTime + (this.LIMITS.MAX_CANDLES_PER_REQUEST * this.CANDLE_INTERVAL_MS),
-            endTimeMs
+            currentTime +
+              this.LIMITS.MAX_CANDLES_PER_REQUEST * this.CANDLE_INTERVAL_MS,
+            endTimeMs,
           );
 
           console.log(
-            `📡 [${symbol}] 배치 ${batchCount} 요청: ${new Date(currentTime).toISOString()} ~ ${new Date(batchEndTime).toISOString()}`
+            `📡 [${symbol}] 배치 ${batchCount} 요청: ${new Date(currentTime).toISOString()} ~ ${new Date(batchEndTime).toISOString()}`,
           );
 
           const candleData = await this.fetchCandlesFromBinance(
             symbol,
             currentTime,
-            batchEndTime
+            batchEndTime,
           );
 
           if (candleData.length === 0) {
@@ -229,12 +248,15 @@ export class BinanceHistoryDataService {
           totalCandles += candleData.length;
 
           console.log(
-            `✅ [${symbol}] 배치 ${batchCount} 완료: ${candleData.length}개 캔들 수집 (누적: ${totalCandles.toLocaleString()}개)`
+            `✅ [${symbol}] 배치 ${batchCount} 완료: ${candleData.length}개 캔들 수집 (누적: ${totalCandles.toLocaleString()}개)`,
           );
 
           // 3-3. 배치 크기만큼 모이면 DB 저장
           if (pendingCandles.length >= this.LIMITS.BATCH_SIZE) {
-            const saveResult = await this.saveCandlesBatch(symbol, pendingCandles.splice(0, this.LIMITS.BATCH_SIZE));
+            const saveResult = await this.saveCandlesBatch(
+              symbol,
+              pendingCandles.splice(0, this.LIMITS.BATCH_SIZE),
+            );
             newCandles += saveResult.newCandles;
             duplicateCandles += saveResult.duplicateCandles;
           }
@@ -245,9 +267,11 @@ export class BinanceHistoryDataService {
 
           // 3-5. Rate Limit 방지 지연
           await this.sleep(this.LIMITS.REQUEST_DELAY_MS);
-
         } catch (error) {
-          console.error(`❌ [${symbol}] 배치 ${batchCount} 실패:`, error.message);
+          console.error(
+            `❌ [${symbol}] 배치 ${batchCount} 실패:`,
+            error.message,
+          );
           errors.push({
             batchCount,
             timestamp: new Date(currentTime),
@@ -262,43 +286,63 @@ export class BinanceHistoryDataService {
             retryCount++;
             const retryDelay = 1000 * retryCount; // 1초, 2초, 3초 지연
 
-            console.log(`🔄 [${symbol}] 배치 ${batchCount} 재시도 ${retryCount}/${this.LIMITS.MAX_RETRIES} (${retryDelay}ms 후)`);
+            console.log(
+              `🔄 [${symbol}] 배치 ${batchCount} 재시도 ${retryCount}/${this.LIMITS.MAX_RETRIES} (${retryDelay}ms 후)`,
+            );
             await this.sleep(retryDelay);
 
             try {
               const batchEndTime = Math.min(
-                currentTime + (this.LIMITS.MAX_CANDLES_PER_REQUEST * this.CANDLE_INTERVAL_MS),
-                endTimeMs
+                currentTime +
+                  this.LIMITS.MAX_CANDLES_PER_REQUEST * this.CANDLE_INTERVAL_MS,
+                endTimeMs,
               );
 
-              const retryData = await this.fetchCandlesFromBinance(symbol, currentTime, batchEndTime);
-              
+              const retryData = await this.fetchCandlesFromBinance(
+                symbol,
+                currentTime,
+                batchEndTime,
+              );
+
               if (retryData.length > 0) {
                 pendingCandles.push(...retryData);
                 totalCandles += retryData.length;
-                
+
                 const lastCandle = retryData[retryData.length - 1];
                 currentTime = lastCandle.openTime + this.CANDLE_INTERVAL_MS;
                 retrySuccess = true;
 
-                console.log(`✅ [${symbol}] 배치 ${batchCount} 재시도 성공: ${retryData.length}개 캔들`);
+                console.log(
+                  `✅ [${symbol}] 배치 ${batchCount} 재시도 성공: ${retryData.length}개 캔들`,
+                );
               }
             } catch (retryError) {
-              console.error(`❌ [${symbol}] 재시도 ${retryCount} 실패:`, retryError.message);
+              console.error(
+                `❌ [${symbol}] 재시도 ${retryCount} 실패:`,
+                retryError.message,
+              );
             }
           }
 
           if (!retrySuccess) {
-            console.error(`💥 [${symbol}] 배치 ${batchCount} 최종 실패 - 다음 배치로 건너뜀`);
-            currentTime += this.LIMITS.MAX_CANDLES_PER_REQUEST * this.CANDLE_INTERVAL_MS;
+            console.error(
+              `💥 [${symbol}] 배치 ${batchCount} 최종 실패 - 다음 배치로 건너뜀`,
+            );
+            currentTime +=
+              this.LIMITS.MAX_CANDLES_PER_REQUEST * this.CANDLE_INTERVAL_MS;
           }
         }
       }
 
       // 4. 남은 데이터 저장
       if (pendingCandles.length > 0) {
-        console.log(`💾 [${symbol}] 남은 ${pendingCandles.length}개 캔들 저장 중...`);
-        const finalSaveResult = await this.saveCandlesBatch(symbol, pendingCandles);
+        console.log(
+          `💾 [${symbol}] 남은 ${pendingCandles.length}개 캔들 저장 중...`,
+        );
+        const finalSaveResult = await this.saveCandlesBatch(
+          symbol,
+          pendingCandles,
+        );
         newCandles += finalSaveResult.newCandles;
         duplicateCandles += finalSaveResult.duplicateCandles;
       }
@@ -322,17 +366,21 @@ export class BinanceHistoryDataService {
       console.log(`   • 신규 저장: ${newCandles.toLocaleString()}개`);
       console.log(`   • 중복 건너뜀: ${duplicateCandles.toLocaleString()}개`);
       console.log(`   • 소요 시간: ${Math.round(duration / 1000)}초`);
-      console.log(`   • 처리 속도: ${Math.round(totalCandles / (duration / 1000))} 캔들/초`);
-      
+      console.log(
+        `   • 처리 속도: ${Math.round(totalCandles / (duration / 1000))} 캔들/초`,
+      );
+
       if (errors.length > 0) {
         console.log(`   • 오류 발생: ${errors.length}개 배치`);
       }
 
       return result;
-
     } catch (error) {
-      console.error(`💥 [${symbol}] 히스토리컬 데이터 수집 치명적 오류:`, error);
-      
+      console.error(
+        `💥 [${symbol}] 히스토리컬 데이터 수집 치명적 오류:`,
+        error,
+      );
+
       const duration = Date.now() - collectionStartTime;
       return {
         success: false,
@@ -370,7 +418,7 @@ export class BinanceHistoryDataService {
     };
 
     try {
-      const response = await axios.get(url, { 
+      const response = await axios.get(url, {
         params,
         timeout: 10000, // 10초 타임아웃
       });
@@ -393,12 +441,15 @@ export class BinanceHistoryDataService {
         takerBuyBaseVolume: parseFloat(item[9]),
         takerBuyQuoteVolume: parseFloat(item[10]),
       }));
-
     } catch (error) {
       if (error.response?.status === 429) {
-        throw new Error(`Rate limit exceeded. Status: ${error.response.status}`);
+        throw new Error(
+          `Rate limit exceeded. Status: ${error.response.status}`,
+        );
       } else if (error.response?.status >= 400) {
-        throw new Error(`Binance API error. Status: ${error.response.status}, Message: ${error.response.data?.msg || 'Unknown'}`);
+        throw new Error(
+          `Binance API error. Status: ${error.response.status}, Message: ${error.response.data?.msg || 'Unknown'}`,
+        );
       } else if (error.code === 'ECONNABORTED') {
         throw new Error('Request timeout');
       } else {
@@ -441,14 +492,17 @@ export class BinanceHistoryDataService {
           // 새 캔들 저장
           await this.candleRepository.saveCandle(symbol, 'FUTURES', candle);
           newCandles++;
-
         } catch (saveError) {
-          console.error(`❌ [${symbol}] 개별 캔들 저장 실패 (${new Date(candle.openTime).toISOString()}):`, saveError.message);
+          console.error(
+            `❌ [${symbol}] 개별 캔들 저장 실패 (${new Date(candle.openTime).toISOString()}):`,
+            saveError.message,
+          );
         }
       }
 
-      console.log(`✅ [${symbol}] 배치 저장 완료: 신규 ${newCandles}개, 중복 ${duplicateCandles}개`);
-
+      console.log(
+        `✅ [${symbol}] 배치 저장 완료: 신규 ${newCandles}개, 중복 ${duplicateCandles}개`,
+      );
     } catch (error) {
       console.error(`❌ [${symbol}] 배치 저장 실패:`, error.message);
       throw error;
@@ -463,7 +517,9 @@ export class BinanceHistoryDataService {
    * @param symbol 심볼
    * @returns 마지막 캔들 또는 null
    */
-  private async findLastStoredCandle(symbol: string): Promise<CandleData | null> {
+  private async findLastStoredCandle(
+    symbol: string,
+  ): Promise<CandleData | null> {
     try {
       const latestCandles = await this.candleRepository.findLatestCandles(
         symbol,
@@ -484,7 +540,9 @@ export class BinanceHistoryDataService {
    * @param symbol 심볼
    * @returns 첫 번째 캔들 또는 null
    */
-  private async findFirstStoredCandle(symbol: string): Promise<CandleData | null> {
+  private async findFirstStoredCandle(
+    symbol: string,
+  ): Promise<CandleData | null> {
     try {
       const earliestCandles = await this.candleRepository.findEarliestCandles(
         symbol,
@@ -513,7 +571,10 @@ export class BinanceHistoryDataService {
   }> {
     try {
       // 전체 캔들 수
-      const totalCandles = await this.candleRepository.countCandles(symbol, 'FUTURES');
+      const totalCandles = await this.candleRepository.countCandles(
+        symbol,
+        'FUTURES',
+      );
 
       if (totalCandles === 0) {
         return {
@@ -540,7 +601,6 @@ export class BinanceHistoryDataService {
         lastCandle: lastCandle ? new Date(lastCandle) : undefined,
         dataGaps,
       };
-
     } catch (error) {
       console.error(`❌ [${symbol}] 데이터 통계 조회 실패:`, error.message);
       throw error;

@@ -830,7 +830,10 @@ export class Candle15MRepository {
    * @param market 시장 구분
    * @returns 총 캔들 수
    */
-  async countCandles(symbol: string, market: 'FUTURES' | 'SPOT'): Promise<number> {
+  async countCandles(
+    symbol: string,
+    market: 'FUTURES' | 'SPOT',
+  ): Promise<number> {
     try {
       return await this.repository.count({
         where: { symbol, market },
