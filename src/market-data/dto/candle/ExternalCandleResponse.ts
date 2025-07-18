@@ -1,4 +1,10 @@
-export class ExternalKlineResponse {
+/**
+ * 바이낸스 외부 Kline 응답 클래스
+ *
+ * 바이낸스 웹소켓에서 수신되는 Kline 데이터 구조를 정의합니다.
+ * 15분봉 캔들 데이터 처리에 사용됩니다.
+ */
+export class ExternalCandleResponse {
   /** 심볼 (e.g., "BTCUSDT") */
   s: string;
 
@@ -7,7 +13,7 @@ export class ExternalKlineResponse {
     /** 시작 시간 (timestamp, open time) */
     t: number;
 
-    /** 캔들 간격 (e.g., "1m", "5m") */
+    /** 캔들 간격 (e.g., "15m") */
     i: string;
 
     /** 시가 */
@@ -38,15 +44,15 @@ export class ExternalKlineResponse {
     Q: string;
   };
 
-  private constructor(s: string, k: ExternalKlineResponse['k']) {
+  private constructor(s: string, k: ExternalCandleResponse['k']) {
     this.s = s;
     this.k = k;
   }
 
   /**
-   * Binance WebSocket 응답을 ExternalKlineResponse로 변환
+   * Binance WebSocket 응답을 ExternalCandleResponse로 변환
    */
-  static from(raw: any): ExternalKlineResponse {
-    return new ExternalKlineResponse(raw.s, raw.k);
+  static from(raw: any): ExternalCandleResponse {
+    return new ExternalCandleResponse(raw.s, raw.k);
   }
 }

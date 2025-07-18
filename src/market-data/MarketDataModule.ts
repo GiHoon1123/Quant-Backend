@@ -1,27 +1,28 @@
 import { Module } from '@nestjs/common';
-import { BinanceKlineRestClient } from './infra/kline/BinanceKlineRestClient';
-import { KlineRepository } from './infra/kline/KlineRepository';
-import { TradeRepository } from './infra/trade/TradeRepository';
-import { KlineScheduler } from './scheduler/kline/KlineScheduler';
-import { KlineService } from './service/kline/KlineService';
-import { TradeService } from './service/trade/TradeService';
-import { KlineGateway } from './web/kline/KlineGateway';
-import { TradeGateway } from './web/trade/TradeGateway';
-import { TradeWatchlistController } from './web/trade/TradeWatchlistController';
+import { TypeOrmModule } from '@nestjs/typeorm';
+
+// 15분봉 관련 import 추가
+import { Candle15MEntity } from './infra/candle/Candle15MEntity';
+import { Candle15MRepository } from './infra/candle/Candle15MRepository';
+import { Candle15MService } from './service/candle/Candle15MService';
+import { TelegramNotificationService } from './service/notification/TelegramNotificationService';
+import { Candle15MController } from './web/candle/Candle15MController';
 
 @Module({
-  imports: [],
-  controllers: [TradeWatchlistController],
-  providers: [
-    TradeService,
-    TradeGateway,
-    TradeRepository,
-    KlineService,
-    KlineGateway,
-    KlineScheduler,
-    KlineRepository,
-    BinanceKlineRestClient,
+  imports: [
+    TypeOrmModule.forFeature([Candle15MEntity]), // 15분봉 엔티티 등록
   ],
-  exports: [],
+  controllers: [Candle15MController],
+  providers: [
+    // 15분봉 서비스 및 레포지토리 등록
+    Candle15MService,
+    Candle15MRepository,
+    TelegramNotificationService,
+  ],
+  exports: [
+    Candle15MService, // 다른 모듈에서 사용할 수 있도록 export
+    Candle15MRepository,
+    TelegramNotificationService,
+  ],
 })
 export class MarketDataModule {}
