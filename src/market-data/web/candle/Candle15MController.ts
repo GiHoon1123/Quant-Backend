@@ -1,6 +1,5 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
-import { TelegramNotificationService } from '../../../common/notification/TelegramNotificationService';
+import { Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { CandleQueryOptions } from '../../infra/candle/Candle15MEntity';
 import { Candle15MRepository } from '../../infra/candle/Candle15MRepository';
 import { Candle15MService } from '../../service/candle/Candle15MService';
@@ -10,6 +9,10 @@ import { Candle15MService } from '../../service/candle/Candle15MService';
  *
  * 15분봉 캔들 데이터 조회 및 관리를 위한 REST API 엔드포인트를 제공합니다.
  * 웹소켓과 함께 사용하여 실시간 데이터와 히스토리 데이터 모두 제공합니다.
+ *
+ * 🎯 **단일 책임**: 데이터 조회 및 관리 API만 제공
+ * - ❌ 알림 기능 제거 (Notification 도메인으로 분리)
+ * - ✅ 이벤트 기반 아키텍처로 도메인 분리 완료
  *
  * 주요 기능:
  * - 최신 캔들 데이터 조회
@@ -24,7 +27,6 @@ export class Candle15MController {
   constructor(
     private readonly candle15MService: Candle15MService,
     private readonly candle15MRepository: Candle15MRepository,
-    private readonly telegramNotificationService: TelegramNotificationService, // 공통 알림 서비스 추가
   ) {}
 
   /**
@@ -323,211 +325,6 @@ export class Candle15MController {
         success: false,
         message: '캔들 완성 이벤트 트리거 실패',
         error: error.message,
-      };
-    }
-  }
-
-  /**
-   * 텔레그램 알림 테스트 엔드포인트
-   *
-   * 다양한 알림 템플릿을 테스트할 수 있는 엔드포인트입니다.
-   * 개발 환경에서 알림 시스템이 정상 작동하는지 확인용으로 사용합니다.
-   */
-  @Post('test/telegram/:type')
-  @ApiOperation({
-    summary: '텔레그램 알림 테스트',
-    description: '다양한 유형의 텔레그램 알림을 테스트합니다.',
-  })
-  @ApiParam({
-    name: 'type',
-    description:
-      '알림 유형 (analysis, price-rise, ma-breakout, rsi, bollinger, golden-cross, news)',
-    enum: [
-      'analysis',
-      'price-rise',
-      'price-drop',
-      'break-high',
-      'break-low',
-      'new-high',
-      'drop-from-high',
-      'ma-breakout',
-      'rsi',
-      'bollinger',
-      'golden-cross',
-      'dead-cross',
-      'news',
-      'text',
-    ],
-  })
-  async testTelegramAlert(
-    @Param('type') type: string,
-    @Body() testData?: any,
-  ): Promise<{ success: boolean; message: string }> {
-    try {
-      const symbol = testData?.symbol || 'BTCUSDT';
-      const timestamp = new Date();
-
-      switch (type) {
-        case 'analysis':
-          await this.telegramNotificationService.sendAnalysisResult(symbol, {
-            signal: 'BUY',
-            indicators: {
-              SMA5: 42850.5,
-              SMA10: 42500.25,
-              SMA20: 42200.75,
-              Volume: 1250.45,
-              AvgVolume: 850.3,
-              VolumeRatio: 1.47,
-            },
-            price: 43000.8,
-            timestamp,
-          });
-          break;
-
-        case 'price-rise':
-          await this.telegramNotificationService.sendPriceRiseAlert(
-            symbol,
-            43000.8,
-            42000.5,
-            2.38,
-            timestamp,
-          );
-          break;
-
-        case 'price-drop':
-          await this.telegramNotificationService.sendPriceDropAlert(
-            symbol,
-            41500.25,
-            42000.5,
-            -1.19,
-            timestamp,
-          );
-          break;
-
-        case 'break-high':
-          await this.telegramNotificationService.sendBreakPreviousHighAlert(
-            symbol,
-            43500.75,
-            43200.4,
-            timestamp,
-          );
-          break;
-
-        case 'break-low':
-          await this.telegramNotificationService.sendBreakPreviousLowAlert(
-            symbol,
-            41800.6,
-            42000.3,
-            timestamp,
-          );
-          break;
-
-        case 'new-high':
-          await this.telegramNotificationService.sendNewHighAlert(
-            symbol,
-            44000.9,
-            timestamp,
-          );
-          break;
-
-        case 'drop-from-high':
-          await this.telegramNotificationService.sendDropFromHighAlert(
-            symbol,
-            41000.25,
-            44000.9,
-            -6.82,
-            timestamp,
-            new Date(timestamp.getTime() - 2 * 60 * 60 * 1000), // 2시간 전
-          );
-          break;
-
-        case 'ma-breakout':
-          await this.telegramNotificationService.sendMABreakoutAlert(
-            symbol,
-            '15m',
-            20,
-            43200.5,
-            43000.25,
-            'breakout_up',
-            timestamp,
-          );
-          break;
-
-        case 'rsi':
-          await this.telegramNotificationService.sendRSIAlert(
-            symbol,
-            '15m',
-            72.5,
-            'overbought',
-            timestamp,
-          );
-          break;
-
-        case 'bollinger':
-          await this.telegramNotificationService.sendBollingerAlert(
-            symbol,
-            '15m',
-            43500.8,
-            43600.25,
-            42800.75,
-            'break_upper',
-            timestamp,
-          );
-          break;
-
-        case 'golden-cross':
-          await this.telegramNotificationService.sendGoldenCrossAlert(
-            symbol,
-            43200.5,
-            42800.25,
-            timestamp,
-          );
-          break;
-
-        case 'dead-cross':
-          await this.telegramNotificationService.sendDeadCrossAlert(
-            symbol,
-            42500.25,
-            42800.75,
-            timestamp,
-          );
-          break;
-
-        case 'news':
-          await this.telegramNotificationService.sendNewsAlert(
-            '비트코인, 새로운 최고가 경신으로 시장 관심 집중',
-            '비트코인이 연일 상승세를 이어가며 새로운 최고가를 경신했습니다. 기관 투자자들의 지속적인 매수세와 긍정적인 시장 분위기가 주요 상승 동력으로 작용하고 있습니다.',
-            'https://example.com/bitcoin-news',
-            timestamp,
-            symbol,
-          );
-          break;
-
-        case 'text':
-          await this.telegramNotificationService.sendTextMessage(
-            `🧪 <b>텔레그램 알림 시스템 테스트</b>\n\n` +
-              `📅 테스트 시각: ${timestamp.toISOString()}\n` +
-              `🎯 대상 심볼: ${symbol}\n` +
-              `✅ 알림 시스템이 정상적으로 작동하고 있습니다!`,
-          );
-          break;
-
-        default:
-          return {
-            success: false,
-            message: `지원하지 않는 알림 유형: ${type}`,
-          };
-      }
-
-      return {
-        success: true,
-        message: `${type} 유형의 텔레그램 알림이 성공적으로 전송되었습니다.`,
-      };
-    } catch (error) {
-      console.error(`텔레그램 알림 테스트 실패 (${type}):`, error);
-      return {
-        success: false,
-        message: `텔레그램 알림 전송 실패: ${error.message}`,
       };
     }
   }

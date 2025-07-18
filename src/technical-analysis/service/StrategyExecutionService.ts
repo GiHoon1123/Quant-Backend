@@ -1,14 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { CandleDataService } from './CandleDataService';
-import { TechnicalIndicatorService } from './TechnicalIndicatorService';
+import { Candle15MRepository } from '../../market-data/infra/candle/Candle15MRepository';
 import {
-  StrategyType,
-  SignalType,
-  StrategyResult,
   MultiStrategyResult,
+  SignalType,
   StrategyConfig,
+  StrategyResult,
+  StrategyType,
 } from '../types/StrategyTypes';
 import { CandleData, TimeFrame } from '../types/TechnicalAnalysisTypes';
+import { TechnicalIndicatorService } from './TechnicalIndicatorService';
 
 /**
  * 전략 실행 서비스
@@ -45,9 +45,8 @@ export class StrategyExecutionService {
     VOLUME_PERIOD: 20,
     VOLUME_SURGE: 2.0,
   };
-
   constructor(
-    private readonly candleService: CandleDataService,
+    private readonly candleRepository: Candle15MRepository,
     private readonly indicatorService: TechnicalIndicatorService,
   ) {}
 
@@ -67,12 +66,10 @@ export class StrategyExecutionService {
     config?: Partial<StrategyConfig>,
   ): Promise<StrategyResult> {
     try {
-      console.log(`🔄 전략 실행 시작: ${strategy} - ${symbol} ${timeframe}`);
-
-      // 필요한 캔들 데이터 조회 (충분한 양 확보)
-      const candles = await this.candleService.getCandles(
+      console.log(`🔄 전략 실행 시작: ${strategy} - ${symbol} ${timeframe}`); // 필요한 캔들 데이터 조회 (충분한 양 확보)
+      const candles = await this.candleRepository.findLatestCandles(
         symbol,
-        timeframe,
+        'FUTURES',
         500,
       );
 

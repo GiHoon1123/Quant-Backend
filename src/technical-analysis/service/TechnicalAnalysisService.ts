@@ -1,14 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { CandleDataService } from './CandleDataService';
-import { StrategyExecutionService } from './StrategyExecutionService';
-import { TechnicalIndicatorService } from './TechnicalIndicatorService';
+import { Candle15MRepository } from '../../market-data/infra/candle/Candle15MRepository';
 import {
-  StrategyType,
+  MultiStrategyResult,
   SignalType,
   StrategyResult,
-  MultiStrategyResult,
+  StrategyType,
 } from '../types/StrategyTypes';
 import { TimeFrame } from '../types/TechnicalAnalysisTypes';
+import { StrategyExecutionService } from './StrategyExecutionService';
+import { TechnicalIndicatorService } from './TechnicalIndicatorService';
 
 /**
  * 기술적 분석 메인 서비스
@@ -63,9 +63,8 @@ export class TechnicalAnalysisService {
     TimeFrame.ONE_HOUR,
     TimeFrame.ONE_DAY,
   ];
-
   constructor(
-    private readonly candleService: CandleDataService,
+    private readonly candleRepository: Candle15MRepository,
     private readonly strategyService: StrategyExecutionService,
     private readonly indicatorService: TechnicalIndicatorService,
   ) {}
@@ -379,11 +378,15 @@ export class TechnicalAnalysisService {
    * - 대시보드 표시용
    * - 빠른 현황 파악
    * - 지표 모니터링
-   */
-  async getIndicatorSummary(symbol: string, timeframe: TimeFrame) {
+   */ async getIndicatorSummary(symbol: string, timeframe: TimeFrame) {
     console.log(`📊 지표 요약 조회: ${symbol} ${timeframe}`);
 
-    const candles = await this.candleService.getCandles(symbol, timeframe, 200);
+    // Market-data 도메인의 저장된 데이터 조회
+    const candles = await this.candleRepository.findLatestCandles(
+      symbol,
+      'FUTURES',
+      200,
+    );
 
     // 주요 지표들 계산
     const sma20 = this.indicatorService.calculateSMA(candles, 20);

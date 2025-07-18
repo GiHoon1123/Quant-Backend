@@ -619,18 +619,31 @@ export class TelegramNotificationService {
       signalColor = '🔴';
     }
 
+    // 안전한 숫자 포맷팅 함수
+    const safeToFixed = (value: any, decimals: number = 2): string => {
+      if (value === null || value === undefined) return 'N/A';
+      if (typeof value === 'string') {
+        const num = parseFloat(value);
+        return isNaN(num) ? value : num.toFixed(decimals);
+      }
+      if (typeof value === 'number') {
+        return isNaN(value) ? 'N/A' : value.toFixed(decimals);
+      }
+      return String(value);
+    };
+
     const message =
       `${emoji} <b>${name}(${symbol}) 기술적 분석 완료!</b>\n\n` +
       `📊 시간대: 15분봉\n` +
-      `💵 현재가: ${result.price.toFixed(2)}\n` +
+      `💵 현재가: ${safeToFixed(result.price)}\n` +
       `${signalColor} 시그널: <b>${signalText}</b>\n\n` +
       `📈 기술적 지표:\n` +
-      `• SMA5: ${result.indicators.SMA5?.toFixed(2) || 'N/A'}\n` +
-      `• SMA10: ${result.indicators.SMA10?.toFixed(2) || 'N/A'}\n` +
-      `• SMA20: ${result.indicators.SMA20?.toFixed(2) || 'N/A'}\n` +
-      `• 현재거래량: ${result.indicators.Volume?.toFixed(2) || 'N/A'}\n` +
-      `• 평균거래량: ${result.indicators.AvgVolume?.toFixed(2) || 'N/A'}\n` +
-      `• 거래량비율: ${result.indicators.VolumeRatio?.toFixed(2) || 'N/A'}배\n\n` +
+      `• SMA5: ${safeToFixed(result.indicators.SMA5)}\n` +
+      `• SMA10: ${safeToFixed(result.indicators.SMA10)}\n` +
+      `• SMA20: ${safeToFixed(result.indicators.SMA20)}\n` +
+      `• 현재거래량: ${safeToFixed(result.indicators.Volume)}\n` +
+      `• 평균거래량: ${safeToFixed(result.indicators.AvgVolume)}\n` +
+      `• 거래량비율: ${safeToFixed(result.indicators.VolumeRatio)}배\n\n` +
       `🕒 분석 시점: ${this.formatTimeWithKST(result.timestamp)}`;
 
     await this.sendBasic(symbol, message);

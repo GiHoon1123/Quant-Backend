@@ -1,15 +1,20 @@
 import { Module } from '@nestjs/common';
-import { TechnicalAnalysisService } from './service/TechnicalAnalysisService';
+import { MarketDataModule } from '../market-data/MarketDataModule';
+import { StrategyRepository } from './infra/StrategyRepository';
 import { StrategyExecutionService } from './service/StrategyExecutionService';
-import { CandleDataService } from './service/CandleDataService';
+import { TechnicalAnalysisEventService } from './service/TechnicalAnalysisEventService';
+import { TechnicalAnalysisService } from './service/TechnicalAnalysisService';
 import { TechnicalIndicatorService } from './service/TechnicalIndicatorService';
 import { TechnicalAnalysisController } from './web/TechnicalAnalysisController';
-import { StrategyRepository } from './infra/StrategyRepository';
 
 /**
- * 기술적 분석 및 트레이딩 전략 모듈
+ * 🔍 기술적 분석 및 트레이딩 전략 모듈
  *
- * 이 모듈은 다양한 기술적 분석 지표와 트레이딩 전략을 제공합니다:
+ * 🎯 **핵심 책임**: 캔들 데이터 기반 기술적 분석
+ * - market-data 도메인의 candle.saved 이벤트 수신
+ * - market-data 도메인의 저장된 데이터를 직접 조회
+ * - 다양한 기술적 지표와 트레이딩 전략 실행
+ * - 분석 완료 후 analysis.completed 이벤트 발송
  *
  * 🔍 주요 기능:
  * - 이동평균선 기반 전략 (20일선, 50일선, 200일선 등)
@@ -24,25 +29,28 @@ import { StrategyRepository } from './infra/StrategyRepository';
  * - 1시간봉 (1h): 중기 트렌드 전략
  * - 1일봉 (1d): 장기 투자 전략
  *
- * 🎯 확장 가능한 구조:
- * - 새로운 코인 쉽게 추가 가능
- * - 커스텀 전략 개발 지원
- * - 백테스팅 및 성과 분석
+ * 🔄 **이벤트 플로우**:
+ * candle.saved 수신 → 기술적 분석 실행 → analysis.completed 발송
+ *
+ * 📡 **수신 이벤트**: candle.saved
+ * 📡 **발송 이벤트**: analysis.completed
  */
 @Module({
-  imports: [],
+  imports: [MarketDataModule], // Market-data 모듈에서 Repository 사용
   controllers: [TechnicalAnalysisController],
   providers: [
+    // 🔍 핵심 분석 서비스들
     TechnicalAnalysisService,
+    TechnicalAnalysisEventService, // 🆕 이벤트 기반 분석 처리
     StrategyExecutionService,
-    CandleDataService,
     TechnicalIndicatorService,
     StrategyRepository,
   ],
   exports: [
+    // 🔄 다른 도메인에서 사용할 수 있도록 export
     TechnicalAnalysisService,
+    TechnicalAnalysisEventService, // 🆕 이벤트 연결용
     StrategyExecutionService,
-    CandleDataService,
   ],
 })
 export class TechnicalAnalysisModule {}

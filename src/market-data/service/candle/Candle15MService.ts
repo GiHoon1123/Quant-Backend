@@ -1,7 +1,6 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { EventEmitter } from 'events';
 import { DEFAULT_SYMBOLS } from 'src/common/constant/DefaultSymbols';
-import { TelegramNotificationService } from 'src/common/notification/TelegramNotificationService';
 import { ExternalCandleResponse } from 'src/market-data/dto/candle/ExternalCandleResponse';
 import { BinanceCandle15MManager } from 'src/market-data/infra/candle/BinanceCandle15MManager';
 import {
@@ -9,44 +8,46 @@ import {
   CandleData,
 } from 'src/market-data/infra/candle/Candle15MEntity';
 import { Candle15MRepository } from 'src/market-data/infra/candle/Candle15MRepository';
+import {
+  CandleSavedEvent,
+  MARKET_DATA_EVENTS,
+} from 'src/market-data/types/MarketDataEvents';
 
 /**
- * 15분봉 캔들 서비스
+ * 15분봉 캔들 데이터 수집 및 저장 서비스
  *
- * 바이낸스에서 15분봉 데이터를 실시간으로 수신하여 처리하는 서비스입니다.
- * 웹소켓을 통해 받은 데이터를 메모리와 데이터베이스에 저장하고,
- * 캔들이 완성되면 기술적 분석을 수행하여 텔레그램으로 알림을 발송합니다.
- *
- * 주요 기능:
- * - 실시간 15분봉 데이터 수신 및 저장
+ * 🎯 **핵심 책임**: 데이터 수집과 저장에만 집중
+ * - 바이낸스 웹소켓에서 실시간 15분봉 데이터 수신
+ * - 데이터베이스에 캔들 데이터 저장 (UPSERT 패턴)
  * - 메모리 캐시를 통한 빠른 데이터 접근
- * - 캔들 완성 시 기술적 분석 수행 및 텔레그램 알림
- * - 다중 심볼 동시 처리
- * - 자동 재연결 및 에러 처리
+ * - 캔들 저장 완료 시 이벤트 발송 (다른 도메인에서 활용)
+ *
+ * 🚫 **책임 범위 외**:
+ * - 기술적 분석 (technical-analysis 도메인 담당)
+ * - 알림 발송 (notification 도메인 담당)
+ *
+ * 📡 **발송 이벤트**:
+ * - `candle.saved`: 캔들 데이터 저장 완료 시
+ *
+ * 🔄 **이벤트 기반 플로우**:
+ * 웹소켓 데이터 수신 → DB 저장 → candle.saved 이벤트 발송
  */
 @Injectable()
 export class Candle15MService implements OnModuleInit, OnModuleDestroy {
   private readonly manager: BinanceCandle15MManager;
   private readonly eventEmitter: EventEmitter;
 
-  // 메모리 캐시: 최신 캔들 데이터 (심볼별)
+  // 메모리 캐시: 최신 캔들 데이터 (심볼별) - 빠른 조회용
   private readonly latestCandles = new Map<string, Candle15MEntity>();
 
-  // 진행 중인 캔들 데이터 (아직 완성되지 않은 캔들)
+  // 진행 중인 캔들 데이터 (아직 완성되지 않은 캔들) - 실시간 업데이트용
   private readonly ongoingCandles = new Map<string, CandleData>();
 
-  constructor(
-    private readonly candle15MRepository: Candle15MRepository,
-    private readonly telegramNotificationService: TelegramNotificationService, // 텔레그램 알림 서비스 주입
-  ) {
+  constructor(private readonly candle15MRepository: Candle15MRepository) {
     this.eventEmitter = new EventEmitter();
     this.manager = new BinanceCandle15MManager(this.handleKlineData.bind(this));
 
-    // 분석 완료 이벤트 리스너 등록
-    this.eventEmitter.on(
-      'analysis.completed',
-      this.handleAnalysisCompleted.bind(this),
-    );
+    console.log('� [Candle15MService] 캔들 데이터 수집 서비스 초기화');
   }
 
   /**
@@ -137,24 +138,75 @@ export class Candle15MService implements OnModuleInit, OnModuleDestroy {
       // 메모리 캐시 업데이트
       await this.updateMemoryCache(symbol, candleData);
 
-      // 데이터베이스에 저장 (진행 중인 캔들도 저장하여 복구 가능하도록)
-      await this.candle15MRepository.saveCandle(symbol, 'FUTURES', candleData);
+      // 📊 데이터베이스에 저장 (UPSERT 패턴으로 중복 방지)
+      const savedCandle = await this.candle15MRepository.saveCandle(
+        symbol,
+        'FUTURES',
+        candleData,
+      );
 
-      // 캔들 완성 여부 체크 (15분봉의 경우 kline 데이터에서 완성 여부를 확인할 수 있음)
-      // 실제로는 15분 간격으로 새로운 캔들이 시작될 때 이전 캔들이 완성됨
+      // 🔍 새로운 캔들 여부 확인 (15분 간격으로 새 캔들 시작 시)
       const isNewCandle = await this.checkIfNewCandle(symbol, candleData);
 
-      if (isNewCandle) {
-        // 이전 캔들이 완성되었으므로 기술적 분석 수행
-        await this.performTechnicalAnalysis(symbol);
-      }
+      // 📡 캔들 저장 완료 이벤트 발송 (다른 도메인에서 활용)
+      await this.emitCandleSavedEvent(
+        symbol,
+        candleData,
+        savedCandle,
+        isNewCandle,
+      );
 
-      // 처리 완료 로그도 30초마다만 출력
+      // 처리 완료 로그 (30초마다만 출력하여 스팸 방지)
       if (now - lastLogTime > 30000) {
-        console.log(`[Candle15MService] 15분봉 데이터 처리 완료: ${symbol}`);
+        console.log(`📊 [Candle15MService] 15분봉 데이터 처리 완료: ${symbol}`);
       }
     } catch (error) {
-      console.error('[Candle15MService] Candle 데이터 처리 중 오류:', error);
+      console.error('❌ [Candle15MService] 캔들 데이터 처리 중 오류:', error);
+    }
+  }
+
+  /**
+   * 📡 캔들 저장 완료 이벤트 발송
+   *
+   * 다른 도메인(technical-analysis, notification 등)에서
+   * 이 이벤트를 수신하여 후속 작업을 수행합니다.
+   *
+   * @param symbol 거래 심볼
+   * @param candleData 캔들 데이터
+   * @param savedCandle 저장된 캔들 엔티티
+   * @param isNewCandle 새로운 캔들 여부
+   */
+  private async emitCandleSavedEvent(
+    symbol: string,
+    candleData: CandleData,
+    savedCandle: Candle15MEntity,
+    isNewCandle: boolean,
+  ): Promise<void> {
+    try {
+      const event: CandleSavedEvent = {
+        symbol,
+        market: 'FUTURES' as const,
+        timeframe: '15m',
+        candleData,
+        isNewCandle,
+        savedAt: new Date(),
+        candleId: savedCandle.id,
+      };
+
+      // 이벤트 발송 (technical-analysis 도메인에서 수신)
+      this.eventEmitter.emit(MARKET_DATA_EVENTS.CANDLE_SAVED, event);
+
+      // 새로운 캔들인 경우에만 로그 출력
+      if (isNewCandle) {
+        console.log(
+          `📡 [CandleSaved Event] 새 캔들 저장 이벤트 발송: ${symbol} (ID: ${savedCandle.id})`,
+        );
+      }
+    } catch (error) {
+      console.error(
+        `❌ [CandleSaved Event] 이벤트 발송 실패: ${symbol}`,
+        error,
+      );
     }
   }
 
@@ -387,253 +439,97 @@ export class Candle15MService implements OnModuleInit, OnModuleDestroy {
    *
    * @param symbol 분석할 심볼
    */
-  private async performTechnicalAnalysis(symbol: string): Promise<void> {
-    try {
-      console.log(`[Candle15MService] ${symbol} 기술적 분석 시작`);
-
-      // 최근 캔들 데이터 조회 (분석에 필요한 개수)
-      const recentCandles = await this.candle15MRepository.findLatestCandles(
-        symbol,
-        'FUTURES',
-        50,
-      );
-
-      if (recentCandles.length < 20) {
-        console.log(
-          `[Candle15MService] ${symbol} 분석용 데이터 부족 (${recentCandles.length}개)`,
-        );
-        return;
-      }
-
-      // 간단한 기술적 분석 수행
-      const analysisResult = this.performSimpleAnalysis(recentCandles);
-
-      // 시그널이 있을 때만 알림 발송
-      if (analysisResult.signal !== 'HOLD') {
-        this.eventEmitter.emit('analysis.completed', {
-          symbol,
-          result: analysisResult,
-        });
-
-        console.log(
-          `[Candle15MService] ${symbol} 분석 완료 - 시그널: ${analysisResult.signal}`,
-        );
-      }
-    } catch (error) {
-      console.error(`[Candle15MService] ${symbol} 기술적 분석 실패:`, error);
-    }
+  /**
+   * 📤 이벤트 발송기 노출 (다른 도메인에서 이벤트 수신용)
+   *
+   * Technical-analysis 도메인에서 candle.saved 이벤트를
+   * 수신할 수 있도록 EventEmitter를 노출합니다.
+   */
+  getEventEmitter(): EventEmitter {
+    return this.eventEmitter;
   }
 
   /**
-   * 간단한 기술적 분석 수행
+   * 📊 서비스 상태 조회
    *
-   * @param candles 캔들 데이터 배열
-   * @returns 분석 결과
+   * 현재 구독 중인 심볼들과 연결 상태를 반환합니다.
    */
-  private performSimpleAnalysis(candles: CandleData[]): {
-    signal: 'BUY' | 'SELL' | 'HOLD';
-    indicators: Record<string, any>;
-    price: number;
-    timestamp: Date;
+  getServiceStatus(): {
+    subscribedSymbols: string[];
+    connectionStatus: Map<string, boolean>;
+    cacheSize: number;
+    ongoingCandlesCount: number;
   } {
-    // 최신 캔들
-    const latest = candles[candles.length - 1];
-
-    // 단순 이동평균 계산 (5, 10, 20)
-    const sma5 = this.calculateSMA(candles, 5);
-    const sma10 = this.calculateSMA(candles, 10);
-    const sma20 = this.calculateSMA(candles, 20);
-
-    // 볼륨 평균
-    const avgVolume =
-      candles.slice(-10).reduce((sum, c) => sum + c.volume, 0) / 10;
-
-    // 간단한 시그널 로직
-    let signal: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
-
-    // 상승 시그널: 단기 평균이 장기 평균보다 위에 있고, 볼륨이 평균보다 높음
-    if (sma5 > sma10 && sma10 > sma20 && latest.volume > avgVolume * 1.5) {
-      signal = 'BUY';
-    }
-    // 하락 시그널: 단기 평균이 장기 평균보다 아래에 있고, 볼륨이 평균보다 높음
-    else if (sma5 < sma10 && sma10 < sma20 && latest.volume > avgVolume * 1.5) {
-      signal = 'SELL';
-    }
-
     return {
-      signal,
-      indicators: {
-        SMA5: sma5,
-        SMA10: sma10,
-        SMA20: sma20,
-        Volume: latest.volume,
-        AvgVolume: avgVolume,
-        VolumeRatio: latest.volume / avgVolume,
-      },
-      price: latest.close,
-      timestamp: new Date(latest.closeTime),
+      subscribedSymbols: this.manager.getSubscribed(),
+      connectionStatus: this.manager.getConnectionStatus(),
+      cacheSize: this.latestCandles.size,
+      ongoingCandlesCount: this.ongoingCandles.size,
     };
   }
 
   /**
-   * 단순 이동평균 계산
+   * 🧪 테스트용 캔들 데이터 처리
    *
-   * @param candles 캔들 데이터
-   * @param period 기간
-   * @returns 이동평균 값
-   */
-  private calculateSMA(candles: CandleData[], period: number): number {
-    if (candles.length < period) return 0;
-
-    const slice = candles.slice(-period);
-    const sum = slice.reduce((acc, candle) => acc + candle.close, 0);
-    return sum / period;
-  }
-
-  /**
-   * 분석 완료 이벤트 핸들러
-   *
-   * @param data 분석 결과 데이터
-   */
-  private async handleAnalysisCompleted(data: {
-    symbol: string;
-    result: {
-      signal: 'BUY' | 'SELL' | 'HOLD';
-      indicators: Record<string, any>;
-      price: number;
-      timestamp: Date;
-    };
-  }): Promise<void> {
-    try {
-      // 새로운 템플릿을 사용한 기술적 분석 알림 발송
-      await this.telegramNotificationService.sendAnalysisResult(
-        data.symbol,
-        data.result,
-      );
-
-      // 추가로 특별한 상황에 대한 상세 알림
-      await this.sendDetailedTechnicalAlerts(data.symbol, data.result);
-
-      console.log(
-        `[Candle15MService] ${data.symbol} 분석 결과 텔레그램 알림 발송 완료`,
-      );
-    } catch (error) {
-      console.error(
-        `[Candle15MService] ${data.symbol} 텔레그램 알림 발송 실패:`,
-        error,
-      );
-    }
-  }
-
-  /**
-   * 상세 기술적 분석 알림 발송
+   * 테스트 환경에서 가짜 캔들 데이터를 처리하여 이벤트 체인을 시작합니다.
+   * 실제 웹소켓 데이터와 동일한 플로우로 처리됩니다.
    *
    * @param symbol 거래 심볼
-   * @param result 분석 결과
+   * @param candleData 테스트용 캔들 데이터
+   * @returns 처리 결과
    */
-  private async sendDetailedTechnicalAlerts(
+  async processTestCandle(
     symbol: string,
-    result: {
-      signal: 'BUY' | 'SELL' | 'HOLD';
-      indicators: Record<string, any>;
-      price: number;
-      timestamp: Date;
-    },
-  ): Promise<void> {
+    candleData: CandleData,
+  ): Promise<{
+    success: boolean;
+    savedCandle?: Candle15MEntity;
+    eventEmitted?: boolean;
+    error?: string;
+  }> {
     try {
-      const { indicators, price, timestamp } = result;
+      console.log(`🧪 [Candle15MService] 테스트 캔들 처리 시작: ${symbol}`);
 
-      // 1. 이동평균선 관련 알림
-      if (indicators.SMA5 && indicators.SMA10 && indicators.SMA20) {
-        // SMA5가 SMA20을 상향 돌파한 경우
-        if (
-          indicators.SMA5 > indicators.SMA20 &&
-          indicators.SMA5 / indicators.SMA20 > 1.02 // 2% 이상 차이
-        ) {
-          await this.telegramNotificationService.sendMABreakoutAlert(
-            symbol,
-            '15m',
-            20,
-            price,
-            indicators.SMA20,
-            'breakout_up',
-            timestamp,
-          );
-        }
-        // SMA5가 SMA20을 하향 이탈한 경우
-        else if (
-          indicators.SMA5 < indicators.SMA20 &&
-          indicators.SMA5 / indicators.SMA20 < 0.98 // 2% 이상 차이
-        ) {
-          await this.telegramNotificationService.sendMABreakoutAlert(
-            symbol,
-            '15m',
-            20,
-            price,
-            indicators.SMA20,
-            'breakout_down',
-            timestamp,
-          );
-        }
-      }
+      // 진행 중인 캔들 데이터 업데이트
+      this.ongoingCandles.set(symbol, candleData);
 
-      // 2. 거래량 급증 알림
-      if (
-        indicators.VolumeRatio &&
-        indicators.VolumeRatio > 3 // 평균의 3배 이상
-      ) {
-        await this.telegramNotificationService.sendTextMessage(
-          `🔥 <b>${symbol} 거래량 급증!</b>\n\n` +
-            `📊 현재 거래량: ${indicators.Volume?.toFixed(2) || 'N/A'}\n` +
-            `📈 평균 거래량: ${indicators.AvgVolume?.toFixed(2) || 'N/A'}\n` +
-            `🚀 거래량 비율: <b>${indicators.VolumeRatio.toFixed(1)}배</b>\n` +
-            `💡 의미: 강한 관심 증가 → 큰 움직임 예상\n` +
-            `🕒 감지 시점: ${this.telegramNotificationService['formatTimeWithKST'](timestamp)}`,
-        );
-      }
+      // 메모리 캐시 업데이트
+      await this.updateMemoryCache(symbol, candleData);
 
-      // 3. 강한 모멘텀 알림 (3개 이동평균이 모두 정렬된 경우)
-      if (
-        indicators.SMA5 &&
-        indicators.SMA10 &&
-        indicators.SMA20 &&
-        result.signal !== 'HOLD'
-      ) {
-        const isStrongUptrend =
-          indicators.SMA5 > indicators.SMA10 &&
-          indicators.SMA10 > indicators.SMA20 &&
-          indicators.VolumeRatio > 1.5;
+      // 📊 데이터베이스에 저장
+      const savedCandle = await this.candle15MRepository.saveCandle(
+        symbol,
+        'FUTURES',
+        candleData,
+      );
 
-        const isStrongDowntrend =
-          indicators.SMA5 < indicators.SMA10 &&
-          indicators.SMA10 < indicators.SMA20 &&
-          indicators.VolumeRatio > 1.5;
+      // 🔍 새로운 캔들 여부 확인
+      const isNewCandle = await this.checkIfNewCandle(symbol, candleData);
 
-        if (isStrongUptrend) {
-          await this.telegramNotificationService.sendTextMessage(
-            `🚀 <b>${symbol} 강한 상승 모멘텀!</b>\n\n` +
-              `📈 이동평균 정배열: SMA5 > SMA10 > SMA20\n` +
-              `📊 거래량 증가: ${indicators.VolumeRatio.toFixed(1)}배\n` +
-              `💡 의미: 강력한 상승 추세 → 지속 상승 기대\n` +
-              `🎯 전략: 추세 추종 매수 고려\n` +
-              `🕒 ${this.telegramNotificationService['formatTimeWithKST'](timestamp)}`,
-          );
-        } else if (isStrongDowntrend) {
-          await this.telegramNotificationService.sendTextMessage(
-            `📉 <b>${symbol} 강한 하락 모멘텀!</b>\n\n` +
-              `📉 이동평균 역배열: SMA5 < SMA10 < SMA20\n` +
-              `📊 거래량 증가: ${indicators.VolumeRatio.toFixed(1)}배\n` +
-              `💡 의미: 강력한 하락 추세 → 지속 하락 우려\n` +
-              `🎯 전략: 손절 또는 공매도 고려\n` +
-              `🕒 ${this.telegramNotificationService['formatTimeWithKST'](timestamp)}`,
-          );
-        }
-      }
+      // 📡 캔들 저장 완료 이벤트 발송
+      await this.emitCandleSavedEvent(
+        symbol,
+        candleData,
+        savedCandle,
+        isNewCandle,
+      );
+
+      console.log(`✅ [Candle15MService] 테스트 캔들 처리 완료: ${symbol}`);
+
+      return {
+        success: true,
+        savedCandle,
+        eventEmitted: true,
+      };
     } catch (error) {
       console.error(
-        `[Candle15MService] ${symbol} 상세 기술적 분석 알림 실패:`,
+        `❌ [Candle15MService] 테스트 캔들 처리 실패: ${symbol}`,
         error,
       );
+      return {
+        success: false,
+        error: error.message,
+      };
     }
   }
 }
