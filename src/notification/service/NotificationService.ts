@@ -259,7 +259,9 @@ export class NotificationService implements OnModuleInit {
           break;
 
         default:
-          console.log(`⚠️ [IndividualSignal] 알 수 없는 신호 타입: ${signalType}`);
+          console.log(
+            `⚠️ [IndividualSignal] 알 수 없는 신호 타입: ${signalType}`,
+          );
           break;
       }
 

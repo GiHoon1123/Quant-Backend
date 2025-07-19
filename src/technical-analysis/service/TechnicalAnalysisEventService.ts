@@ -1,11 +1,11 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { EventEmitter } from 'events';
+import { Candle15MRepository } from '../../market-data/infra/candle/Candle15MRepository';
 import {
   CandleSavedEvent,
   MARKET_DATA_EVENTS,
   TechnicalAnalysisCompletedEvent,
 } from '../../market-data/types/MarketDataEvents';
-import { Candle15MRepository } from '../../market-data/infra/candle/Candle15MRepository';
 import { TimeFrame } from '../types/TechnicalAnalysisTypes';
 import { TechnicalAnalysisService } from './TechnicalAnalysisService';
 import { TechnicalIndicatorService } from './TechnicalIndicatorService';
@@ -92,7 +92,11 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
       );
 
       // 📊 1. 개별 전략 임계값 돌파 체크 및 개별 알림
-      await this.checkIndividualStrategySignals(symbol, timeframe as TimeFrame, candleData);
+      await this.checkIndividualStrategySignals(
+        symbol,
+        timeframe as TimeFrame,
+        candleData,
+      );
 
       // 📊 2. 종합 기술적 분석 실행
       const analysisResult = await this.performComprehensiveAnalysis(
@@ -146,7 +150,9 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
       // 필요한 캔들 데이터 조회
       const candles = await this.getCandleData(symbol, 200);
       if (candles.length < 50) {
-        console.log(`⚠️ [IndividualSignals] 충분한 캔들 데이터 없음: ${symbol} (${candles.length}개)`);
+        console.log(
+          `⚠️ [IndividualSignals] 충분한 캔들 데이터 없음: ${symbol} (${candles.length}개)`,
+        );
         return;
       }
 
@@ -156,20 +162,33 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
       await this.checkRSISignals(symbol, timeframe, candles, currentPrice);
 
       // 2. 이동평균선 돌파 체크
-      await this.checkMABreakoutSignals(symbol, timeframe, candles, currentPrice);
+      await this.checkMABreakoutSignals(
+        symbol,
+        timeframe,
+        candles,
+        currentPrice,
+      );
 
       // 3. MACD 신호 체크
       await this.checkMACDSignals(symbol, timeframe, candles, currentPrice);
 
       // 4. 볼린저 밴드 신호 체크
-      await this.checkBollingerSignals(symbol, timeframe, candles, currentPrice);
+      await this.checkBollingerSignals(
+        symbol,
+        timeframe,
+        candles,
+        currentPrice,
+      );
 
       // 5. 거래량 급증 체크
       await this.checkVolumeSignals(symbol, timeframe, candles);
 
       console.log(`✅ [IndividualSignals] 개별 전략 신호 체크 완료: ${symbol}`);
     } catch (error) {
-      console.error(`❌ [IndividualSignals] 개별 신호 체크 실패: ${symbol}`, error);
+      console.error(
+        `❌ [IndividualSignals] 개별 신호 체크 실패: ${symbol}`,
+        error,
+      );
     }
   }
 
@@ -255,7 +274,10 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
       const maPeriods = [20, 50];
 
       for (const period of maPeriods) {
-        const maData = this.technicalIndicatorService.calculateSMA(candles, period);
+        const maData = this.technicalIndicatorService.calculateSMA(
+          candles,
+          period,
+        );
         if (maData.length < 2) continue;
 
         const currentMA = maData[maData.length - 1].value;
@@ -305,14 +327,22 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
     currentPrice: number,
   ): Promise<void> {
     try {
-      const macdData = this.technicalIndicatorService.calculateMACD(candles, 12, 26, 9);
+      const macdData = this.technicalIndicatorService.calculateMACD(
+        candles,
+        12,
+        26,
+        9,
+      );
       if (macdData.length < 2) return;
 
       const current = macdData[macdData.length - 1];
       const previous = macdData[macdData.length - 2];
 
       // 골든크로스 (MACD 라인이 시그널 라인 상향 돌파)
-      if (current.macdLine > current.signalLine && previous.macdLine <= previous.signalLine) {
+      if (
+        current.macdLine > current.signalLine &&
+        previous.macdLine <= previous.signalLine
+      ) {
         this.emitIndividualSignal('macd_golden_cross', {
           symbol,
           timeframe,
@@ -325,7 +355,10 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
       }
 
       // 데드크로스 (MACD 라인이 시그널 라인 하향 이탈)
-      if (current.macdLine < current.signalLine && previous.macdLine >= previous.signalLine) {
+      if (
+        current.macdLine < current.signalLine &&
+        previous.macdLine >= previous.signalLine
+      ) {
         this.emitIndividualSignal('macd_dead_cross', {
           symbol,
           timeframe,
@@ -351,7 +384,8 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
     currentPrice: number,
   ): Promise<void> {
     try {
-      const bollingerData = this.technicalIndicatorService.calculateBollingerBands(candles, 20, 2);
+      const bollingerData =
+        this.technicalIndicatorService.calculateBollingerBands(candles, 20, 2);
       if (bollingerData.length < 2) return;
 
       const current = bollingerData[bollingerData.length - 1];
@@ -362,7 +396,8 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
 
       // 상단 밴드 터치/돌파
       if (currentPrice >= current.upper && previousPrice < previous.upper) {
-        const signalType = currentPrice > current.upper ? 'break_upper' : 'touch_upper';
+        const signalType =
+          currentPrice > current.upper ? 'break_upper' : 'touch_upper';
         this.emitIndividualSignal('bollinger_upper', {
           symbol,
           timeframe,
@@ -377,7 +412,8 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
 
       // 하단 밴드 터치/이탈
       if (currentPrice <= current.lower && previousPrice > previous.lower) {
-        const signalType = currentPrice < current.lower ? 'break_lower' : 'touch_lower';
+        const signalType =
+          currentPrice < current.lower ? 'break_lower' : 'touch_lower';
         this.emitIndividualSignal('bollinger_lower', {
           symbol,
           timeframe,
@@ -390,7 +426,10 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
         });
       }
     } catch (error) {
-      console.error(`❌ [Bollinger Signals] 볼린저 신호 체크 실패: ${symbol}`, error);
+      console.error(
+        `❌ [Bollinger Signals] 볼린저 신호 체크 실패: ${symbol}`,
+        error,
+      );
     }
   }
 
@@ -403,7 +442,10 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
     candles: any[],
   ): Promise<void> {
     try {
-      const volumeData = this.technicalIndicatorService.calculateVolumeAnalysis(candles, 20);
+      const volumeData = this.technicalIndicatorService.calculateVolumeAnalysis(
+        candles,
+        20,
+      );
       if (volumeData.length < 1) return;
 
       const current = volumeData[volumeData.length - 1];
@@ -434,7 +476,10 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
         });
       }
     } catch (error) {
-      console.error(`❌ [Volume Signals] 거래량 신호 체크 실패: ${symbol}`, error);
+      console.error(
+        `❌ [Volume Signals] 거래량 신호 체크 실패: ${symbol}`,
+        error,
+      );
     }
   }
 
@@ -453,9 +498,14 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
       // 개별 신호 이벤트 발송 (notification 도메인에서 수신)
       this.eventEmitter.emit('individual.signal', event);
 
-      console.log(`📡 [IndividualSignal] ${signalType} 신호 발송: ${data.symbol} (신뢰도: ${data.confidence}%)`);
+      console.log(
+        `📡 [IndividualSignal] ${signalType} 신호 발송: ${data.symbol} (신뢰도: ${data.confidence}%)`,
+      );
     } catch (error) {
-      console.error(`❌ [IndividualSignal] 개별 신호 발송 실패: ${signalType}`, error);
+      console.error(
+        `❌ [IndividualSignal] 개별 신호 발송 실패: ${signalType}`,
+        error,
+      );
     }
   }
 
