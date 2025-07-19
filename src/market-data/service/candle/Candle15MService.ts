@@ -132,11 +132,11 @@ export class Candle15MService implements OnModuleInit, OnModuleDestroy {
         (this as any)[lastLogKey] = now;
       }
 
+      // 🔍 새로운 캔들 여부 확인 (메모리 캐시 업데이트 전에 검사)
+      const isNewCandle = await this.checkIfNewCandle(symbol, candleData);
+
       // 진행 중인 캔들 데이터 업데이트
       this.ongoingCandles.set(symbol, candleData);
-
-      // 메모리 캐시 업데이트
-      await this.updateMemoryCache(symbol, candleData);
 
       // 📊 데이터베이스에 저장 (UPSERT 패턴으로 중복 방지)
       const savedCandle = await this.candle15MRepository.saveCandle(
@@ -145,16 +145,25 @@ export class Candle15MService implements OnModuleInit, OnModuleDestroy {
         candleData,
       );
 
-      // 🔍 새로운 캔들 여부 확인 (15분 간격으로 새 캔들 시작 시)
-      const isNewCandle = await this.checkIfNewCandle(symbol, candleData);
+      // 메모리 캐시 업데이트 (새로운 캔들 검사 후)
+      await this.updateMemoryCache(symbol, candleData);
 
-      // 📡 캔들 저장 완료 이벤트 발송 (다른 도메인에서 활용)
-      await this.emitCandleSavedEvent(
-        symbol,
-        candleData,
-        savedCandle,
-        isNewCandle,
-      );
+      // 📡 캔들 저장 완료 이벤트 발송 (새로운 캔들일 때만 기술적 분석/알림 트리거)
+      if (isNewCandle) {
+        await this.emitCandleSavedEvent(
+          symbol,
+          candleData,
+          savedCandle,
+          isNewCandle,
+        );
+      } else {
+        // 진행 중인 캔들 업데이트는 30초마다만 로그 출력
+        if (now - lastLogTime > 30000) {
+          console.log(
+            `📈 [Candle15MService] 진행 중인 캔들 업데이트: ${symbol} - 이벤트 발송 없음`,
+          );
+        }
+      }
 
       // 처리 완료 로그 (30초마다만 출력하여 스팸 방지)
       if (now - lastLogTime > 30000) {
@@ -167,6 +176,9 @@ export class Candle15MService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * 📡 캔들 저장 완료 이벤트 발송
+   *
+   * ⚠️ **중요**: 새로운 캔들이 시작될 때만 이벤트를 발송합니다.
+   * 진행 중인 캔들의 업데이트는 이벤트를 발송하지 않습니다.
    *
    * 다른 도메인(technical-analysis, notification 등)에서
    * 이 이벤트를 수신하여 후속 작업을 수행합니다.
@@ -183,6 +195,11 @@ export class Candle15MService implements OnModuleInit, OnModuleDestroy {
     isNewCandle: boolean,
   ): Promise<void> {
     try {
+      // 새로운 캔들이 아니면 이벤트 발송하지 않음
+      if (!isNewCandle) {
+        return;
+      }
+
       const event: CandleSavedEvent = {
         symbol,
         market: 'FUTURES' as const,
@@ -196,12 +213,9 @@ export class Candle15MService implements OnModuleInit, OnModuleDestroy {
       // 이벤트 발송 (technical-analysis 도메인에서 수신)
       this.eventEmitter.emit(MARKET_DATA_EVENTS.CANDLE_SAVED, event);
 
-      // 새로운 캔들인 경우에만 로그 출력
-      if (isNewCandle) {
-        console.log(
-          `📡 [CandleSaved Event] 새 캔들 저장 이벤트 발송: ${symbol} (ID: ${savedCandle.id})`,
-        );
-      }
+      console.log(
+        `📡 [CandleSaved Event] 새 캔들 저장 이벤트 발송: ${symbol} (ID: ${savedCandle.id}) - ${new Date(candleData.openTime).toISOString()}`,
+      );
     } catch (error) {
       console.error(
         `❌ [CandleSaved Event] 이벤트 발송 실패: ${symbol}`,
@@ -223,22 +237,25 @@ export class Candle15MService implements OnModuleInit, OnModuleDestroy {
     const existing = this.latestCandles.get(symbol);
 
     if (!existing || existing.openTime.getTime() < candleData.openTime) {
-      // 새로운 캔들이거나 더 최신 캔들인 경우
-      // 기존 Repository의 저장된 데이터를 캐시에 저장
-      const savedCandle = await this.candle15MRepository.saveCandle(
+      // 새로운 캔들이거나 더 최신 캔들인 경우 - 이미 저장된 데이터를 캐시에서 조회
+      const candleEntity = await this.candle15MRepository.findByOpenTime(
         symbol,
         'FUTURES',
-        candleData,
+        candleData.openTime,
       );
-      this.latestCandles.set(symbol, savedCandle);
+      if (candleEntity) {
+        this.latestCandles.set(symbol, candleEntity);
+      }
     } else if (existing.openTime.getTime() === candleData.openTime) {
-      // 같은 시간의 캔들 업데이트
-      const savedCandle = await this.candle15MRepository.saveCandle(
+      // 같은 시간의 캔들 업데이트 - 이미 저장된 데이터를 캐시에서 조회
+      const candleEntity = await this.candle15MRepository.findByOpenTime(
         symbol,
         'FUTURES',
-        candleData,
+        candleData.openTime,
       );
-      this.latestCandles.set(symbol, savedCandle);
+      if (candleEntity) {
+        this.latestCandles.set(symbol, candleEntity);
+      }
     }
   }
 
@@ -414,9 +431,19 @@ export class Candle15MService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * 새로운 캔들 시작 여부 확인
+   * 🔍 새로운 캔들 시작 여부 확인
    *
-   * @param symbol 심볼
+   * ⚠️ **핵심 로직**: 15분 간격으로 새로운 캔들이 시작되는 순간을 감지합니다.
+   *
+   * 📝 **동작 원리**:
+   * 1. 메모리 캐시에 저장된 이전 캔들의 openTime과 현재 캔들의 openTime을 비교
+   * 2. openTime이 다르면 새로운 15분봉이 시작된 것으로 판단
+   * 3. 첫 번째 캔들(캐시에 없음)도 새로운 캔들로 처리
+   *
+   * 🎯 **목적**: 새로운 캔들일 때만 기술적 분석과 알림을 트리거하여
+   *           진행 중인 캔들의 지속적인 업데이트로 인한 불필요한 처리 방지
+   *
+   * @param symbol 거래 심볼
    * @param candleData 현재 캔들 데이터
    * @returns 새로운 캔들 시작 여부
    */
@@ -426,12 +453,27 @@ export class Candle15MService implements OnModuleInit, OnModuleDestroy {
   ): Promise<boolean> {
     const existingCandle = this.latestCandles.get(symbol);
 
+    // 첫 번째 캔들이거나 메모리 캐시에 없는 경우
     if (!existingCandle) {
-      return false; // 첫 번째 캔들
+      console.log(
+        `🆕 [NewCandle] 첫 번째 캔들 감지: ${symbol} - ${new Date(candleData.openTime).toISOString()}`,
+      );
+      return true;
     }
 
-    // 시작 시간이 다르면 새로운 캔들
-    return existingCandle.openTime.getTime() !== candleData.openTime;
+    // 시작 시간이 다르면 새로운 캔들 (15분 간격으로 openTime이 변경됨)
+    const isNew = existingCandle.openTime.getTime() !== candleData.openTime;
+
+    if (isNew) {
+      console.log(`🆕 [NewCandle] 새로운 15분봉 감지: ${symbol}`);
+      console.log(`   ├─ 이전 캔들: ${existingCandle.openTime.toISOString()}`);
+      console.log(
+        `   └─ 새 캔들:   ${new Date(candleData.openTime).toISOString()}`,
+      );
+      console.log(`   🔥 기술적 분석 및 알림 트리거 예정!`);
+    }
+
+    return isNew;
   }
 
   /**
@@ -490,11 +532,11 @@ export class Candle15MService implements OnModuleInit, OnModuleDestroy {
     try {
       console.log(`🧪 [Candle15MService] 테스트 캔들 처리 시작: ${symbol}`);
 
+      // 🔍 새로운 캔들 여부 확인 (메모리 캐시 업데이트 전에 검사)
+      const isNewCandle = await this.checkIfNewCandle(symbol, candleData);
+
       // 진행 중인 캔들 데이터 업데이트
       this.ongoingCandles.set(symbol, candleData);
-
-      // 메모리 캐시 업데이트
-      await this.updateMemoryCache(symbol, candleData);
 
       // 📊 데이터베이스에 저장
       const savedCandle = await this.candle15MRepository.saveCandle(
@@ -503,16 +545,18 @@ export class Candle15MService implements OnModuleInit, OnModuleDestroy {
         candleData,
       );
 
-      // 🔍 새로운 캔들 여부 확인
-      const isNewCandle = await this.checkIfNewCandle(symbol, candleData);
+      // 메모리 캐시 업데이트 (새로운 캔들 검사 후)
+      await this.updateMemoryCache(symbol, candleData);
 
-      // 📡 캔들 저장 완료 이벤트 발송
-      await this.emitCandleSavedEvent(
-        symbol,
-        candleData,
-        savedCandle,
-        isNewCandle,
-      );
+      // 📡 캔들 저장 완료 이벤트 발송 (새로운 캔들일 때만 기술적 분석/알림 트리거)
+      if (isNewCandle) {
+        await this.emitCandleSavedEvent(
+          symbol,
+          candleData,
+          savedCandle,
+          isNewCandle,
+        );
+      }
 
       console.log(`✅ [Candle15MService] 테스트 캔들 처리 완료: ${symbol}`);
 

@@ -136,10 +136,142 @@ export class NotificationService implements OnModuleInit {
       this.handleAnalysisCompleted.bind(this),
     );
 
+    // 🎯 개별 전략 신호 이벤트 구독
+    technicalAnalysisEventEmitter.on(
+      'individual.signal',
+      this.handleIndividualSignal.bind(this),
+    );
+
     console.log('🔗 [NotificationService] Technical-analysis 이벤트 연결 완료');
     console.log(
-      `📡 [NotificationService] 구독 중인 이벤트: ${MARKET_DATA_EVENTS.TECHNICAL_ANALYSIS_COMPLETED}, analysis.completed`,
+      `📡 [NotificationService] 구독 중인 이벤트: ${MARKET_DATA_EVENTS.TECHNICAL_ANALYSIS_COMPLETED}, analysis.completed, individual.signal`,
     );
+  }
+
+  /**
+   * 🎯 개별 전략 신호 이벤트 처리
+   *
+   * 각 전략이 임계값을 돌파할 때마다 개별 알림을 발송합니다.
+   *
+   * @param event 개별 신호 이벤트
+   */
+  private async handleIndividualSignal(event: any): Promise<void> {
+    try {
+      const { signalType, symbol, timeframe, confidence } = event;
+
+      console.log(
+        `🎯 [IndividualSignal] 개별 신호 수신: ${signalType} - ${symbol} (신뢰도: ${confidence}%)`,
+      );
+
+      // 신뢰도가 너무 낮으면 알림 발송하지 않음
+      if (confidence < 60) {
+        console.log(
+          `🎯 [IndividualSignal] 신뢰도 부족으로 알림 스킵: ${signalType} - ${symbol} (${confidence}%)`,
+        );
+        return;
+      }
+
+      // 신호 타입별 개별 알림 발송
+      await this.sendIndividualSignalNotification(signalType, event);
+    } catch (error) {
+      console.error('❌ [IndividualSignal] 개별 신호 처리 실패:', error);
+    }
+  }
+
+  /**
+   * 📤 개별 신호별 알림 발송
+   *
+   * @param signalType 신호 타입
+   * @param event 이벤트 데이터
+   */
+  private async sendIndividualSignalNotification(
+    signalType: string,
+    event: any,
+  ): Promise<void> {
+    try {
+      const { symbol, timeframe, confidence, currentPrice } = event;
+
+      switch (signalType) {
+        case 'rsi_overbought':
+        case 'rsi_oversold':
+        case 'rsi_bullish_50':
+        case 'rsi_bearish_50':
+          await this.telegramService.sendRSIThresholdAlert(
+            symbol,
+            timeframe,
+            event.currentRSI,
+            event.signalType,
+            confidence,
+          );
+          break;
+
+        case 'ma_breakout_up':
+        case 'ma_breakout_down':
+          await this.telegramService.sendMABreakoutIndividualAlert(
+            symbol,
+            timeframe,
+            event.maPeriod,
+            event.currentPrice,
+            event.maValue,
+            event.signalType,
+            confidence,
+          );
+          break;
+
+        case 'macd_golden_cross':
+        case 'macd_dead_cross':
+          await this.telegramService.sendMACDSignalAlert(
+            symbol,
+            timeframe,
+            event.macdLine,
+            event.signalLine,
+            event.histogram,
+            event.signalType,
+            confidence,
+          );
+          break;
+
+        case 'bollinger_upper':
+        case 'bollinger_lower':
+          await this.telegramService.sendBollingerIndividualAlert(
+            symbol,
+            timeframe,
+            event.currentPrice,
+            event.upperBand,
+            event.lowerBand,
+            event.middleBand,
+            event.signalType,
+            confidence,
+          );
+          break;
+
+        case 'volume_surge':
+        case 'volume_dry_up':
+          await this.telegramService.sendVolumeSpikeAlert(
+            symbol,
+            timeframe,
+            event.currentVolume,
+            event.avgVolume,
+            event.volumeRatio,
+            event.signalType,
+            confidence,
+          );
+          break;
+
+        default:
+          console.log(`⚠️ [IndividualSignal] 알 수 없는 신호 타입: ${signalType}`);
+          break;
+      }
+
+      console.log(
+        `✅ [IndividualSignal] 개별 알림 발송 완료: ${signalType} - ${symbol}`,
+      );
+    } catch (error) {
+      console.error(
+        `❌ [IndividualSignal] 개별 알림 발송 실패: ${signalType}`,
+        error,
+      );
+    }
   }
 
   /**

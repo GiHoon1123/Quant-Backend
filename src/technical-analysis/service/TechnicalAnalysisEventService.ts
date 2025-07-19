@@ -5,8 +5,10 @@ import {
   MARKET_DATA_EVENTS,
   TechnicalAnalysisCompletedEvent,
 } from '../../market-data/types/MarketDataEvents';
+import { Candle15MRepository } from '../../market-data/infra/candle/Candle15MRepository';
 import { TimeFrame } from '../types/TechnicalAnalysisTypes';
 import { TechnicalAnalysisService } from './TechnicalAnalysisService';
+import { TechnicalIndicatorService } from './TechnicalIndicatorService';
 
 /**
  * 🔍 기술적 분석 이벤트 처리 서비스
@@ -31,6 +33,8 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
 
   constructor(
     private readonly technicalAnalysisService: TechnicalAnalysisService,
+    private readonly technicalIndicatorService: TechnicalIndicatorService,
+    private readonly candleRepository: Candle15MRepository,
   ) {
     this.eventEmitter = new EventEmitter();
     console.log(
@@ -70,6 +74,7 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
    * 📊 캔들 저장 완료 이벤트 처리
    *
    * 새로운 캔들이 저장되면 해당 심볼에 대한 기술적 분석을 실행합니다.
+   * 동시에 개별 전략들의 임계값 돌파를 감지하고 개별 알림을 발송합니다.
    *
    * @param event 캔들 저장 이벤트
    */
@@ -86,13 +91,16 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
         `🔍 [TechnicalAnalysis] 새 캔들 감지 - 분석 시작: ${symbol} ${timeframe}`,
       );
 
-      // 📊 기술적 분석 실행
+      // 📊 1. 개별 전략 임계값 돌파 체크 및 개별 알림
+      await this.checkIndividualStrategySignals(symbol, timeframe as TimeFrame, candleData);
+
+      // 📊 2. 종합 기술적 분석 실행
       const analysisResult = await this.performComprehensiveAnalysis(
         symbol,
         timeframe as TimeFrame,
       );
 
-      // 🔔 분석 완료 이벤트 발송 (notification 도메인에서 수신)
+      // 🔔 3. 분석 완료 이벤트 발송 (notification 도메인에서 수신)
       await this.emitAnalysisCompletedEvent(
         symbol,
         timeframe,
@@ -115,6 +123,355 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
         error: error.message,
         timestamp: new Date(),
       });
+    }
+  }
+
+  /**
+   * 🎯 개별 전략 신호 체크 및 알림
+   *
+   * 각 전략의 임계값 돌파를 감지하고 개별 알림을 발송합니다.
+   *
+   * @param symbol 심볼
+   * @param timeframe 시간봉
+   * @param candleData 캔들 데이터
+   */
+  private async checkIndividualStrategySignals(
+    symbol: string,
+    timeframe: TimeFrame,
+    candleData: any,
+  ): Promise<void> {
+    try {
+      console.log(`🎯 [IndividualSignals] 개별 전략 신호 체크 시작: ${symbol}`);
+
+      // 필요한 캔들 데이터 조회
+      const candles = await this.getCandleData(symbol, 200);
+      if (candles.length < 50) {
+        console.log(`⚠️ [IndividualSignals] 충분한 캔들 데이터 없음: ${symbol} (${candles.length}개)`);
+        return;
+      }
+
+      const currentPrice = candleData.close;
+
+      // 1. RSI 임계값 체크
+      await this.checkRSISignals(symbol, timeframe, candles, currentPrice);
+
+      // 2. 이동평균선 돌파 체크
+      await this.checkMABreakoutSignals(symbol, timeframe, candles, currentPrice);
+
+      // 3. MACD 신호 체크
+      await this.checkMACDSignals(symbol, timeframe, candles, currentPrice);
+
+      // 4. 볼린저 밴드 신호 체크
+      await this.checkBollingerSignals(symbol, timeframe, candles, currentPrice);
+
+      // 5. 거래량 급증 체크
+      await this.checkVolumeSignals(symbol, timeframe, candles);
+
+      console.log(`✅ [IndividualSignals] 개별 전략 신호 체크 완료: ${symbol}`);
+    } catch (error) {
+      console.error(`❌ [IndividualSignals] 개별 신호 체크 실패: ${symbol}`, error);
+    }
+  }
+
+  /**
+   * 📈 RSI 임계값 신호 체크
+   */
+  private async checkRSISignals(
+    symbol: string,
+    timeframe: TimeFrame,
+    candles: any[],
+    currentPrice: number,
+  ): Promise<void> {
+    try {
+      const rsiData = this.technicalIndicatorService.calculateRSI(candles, 14);
+      if (rsiData.length < 2) return;
+
+      const currentRSI = rsiData[rsiData.length - 1].value;
+      const previousRSI = rsiData[rsiData.length - 2].value;
+
+      // RSI 과매수 진입 (70 돌파)
+      if (currentRSI > 70 && previousRSI <= 70) {
+        this.emitIndividualSignal('rsi_overbought', {
+          symbol,
+          timeframe,
+          signalType: 'overbought',
+          currentRSI,
+          confidence: 75,
+          currentPrice,
+        });
+      }
+
+      // RSI 과매도 진입 (30 이탈)
+      if (currentRSI < 30 && previousRSI >= 30) {
+        this.emitIndividualSignal('rsi_oversold', {
+          symbol,
+          timeframe,
+          signalType: 'oversold',
+          currentRSI,
+          confidence: 75,
+          currentPrice,
+        });
+      }
+
+      // RSI 50 상향 돌파 (상승 모멘텀)
+      if (currentRSI > 50 && previousRSI <= 50) {
+        this.emitIndividualSignal('rsi_bullish_50', {
+          symbol,
+          timeframe,
+          signalType: 'bullish_50',
+          currentRSI,
+          confidence: 60,
+          currentPrice,
+        });
+      }
+
+      // RSI 50 하향 이탈 (하락 모멘텀)
+      if (currentRSI < 50 && previousRSI >= 50) {
+        this.emitIndividualSignal('rsi_bearish_50', {
+          symbol,
+          timeframe,
+          signalType: 'bearish_50',
+          currentRSI,
+          confidence: 60,
+          currentPrice,
+        });
+      }
+    } catch (error) {
+      console.error(`❌ [RSI Signals] RSI 신호 체크 실패: ${symbol}`, error);
+    }
+  }
+
+  /**
+   * 📊 이동평균선 돌파 신호 체크
+   */
+  private async checkMABreakoutSignals(
+    symbol: string,
+    timeframe: TimeFrame,
+    candles: any[],
+    currentPrice: number,
+  ): Promise<void> {
+    try {
+      // MA20, MA50 체크
+      const maPeriods = [20, 50];
+
+      for (const period of maPeriods) {
+        const maData = this.technicalIndicatorService.calculateSMA(candles, period);
+        if (maData.length < 2) continue;
+
+        const currentMA = maData[maData.length - 1].value;
+        const previousMA = maData[maData.length - 2].value;
+        const previousPrice = candles[candles.length - 2]?.close;
+
+        if (!previousPrice) continue;
+
+        // 상향 돌파
+        if (currentPrice > currentMA && previousPrice <= previousMA) {
+          this.emitIndividualSignal('ma_breakout_up', {
+            symbol,
+            timeframe,
+            maPeriod: period,
+            currentPrice,
+            maValue: currentMA,
+            signalType: 'breakout_up',
+            confidence: period === 20 ? 65 : 70, // MA50이 더 신뢰도 높음
+          });
+        }
+
+        // 하향 이탈
+        if (currentPrice < currentMA && previousPrice >= previousMA) {
+          this.emitIndividualSignal('ma_breakout_down', {
+            symbol,
+            timeframe,
+            maPeriod: period,
+            currentPrice,
+            maValue: currentMA,
+            signalType: 'breakout_down',
+            confidence: period === 20 ? 65 : 70,
+          });
+        }
+      }
+    } catch (error) {
+      console.error(`❌ [MA Signals] MA 돌파 신호 체크 실패: ${symbol}`, error);
+    }
+  }
+
+  /**
+   * 📊 MACD 신호 체크
+   */
+  private async checkMACDSignals(
+    symbol: string,
+    timeframe: TimeFrame,
+    candles: any[],
+    currentPrice: number,
+  ): Promise<void> {
+    try {
+      const macdData = this.technicalIndicatorService.calculateMACD(candles, 12, 26, 9);
+      if (macdData.length < 2) return;
+
+      const current = macdData[macdData.length - 1];
+      const previous = macdData[macdData.length - 2];
+
+      // 골든크로스 (MACD 라인이 시그널 라인 상향 돌파)
+      if (current.macdLine > current.signalLine && previous.macdLine <= previous.signalLine) {
+        this.emitIndividualSignal('macd_golden_cross', {
+          symbol,
+          timeframe,
+          macdLine: current.macdLine,
+          signalLine: current.signalLine,
+          histogram: current.histogram,
+          signalType: 'golden_cross',
+          confidence: 70,
+        });
+      }
+
+      // 데드크로스 (MACD 라인이 시그널 라인 하향 이탈)
+      if (current.macdLine < current.signalLine && previous.macdLine >= previous.signalLine) {
+        this.emitIndividualSignal('macd_dead_cross', {
+          symbol,
+          timeframe,
+          macdLine: current.macdLine,
+          signalLine: current.signalLine,
+          histogram: current.histogram,
+          signalType: 'dead_cross',
+          confidence: 70,
+        });
+      }
+    } catch (error) {
+      console.error(`❌ [MACD Signals] MACD 신호 체크 실패: ${symbol}`, error);
+    }
+  }
+
+  /**
+   * 📊 볼린저 밴드 신호 체크
+   */
+  private async checkBollingerSignals(
+    symbol: string,
+    timeframe: TimeFrame,
+    candles: any[],
+    currentPrice: number,
+  ): Promise<void> {
+    try {
+      const bollingerData = this.technicalIndicatorService.calculateBollingerBands(candles, 20, 2);
+      if (bollingerData.length < 2) return;
+
+      const current = bollingerData[bollingerData.length - 1];
+      const previous = bollingerData[bollingerData.length - 2];
+      const previousPrice = candles[candles.length - 2]?.close;
+
+      if (!previousPrice) return;
+
+      // 상단 밴드 터치/돌파
+      if (currentPrice >= current.upper && previousPrice < previous.upper) {
+        const signalType = currentPrice > current.upper ? 'break_upper' : 'touch_upper';
+        this.emitIndividualSignal('bollinger_upper', {
+          symbol,
+          timeframe,
+          currentPrice,
+          upperBand: current.upper,
+          lowerBand: current.lower,
+          middleBand: current.middle,
+          signalType,
+          confidence: signalType === 'break_upper' ? 75 : 65,
+        });
+      }
+
+      // 하단 밴드 터치/이탈
+      if (currentPrice <= current.lower && previousPrice > previous.lower) {
+        const signalType = currentPrice < current.lower ? 'break_lower' : 'touch_lower';
+        this.emitIndividualSignal('bollinger_lower', {
+          symbol,
+          timeframe,
+          currentPrice,
+          upperBand: current.upper,
+          lowerBand: current.lower,
+          middleBand: current.middle,
+          signalType,
+          confidence: signalType === 'break_lower' ? 75 : 65,
+        });
+      }
+    } catch (error) {
+      console.error(`❌ [Bollinger Signals] 볼린저 신호 체크 실패: ${symbol}`, error);
+    }
+  }
+
+  /**
+   * 📊 거래량 신호 체크
+   */
+  private async checkVolumeSignals(
+    symbol: string,
+    timeframe: TimeFrame,
+    candles: any[],
+  ): Promise<void> {
+    try {
+      const volumeData = this.technicalIndicatorService.calculateVolumeAnalysis(candles, 20);
+      if (volumeData.length < 1) return;
+
+      const current = volumeData[volumeData.length - 1];
+
+      // 거래량 급증 (평균 대비 2배 이상)
+      if (current.volumeRatio >= 2.0) {
+        this.emitIndividualSignal('volume_surge', {
+          symbol,
+          timeframe,
+          currentVolume: current.currentVolume,
+          avgVolume: current.volumeMA,
+          volumeRatio: current.volumeRatio,
+          signalType: 'volume_surge',
+          confidence: Math.min(85, 50 + (current.volumeRatio - 2) * 10), // 거래량 비율에 따라 신뢰도 조정
+        });
+      }
+
+      // 거래량 감소 (평균 대비 0.5배 이하)
+      if (current.volumeRatio <= 0.5) {
+        this.emitIndividualSignal('volume_dry_up', {
+          symbol,
+          timeframe,
+          currentVolume: current.currentVolume,
+          avgVolume: current.volumeMA,
+          volumeRatio: current.volumeRatio,
+          signalType: 'volume_dry_up',
+          confidence: 60,
+        });
+      }
+    } catch (error) {
+      console.error(`❌ [Volume Signals] 거래량 신호 체크 실패: ${symbol}`, error);
+    }
+  }
+
+  /**
+   * 📡 개별 신호 이벤트 발송
+   */
+  private emitIndividualSignal(signalType: string, data: any): void {
+    try {
+      const event = {
+        type: 'individual_signal',
+        signalType,
+        timestamp: new Date(),
+        ...data,
+      };
+
+      // 개별 신호 이벤트 발송 (notification 도메인에서 수신)
+      this.eventEmitter.emit('individual.signal', event);
+
+      console.log(`📡 [IndividualSignal] ${signalType} 신호 발송: ${data.symbol} (신뢰도: ${data.confidence}%)`);
+    } catch (error) {
+      console.error(`❌ [IndividualSignal] 개별 신호 발송 실패: ${signalType}`, error);
+    }
+  }
+
+  /**
+   * 📊 캔들 데이터 조회 헬퍼
+   */
+  private async getCandleData(symbol: string, limit: number): Promise<any[]> {
+    try {
+      return await this.candleRepository.findLatestCandles(
+        symbol,
+        'FUTURES',
+        limit,
+      );
+    } catch (error) {
+      console.error(`❌ 캔들 데이터 조회 실패: ${symbol}`, error);
+      return [];
     }
   }
 
