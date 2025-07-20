@@ -312,17 +312,201 @@ export class NotificationService implements OnModuleInit {
         `📢 [Notification] 분석 완료 이벤트 수신: ${symbol} - ${analysisResult.signal} (신뢰도: ${analysisResult.confidence}%)`,
       );
 
-      // 📬 알림 메시지 생성
+      // 📬 기본 분석 알림 메시지 생성
       const notification = this.createAnalysisNotification({
         symbol,
         analysisResult,
         analyzedAt: event.analyzedAt || new Date(),
       });
 
-      // 📤 알림 발송
+      // 📤 기본 분석 알림 발송
       await this.sendNotification(notification);
+
+      // 🚀 고급 전략 알림 처리
+      if (event.advancedStrategies && event.advancedStrategies.length > 0) {
+        await this.handleAdvancedStrategiesNotification(
+          symbol,
+          event.advancedStrategies,
+        );
+      }
+
+      // 💼 실전 전략 알림 처리
+      if (event.practicalStrategies && event.practicalStrategies.length > 0) {
+        await this.handlePracticalStrategiesNotification(
+          symbol,
+          event.practicalStrategies,
+        );
+      }
     } catch (error) {
       console.error('❌ [Notification] 분석 완료 이벤트 처리 실패:', error);
+    }
+  }
+
+  /**
+   * 🚀 고급 전략 알림 처리
+   */
+  private async handleAdvancedStrategiesNotification(
+    symbol: string,
+    advancedStrategies: any[],
+  ): Promise<void> {
+    try {
+      console.log(
+        `🚀 [AdvancedStrategies] 고급 전략 알림 처리 시작: ${symbol} (${advancedStrategies.length}개)`,
+      );
+
+      for (const strategy of advancedStrategies) {
+        // 높은 신뢰도의 신호만 알림 발송 (스팸 방지)
+        if (strategy.confidence < 70 || strategy.signal === 'NEUTRAL') {
+          continue;
+        }
+
+        const timestamp = new Date(strategy.timestamp || Date.now());
+
+        switch (strategy.type) {
+          case 'SMART_MONEY_FLOW':
+            await this.telegramService.sendSmartMoneyFlowAlert(
+              symbol,
+              strategy.timeframe || '15m',
+              strategy.signal,
+              strategy.confidence,
+              strategy.indicators || {},
+              timestamp,
+            );
+            break;
+
+          case 'MULTI_TIMEFRAME_TREND':
+            await this.telegramService.sendMultiTimeframeTrendAlert(
+              symbol,
+              strategy.signal,
+              strategy.confidence,
+              strategy.details?.trendAnalysis || [],
+              timestamp,
+            );
+            break;
+
+          case 'PATTERN_RECOGNITION':
+            await this.telegramService.sendPatternRecognitionAlert(
+              symbol,
+              strategy.timeframe || '15m',
+              strategy.signal,
+              strategy.confidence,
+              strategy.details?.patterns || {},
+              timestamp,
+            );
+            break;
+
+          default:
+            // 기타 고급 전략들은 종합 알림으로 처리
+            await this.telegramService.sendAdvancedStrategyAlert(
+              symbol,
+              strategy.type || strategy.strategy,
+              strategy.signal,
+              strategy.confidence,
+              strategy.details || { reasoning: strategy.reasoning },
+              timestamp,
+            );
+            break;
+        }
+
+        console.log(
+          `✅ [AdvancedStrategy] ${strategy.type} 알림 발송 완료: ${symbol}`,
+        );
+      }
+    } catch (error) {
+      console.error(
+        `❌ [AdvancedStrategies] 고급 전략 알림 처리 실패: ${symbol}`,
+        error,
+      );
+    }
+  }
+
+  /**
+   * 💼 실전 전략 알림 처리
+   */
+  private async handlePracticalStrategiesNotification(
+    symbol: string,
+    practicalStrategies: any[],
+  ): Promise<void> {
+    try {
+      console.log(
+        `💼 [PracticalStrategies] 실전 전략 알림 처리 시작: ${symbol} (${practicalStrategies.length}개)`,
+      );
+
+      for (const strategy of practicalStrategies) {
+        // 높은 신뢰도의 신호만 알림 발송 (스팸 방지)
+        if (strategy.confidence < 70 || strategy.signal === 'NEUTRAL') {
+          continue;
+        }
+
+        const timestamp = new Date(strategy.timestamp || Date.now());
+
+        switch (strategy.type) {
+          case 'DAY_TRADING_STRATEGY':
+            await this.telegramService.sendDayTradingStrategyAlert(
+              symbol,
+              strategy.timeframe || '15m',
+              strategy.signal,
+              strategy.confidence,
+              strategy.indicators || {},
+              timestamp,
+            );
+            break;
+
+          case 'SWING_TRADING':
+            await this.telegramService.sendSwingTradingAlert(
+              symbol,
+              strategy.timeframe || '1h',
+              strategy.signal,
+              strategy.confidence,
+              strategy.indicators || {},
+              timestamp,
+            );
+            break;
+
+          case 'POSITION_TRADING':
+            await this.telegramService.sendPositionTradingAlert(
+              symbol,
+              strategy.timeframe || '1d',
+              strategy.signal,
+              strategy.confidence,
+              strategy.indicators || {},
+              timestamp,
+            );
+            break;
+
+          case 'MEAN_REVERSION':
+            await this.telegramService.sendMeanReversionAlert(
+              symbol,
+              strategy.timeframe || '1h',
+              strategy.signal,
+              strategy.confidence,
+              strategy.indicators || {},
+              timestamp,
+            );
+            break;
+
+          default:
+            // 기타 실전 전략들은 종합 알림으로 처리
+            await this.telegramService.sendAdvancedStrategyAlert(
+              symbol,
+              strategy.type || strategy.strategy,
+              strategy.signal,
+              strategy.confidence,
+              strategy.details || { reasoning: strategy.reasoning },
+              timestamp,
+            );
+            break;
+        }
+
+        console.log(
+          `✅ [PracticalStrategy] ${strategy.type} 알림 발송 완료: ${symbol}`,
+        );
+      }
+    } catch (error) {
+      console.error(
+        `❌ [PracticalStrategies] 실전 전략 알림 처리 실패: ${symbol}`,
+        error,
+      );
     }
   }
 

@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import {
+  BollingerBandsResult,
   CandleData,
+  MACDResult,
   MovingAverageResult,
   RSIResult,
-  MACDResult,
-  BollingerBandsResult,
   VolumeAnalysisResult,
 } from '../types/TechnicalAnalysisTypes';
 

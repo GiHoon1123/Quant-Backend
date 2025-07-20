@@ -41,6 +41,19 @@ export enum StrategyType {
   TRIPLE_CONFIRMATION = 'TRIPLE_CONFIRMATION', // MA + RSI + Volume 3중 확인
   MOMENTUM_BREAKOUT = 'MOMENTUM_BREAKOUT', // 모멘텀 + 돌파 복합
   TREND_FOLLOWING = 'TREND_FOLLOWING', // 다중 시간봉 트렌드 추종
+
+  // 고급 전략들
+  SMART_MONEY_FLOW = 'SMART_MONEY_FLOW', // 스마트 머니 플로우
+  MULTI_TIMEFRAME_TREND = 'MULTI_TIMEFRAME_TREND', // 다중 시간봉 트렌드
+  PATTERN_RECOGNITION = 'PATTERN_RECOGNITION', // 패턴 인식
+  ELLIOTT_WAVE = 'ELLIOTT_WAVE', // 엘리어트 파동
+  AI_PREDICTION = 'AI_PREDICTION', // AI 예측
+
+  // 실전 전략들
+  DAY_TRADING_STRATEGY = 'DAY_TRADING_STRATEGY', // 데이 트레이딩 전략
+  SWING_TRADING = 'SWING_TRADING', // 스윙 트레이딩
+  POSITION_TRADING = 'POSITION_TRADING', // 포지션 트레이딩
+  MEAN_REVERSION = 'MEAN_REVERSION', // 평균 회귀
 }
 
 /**

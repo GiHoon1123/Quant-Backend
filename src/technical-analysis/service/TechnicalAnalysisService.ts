@@ -340,7 +340,8 @@ export class TechnicalAnalysisService {
       alertThreshold,
     );
 
-    for (const [symbol, result] of screening.entries()) {
+    const screeningEntries = Array.from(screening.entries());
+    for (const [symbol, result] of screeningEntries) {
       let alertMessage = '';
 
       if (result.overallSignal === SignalType.STRONG_BUY) {

@@ -1,39 +1,38 @@
 import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Query,
-  Param,
-  ParseArrayPipe,
-  DefaultValuePipe,
-  ParseIntPipe,
   BadRequestException,
+  Body,
+  Controller,
+  DefaultValuePipe,
+  Get,
   HttpCode,
   HttpStatus,
+  Param,
+  ParseIntPipe,
+  Post,
+  Query,
 } from '@nestjs/common';
 import {
-  ApiTags,
   ApiOperation,
-  ApiResponse,
-  ApiQuery,
   ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
-import { TechnicalAnalysisService } from '../service/TechnicalAnalysisService';
 import {
-  AnalyzeSymbolDto,
   ScreenMultipleSymbolsDto,
-  IndicatorSummaryDto,
-  MonitorMarketDto,
   StrategyScreeningDto,
 } from '../dto/request/TechnicalAnalysisRequest';
 import {
-  SymbolAnalysisResponse,
-  MultiSymbolScreeningResponse,
   IndicatorSummaryResponse,
   MarketAlertResponse,
+  MultiSymbolScreeningResponse,
   StrategyScreeningResponse,
+  SymbolAnalysisResponse,
 } from '../dto/response/TechnicalAnalysisResponse';
+import { AdvancedStrategyService } from '../service/AdvancedStrategyService';
+import { PracticalStrategyService } from '../service/PracticalStrategyService';
+import { RiskManagementService } from '../service/RiskManagementService';
+import { TechnicalAnalysisService } from '../service/TechnicalAnalysisService';
 import { StrategyType } from '../types/StrategyTypes';
 import { TimeFrame } from '../types/TechnicalAnalysisTypes';
 
@@ -62,6 +61,9 @@ import { TimeFrame } from '../types/TechnicalAnalysisTypes';
 export class TechnicalAnalysisController {
   constructor(
     private readonly technicalAnalysisService: TechnicalAnalysisService,
+    private readonly advancedStrategyService: AdvancedStrategyService,
+    private readonly practicalStrategyService: PracticalStrategyService,
+    private readonly riskManagementService: RiskManagementService,
   ) {}
 
   /**
@@ -146,7 +148,7 @@ export class TechnicalAnalysisController {
         if (strategies.length === 0) {
           throw new Error('유효한 전략이 없습니다');
         }
-      } catch (error) {
+      } catch (error: any) {
         throw new BadRequestException(
           `전략 파라미터가 잘못되었습니다: ${error.message}`,
         );
@@ -165,7 +167,7 @@ export class TechnicalAnalysisController {
         if (timeframes.length === 0) {
           throw new Error('유효한 시간봉이 없습니다');
         }
-      } catch (error) {
+      } catch (error: any) {
         throw new BadRequestException(
           `시간봉 파라미터가 잘못되었습니다: ${error.message}`,
         );
@@ -188,7 +190,7 @@ export class TechnicalAnalysisController {
           analysis: result,
         },
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error(`❌ 심볼 분석 API 실패: ${symbol}`, error);
       throw new BadRequestException(`분석에 실패했습니다: ${error.message}`);
     }
@@ -251,7 +253,7 @@ export class TechnicalAnalysisController {
           results: symbolResults,
         },
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ 다중 심볼 스크리닝 API 실패', error);
       throw new BadRequestException(
         `스크리닝에 실패했습니다: ${error.message}`,
@@ -338,7 +340,7 @@ export class TechnicalAnalysisController {
           })),
         },
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ 강한 매수 신호 검색 API 실패', error);
       throw new BadRequestException(`검색에 실패했습니다: ${error.message}`);
     }
@@ -411,7 +413,7 @@ export class TechnicalAnalysisController {
           })),
         },
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ 시장 모니터링 API 실패', error);
       throw new BadRequestException(
         `모니터링에 실패했습니다: ${error.message}`,
@@ -475,7 +477,7 @@ export class TechnicalAnalysisController {
         message: '지표 요약 조회가 완료되었습니다',
         data: summary,
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error(`❌ 지표 요약 조회 API 실패: ${symbol}`, error);
       throw new BadRequestException(`조회에 실패했습니다: ${error.message}`);
     }
@@ -531,9 +533,288 @@ export class TechnicalAnalysisController {
           })),
         },
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ 전략 스캔 API 실패', error);
       throw new BadRequestException(`스캔에 실패했습니다: ${error.message}`);
+    }
+  }
+
+  /**
+   * 고급 전략 실행
+   *
+   * 특정 심볼에 대해 고급 전략을 실행합니다.
+   *
+   * @param symbol 분석할 심볼
+   * @param strategy 실행할 전략 (선택사항)
+   * @param timeframe 분석할 시간봉 (선택사항)
+   * @returns 고급 전략 분석 결과
+   */
+  @Get('advanced/:symbol')
+  @ApiOperation({
+    summary: '고급 전략 실행',
+    description: '특정 심볼에 대해 고급 기술적 분석 전략을 실행합니다.',
+  })
+  @ApiParam({
+    name: 'symbol',
+    description: '분석할 암호화폐 심볼',
+    example: 'BTCUSDT',
+  })
+  @ApiQuery({
+    name: 'strategy',
+    description: '실행할 고급 전략',
+    required: false,
+    example: 'MULTI_TIMEFRAME_MOMENTUM',
+  })
+  @ApiQuery({
+    name: 'timeframe',
+    description: '분석할 시간봉',
+    required: false,
+    example: '1h',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '고급 전략 실행 성공',
+  })
+  async executeAdvancedStrategy(
+    @Param('symbol') symbol: string,
+    @Query('strategy') strategy?: string,
+    @Query('timeframe', new DefaultValuePipe(TimeFrame.ONE_HOUR))
+    timeframe?: TimeFrame,
+  ) {
+    console.log(`🚀 API 요청: 고급 전략 실행 - ${symbol} ${strategy || 'ALL'}`);
+
+    if (!symbol || !symbol.endsWith('USDT')) {
+      throw new BadRequestException('유효한 USDT 페어 심볼을 입력해주세요');
+    }
+
+    try {
+      const result =
+        await this.advancedStrategyService.executeSmartMoneyFlowStrategy(
+          symbol.toUpperCase(),
+          timeframe || TimeFrame.ONE_HOUR,
+        );
+
+      return {
+        success: true,
+        message: '고급 전략 실행이 완료되었습니다',
+        data: {
+          symbol: symbol.toUpperCase(),
+          strategy: strategy || 'ALL_ADVANCED',
+          timeframe,
+          timestamp: Date.now(),
+          result,
+        },
+      };
+    } catch (error: any) {
+      console.error(`❌ 고급 전략 실행 API 실패: ${symbol}`, error);
+      throw new BadRequestException(`실행에 실패했습니다: ${error.message}`);
+    }
+  }
+
+  /**
+   * 실전 전략 실행
+   *
+   * 특정 심볼에 대해 실전 검증된 전략들을 실행합니다.
+   *
+   * @param symbol 분석할 심볼
+   * @param timeframe 분석할 시간봉 (선택사항)
+   * @returns 실전 전략 분석 결과
+   */
+  @Get('practical/:symbol')
+  @ApiOperation({
+    summary: '실전 전략 실행',
+    description: '특정 심볼에 대해 실전 검증된 전략들을 실행합니다.',
+  })
+  @ApiParam({
+    name: 'symbol',
+    description: '분석할 암호화폐 심볼',
+    example: 'BTCUSDT',
+  })
+  @ApiQuery({
+    name: 'timeframe',
+    description: '분석할 시간봉',
+    required: false,
+    example: '1h',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '실전 전략 실행 성공',
+  })
+  async executePracticalStrategies(
+    @Param('symbol') symbol: string,
+    @Query('timeframe', new DefaultValuePipe(TimeFrame.ONE_HOUR))
+    timeframe?: TimeFrame,
+  ) {
+    console.log(`💼 API 요청: 실전 전략 실행 - ${symbol} ${timeframe}`);
+
+    if (!symbol || !symbol.endsWith('USDT')) {
+      throw new BadRequestException('유효한 USDT 페어 심볼을 입력해주세요');
+    }
+
+    try {
+      const result =
+        await this.practicalStrategyService.executeAllPracticalStrategies(
+          symbol.toUpperCase(),
+          timeframe || TimeFrame.ONE_HOUR,
+        );
+
+      return {
+        success: true,
+        message: '실전 전략 실행이 완료되었습니다',
+        data: {
+          symbol: symbol.toUpperCase(),
+          timeframe,
+          timestamp: Date.now(),
+          result,
+        },
+      };
+    } catch (error: any) {
+      console.error(`❌ 실전 전략 실행 API 실패: ${symbol}`, error);
+      throw new BadRequestException(`실행에 실패했습니다: ${error.message}`);
+    }
+  }
+
+  /**
+   * 리스크 분석
+   *
+   * 계좌 정보를 바탕으로 리스크를 분석합니다.
+   *
+   * @param dto 리스크 분석 요청 데이터
+   * @returns 리스크 분석 결과
+   */
+  @Post('risk/analyze')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: '리스크 분석',
+    description: '계좌 정보를 바탕으로 포지션 리스크를 분석합니다.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '리스크 분석 성공',
+  })
+  async analyzeRisk(
+    @Body()
+    dto: {
+      accountBalance: number;
+      winRate: number;
+      avgWin: number;
+      avgLoss: number;
+      symbol?: string;
+      positionSize?: number;
+    },
+  ) {
+    console.log(`⚠️ API 요청: 리스크 분석 - 잔고: ${dto.accountBalance}`);
+
+    if (dto.accountBalance <= 0) {
+      throw new BadRequestException('계좌 잔고는 0보다 커야 합니다');
+    }
+
+    if (dto.winRate < 0 || dto.winRate > 100) {
+      throw new BadRequestException('승률은 0-100 사이의 값이어야 합니다');
+    }
+
+    try {
+      const positionSizeResult =
+        this.riskManagementService.calculatePositionSize(
+          dto.accountBalance,
+          dto.winRate / 100, // 백분율을 소수로 변환
+          dto.avgWin,
+          dto.avgLoss,
+        );
+
+      const riskAnalysis = {
+        positionSizing: positionSizeResult,
+        riskAssessment: {
+          accountBalance: dto.accountBalance,
+          winRate: dto.winRate,
+          avgWin: dto.avgWin,
+          avgLoss: dto.avgLoss,
+          expectedValue:
+            (dto.winRate / 100) * dto.avgWin -
+            ((100 - dto.winRate) / 100) * dto.avgLoss,
+          riskRewardRatio: dto.avgWin / dto.avgLoss,
+        },
+      };
+
+      return {
+        success: true,
+        message: '리스크 분석이 완료되었습니다',
+        data: {
+          timestamp: Date.now(),
+          input: dto,
+          analysis: riskAnalysis,
+        },
+      };
+    } catch (error: any) {
+      console.error('❌ 리스크 분석 API 실패', error);
+      throw new BadRequestException(`분석에 실패했습니다: ${error.message}`);
+    }
+  }
+
+  /**
+   * 포지션 사이즈 계산
+   *
+   * 리스크 관리 기준에 따라 적절한 포지션 사이즈를 계산합니다.
+   *
+   * @param dto 포지션 사이즈 계산 요청 데이터
+   * @returns 권장 포지션 사이즈
+   */
+  @Post('risk/position-size')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: '포지션 사이즈 계산',
+    description: '리스크 관리 기준에 따라 적절한 포지션 사이즈를 계산합니다.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '포지션 사이즈 계산 성공',
+  })
+  async calculatePositionSize(
+    @Body()
+    dto: {
+      accountBalance: number;
+      riskPercentage: number;
+      entryPrice: number;
+      stopLossPrice: number;
+      symbol?: string;
+    },
+  ) {
+    console.log(`📊 API 요청: 포지션 사이즈 계산 - ${dto.symbol || 'UNKNOWN'}`);
+
+    if (dto.accountBalance <= 0) {
+      throw new BadRequestException('계좌 잔고는 0보다 커야 합니다');
+    }
+
+    if (dto.riskPercentage <= 0 || dto.riskPercentage > 10) {
+      throw new BadRequestException('리스크 비율은 0-10% 사이여야 합니다');
+    }
+
+    if (dto.entryPrice <= 0 || dto.stopLossPrice <= 0) {
+      throw new BadRequestException('진입가와 손절가는 0보다 커야 합니다');
+    }
+
+    try {
+      const riskAmount = (dto.accountBalance * dto.riskPercentage) / 100;
+      const stopLossDistance = Math.abs(dto.entryPrice - dto.stopLossPrice);
+      const positionSize = riskAmount / stopLossDistance;
+
+      return {
+        success: true,
+        message: '포지션 사이즈 계산이 완료되었습니다',
+        data: {
+          timestamp: Date.now(),
+          input: dto,
+          recommendedPositionSize: positionSize,
+          riskAmount: (dto.accountBalance * dto.riskPercentage) / 100,
+          stopLossDistance: Math.abs(dto.entryPrice - dto.stopLossPrice),
+          stopLossPercentage:
+            (Math.abs(dto.entryPrice - dto.stopLossPrice) / dto.entryPrice) *
+            100,
+        },
+      };
+    } catch (error: any) {
+      console.error('❌ 포지션 사이즈 계산 API 실패', error);
+      throw new BadRequestException(`계산에 실패했습니다: ${error.message}`);
     }
   }
 
@@ -558,7 +839,7 @@ export class TechnicalAnalysisController {
       data: {
         timestamp: Date.now(),
         status: 'healthy',
-        version: '1.0.0',
+        version: '2.0.0',
         features: [
           '단일 심볼 분석',
           '다중 심볼 스크리닝',
@@ -566,6 +847,26 @@ export class TechnicalAnalysisController {
           '실시간 시장 모니터링',
           '기술적 지표 요약',
           '전략별 심볼 스캔',
+          '🆕 완전한 전략 구현 (20+ 전략)',
+          '🆕 RSI 다이버전스 분석',
+          '🆕 MACD 히스토그램 전환',
+          '🆕 볼린저밴드 하단 반등',
+        ],
+        strategies: [
+          'MA_20_BREAKOUT',
+          'MA_50_BREAKOUT',
+          'MA_200_BREAKOUT',
+          'GOLDEN_CROSS_50_200',
+          'RSI_OVERSOLD_BOUNCE',
+          'RSI_MOMENTUM_70',
+          'RSI_DIVERGENCE',
+          'MACD_GOLDEN_CROSS',
+          'MACD_ZERO_CROSS',
+          'MACD_HISTOGRAM_TURN',
+          'BOLLINGER_UPPER_BREAK',
+          'BOLLINGER_LOWER_BOUNCE',
+          'VOLUME_SURGE_UP',
+          'TRIPLE_CONFIRMATION',
         ],
       },
     };

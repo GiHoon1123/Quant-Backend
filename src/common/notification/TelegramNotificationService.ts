@@ -1226,4 +1226,399 @@ export class TelegramNotificationService {
 
     await this.sendBasic(symbol, message);
   }
+
+  // ==========================================
+  // 🚀 고급 전략 알림 메시지 함수들
+  // ==========================================
+
+  /**
+   * 스마트 머니 플로우 전략 알림
+   */
+  async sendSmartMoneyFlowAlert(
+    symbol: string,
+    timeframe: string,
+    signal: string,
+    confidence: number,
+    indicators: any,
+    timestamp: Date = new Date(),
+  ): Promise<void> {
+    const name = this.getDisplayName(symbol);
+
+    const timeframeName: Record<string, string> = {
+      '15m': '15분봉',
+      '1h': '1시간봉',
+      '4h': '4시간봉',
+      '1d': '일봉',
+    };
+
+    const timeframeDisplay = timeframeName[timeframe] || timeframe;
+
+    let emoji = '🤖';
+    let signalText = '중립';
+    let signalColor = '⚪';
+
+    if (signal === 'BUY' || signal === 'STRONG_BUY') {
+      emoji = '💰';
+      signalText = '스마트 머니 유입';
+      signalColor = '🟢';
+    } else if (signal === 'SELL' || signal === 'STRONG_SELL') {
+      emoji = '💸';
+      signalText = '스마트 머니 유출';
+      signalColor = '🔴';
+    }
+
+    const message =
+      `${emoji} <b>${name}(${symbol}) 스마트 머니 플로우 감지!</b>\n\n` +
+      `📊 시간대: ${timeframeDisplay}\n` +
+      `${signalColor} 신호: <b>${signalText}</b>\n` +
+      `🎯 신뢰도: <b>${confidence}%</b>\n` +
+      `📈 기관 자금 흐름: ${indicators.institutionalFlow || 'N/A'}\n` +
+      `📊 거래량 프로필: ${indicators.volumeProfile || 'N/A'}\n` +
+      `💡 의미: 기관투자자들의 자금 움직임이 감지되었습니다.\n\n` +
+      `🕒 감지 시점: ${this.formatTimeWithKST(timestamp)}`;
+
+    await this.sendBasic(symbol, message);
+  }
+
+  /**
+   * 다중 시간봉 트렌드 전략 알림
+   */
+  async sendMultiTimeframeTrendAlert(
+    symbol: string,
+    signal: string,
+    confidence: number,
+    trendAnalysis: any[],
+    timestamp: Date = new Date(),
+  ): Promise<void> {
+    const name = this.getDisplayName(symbol);
+
+    let emoji = '📊';
+    let signalText = '중립';
+    let signalColor = '⚪';
+
+    if (signal === 'BUY' || signal === 'STRONG_BUY') {
+      emoji = '📈';
+      signalText = '다중 시간봉 상승';
+      signalColor = '🟢';
+    } else if (signal === 'SELL' || signal === 'STRONG_SELL') {
+      emoji = '📉';
+      signalText = '다중 시간봉 하락';
+      signalColor = '🔴';
+    }
+
+    // 시간봉별 트렌드 요약
+    const trendSummary = trendAnalysis
+      .map(
+        (t) =>
+          `• ${t.timeframe}: ${t.direction === 'bullish' ? '🟢 상승' : t.direction === 'bearish' ? '🔴 하락' : '⚪ 중립'} (${t.strength}%)`,
+      )
+      .join('\n');
+
+    const message =
+      `${emoji} <b>${name}(${symbol}) 다중 시간봉 분석!</b>\n\n` +
+      `${signalColor} 종합 신호: <b>${signalText}</b>\n` +
+      `🎯 신뢰도: <b>${confidence}%</b>\n\n` +
+      `📊 <b>시간봉별 트렌드:</b>\n${trendSummary}\n\n` +
+      `💡 의미: 여러 시간봉에서 동일한 방향성이 확인되어 신뢰도가 높습니다.\n\n` +
+      `🕒 분석 시점: ${this.formatTimeWithKST(timestamp)}`;
+
+    await this.sendBasic(symbol, message);
+  }
+
+  /**
+   * 패턴 인식 전략 알림
+   */
+  async sendPatternRecognitionAlert(
+    symbol: string,
+    timeframe: string,
+    signal: string,
+    confidence: number,
+    patterns: any,
+    timestamp: Date = new Date(),
+  ): Promise<void> {
+    const name = this.getDisplayName(symbol);
+
+    const timeframeName: Record<string, string> = {
+      '15m': '15분봉',
+      '1h': '1시간봉',
+      '4h': '4시간봉',
+      '1d': '일봉',
+    };
+
+    const timeframeDisplay = timeframeName[timeframe] || timeframe;
+
+    let emoji = '🔍';
+    let signalText = '패턴 없음';
+    let signalColor = '⚪';
+
+    if (signal === 'BUY' || signal === 'STRONG_BUY') {
+      emoji = '📈';
+      signalText = '강세 패턴';
+      signalColor = '🟢';
+    } else if (signal === 'SELL' || signal === 'STRONG_SELL') {
+      emoji = '📉';
+      signalText = '약세 패턴';
+      signalColor = '🔴';
+    }
+
+    // 감지된 패턴들
+    const detectedPatterns: string[] = [];
+    if (patterns.doubleBottom) detectedPatterns.push('🟢 더블 바텀');
+    if (patterns.headAndShoulders) detectedPatterns.push('🔴 헤드앤숄더');
+    if (patterns.triangle) detectedPatterns.push('📐 삼각형');
+    if (patterns.flag) detectedPatterns.push('🚩 플래그');
+    if (patterns.wedge) detectedPatterns.push('📐 웨지');
+
+    const patternList =
+      detectedPatterns.length > 0 ? detectedPatterns.join('\n• ') : '패턴 없음';
+
+    const message =
+      `${emoji} <b>${name}(${symbol}) 차트 패턴 감지!</b>\n\n` +
+      `📊 시간대: ${timeframeDisplay}\n` +
+      `${signalColor} 신호: <b>${signalText}</b>\n` +
+      `🎯 신뢰도: <b>${confidence}%</b>\n\n` +
+      `🔍 <b>감지된 패턴:</b>\n• ${patternList}\n\n` +
+      `💡 의미: 기술적 차트 패턴이 감지되어 향후 가격 움직임을 예측할 수 있습니다.\n\n` +
+      `🕒 감지 시점: ${this.formatTimeWithKST(timestamp)}`;
+
+    await this.sendBasic(symbol, message);
+  }
+
+  // ==========================================
+  // 💼 실전 전략 알림 메시지 함수들
+  // ==========================================
+
+  /**
+   * 데이 트레이딩 전략 알림
+   */
+  async sendDayTradingStrategyAlert(
+    symbol: string,
+    timeframe: string,
+    signal: string,
+    confidence: number,
+    indicators: any,
+    timestamp: Date = new Date(),
+  ): Promise<void> {
+    const name = this.getDisplayName(symbol);
+
+    let emoji = '📊';
+    let signalText = '관망';
+    let signalColor = '⚪';
+
+    if (signal === 'BUY' || signal === 'STRONG_BUY') {
+      emoji = '🚀';
+      signalText = '데이 트레이딩 매수';
+      signalColor = '🟢';
+    } else if (signal === 'SELL' || signal === 'STRONG_SELL') {
+      emoji = '📉';
+      signalText = '데이 트레이딩 매도';
+      signalColor = '🔴';
+    }
+
+    const message =
+      `${emoji} <b>${name}(${symbol}) 데이 트레이딩 기회!</b>\n\n` +
+      `📊 시간대: 15분봉 (당일매매)\n` +
+      `${signalColor} 신호: <b>${signalText}</b>\n` +
+      `🎯 신뢰도: <b>${confidence}%</b>\n` +
+      `📈 SMA10: ${indicators.sma10 ? indicators.sma10.toLocaleString() : 'N/A'}\n` +
+      `�  SMA20: ${indicators.sma20 ? indicators.sma20.toLocaleString() : 'N/A'}\n` +
+      `� RS저I: ${indicators.rsi || 'N/A'}\n` +
+      `� MACD단: ${indicators.macdLine > indicators.macdSignal ? '🟢 긍정적' : '🔴 부정적'}\n` +
+      `📊 볼린저 %B: ${indicators.bbPercentB ? (indicators.bbPercentB * 100).toFixed(1) + '%' : 'N/A'}\n` +
+      `� 신거래량 비율: ${indicators.volumeRatio ? indicators.volumeRatio.toFixed(2) + '배' : 'N/A'}\n\n` +
+      `💡 전략: 15분봉 기반 당일 매매로 몇 시간 내 진입/청산을 목표로 합니다.\n` +
+      `📅 보유기간: 몇 시간 (당일 청산)\n` +
+      `🎯 목표수익: 1.5-3%\n` +
+      `⚠️ 주의: 손절매를 반드시 설정하고 당일 내 청산하세요.\n\n` +
+      `🕒 신호 시점: ${this.formatTimeWithKST(timestamp)}`;
+
+    await this.sendBasic(symbol, message);
+  }
+
+  /**
+   * 스윙 트레이딩 전략 알림
+   */
+  async sendSwingTradingAlert(
+    symbol: string,
+    timeframe: string,
+    signal: string,
+    confidence: number,
+    indicators: any,
+    timestamp: Date = new Date(),
+  ): Promise<void> {
+    const name = this.getDisplayName(symbol);
+
+    let emoji = '🌊';
+    let signalText = '관망';
+    let signalColor = '⚪';
+
+    if (signal === 'BUY' || signal === 'STRONG_BUY') {
+      emoji = '📈';
+      signalText = '스윙 매수';
+      signalColor = '🟢';
+    } else if (signal === 'SELL' || signal === 'STRONG_SELL') {
+      emoji = '📉';
+      signalText = '스윙 매도';
+      signalColor = '🔴';
+    }
+
+    const message =
+      `${emoji} <b>${name}(${symbol}) 스윙 트레이딩 신호!</b>\n\n` +
+      `📊 시간대: 1시간봉 (중기매매)\n` +
+      `${signalColor} 신호: <b>${signalText}</b>\n` +
+      `🎯 신뢰도: <b>${confidence}%</b>\n` +
+      `📈 SMA20: ${indicators.sma20 || 'N/A'}\n` +
+      `📈 SMA50: ${indicators.sma50 || 'N/A'}\n` +
+      `📊 RSI: ${indicators.rsi || 'N/A'}\n` +
+      `📊 MACD: ${indicators.macdGolden ? '🟢 골든크로스' : '🔴 데드크로스'}\n\n` +
+      `💡 전략: 중기 트렌드를 활용한 스윙 매매 기회입니다.\n` +
+      `📅 보유기간: 수일~수주 예상\n\n` +
+      `🕒 신호 시점: ${this.formatTimeWithKST(timestamp)}`;
+
+    await this.sendBasic(symbol, message);
+  }
+
+  /**
+   * 포지션 트레이딩 전략 알림
+   */
+  async sendPositionTradingAlert(
+    symbol: string,
+    timeframe: string,
+    signal: string,
+    confidence: number,
+    indicators: any,
+    timestamp: Date = new Date(),
+  ): Promise<void> {
+    const name = this.getDisplayName(symbol);
+
+    let emoji = '🏛️';
+    let signalText = '관망';
+    let signalColor = '⚪';
+
+    if (signal === 'BUY' || signal === 'STRONG_BUY') {
+      emoji = '📈';
+      signalText = '장기 매수';
+      signalColor = '🟢';
+    } else if (signal === 'SELL' || signal === 'STRONG_SELL') {
+      emoji = '📉';
+      signalText = '장기 매도';
+      signalColor = '🔴';
+    }
+
+    const message =
+      `${emoji} <b>${name}(${symbol}) 포지션 트레이딩 신호!</b>\n\n` +
+      `📊 시간대: 일봉 (장기투자)\n` +
+      `${signalColor} 신호: <b>${signalText}</b>\n` +
+      `🎯 신뢰도: <b>${confidence}%</b>\n` +
+      `📈 SMA50: ${indicators.sma50 || 'N/A'}\n` +
+      `📈 SMA200: ${indicators.sma200 || 'N/A'}\n` +
+      `📊 RSI: ${indicators.rsi || 'N/A'}\n` +
+      `📊 골든크로스: ${indicators.isGoldenCross ? '🟢 발생' : '🔴 미발생'}\n\n` +
+      `💡 전략: 장기 트렌드를 활용한 포지션 투자 기회입니다.\n` +
+      `📅 보유기간: 수주~수개월 예상\n\n` +
+      `🕒 신호 시점: ${this.formatTimeWithKST(timestamp)}`;
+
+    await this.sendBasic(symbol, message);
+  }
+
+  /**
+   * 평균 회귀 전략 알림
+   */
+  async sendMeanReversionAlert(
+    symbol: string,
+    timeframe: string,
+    signal: string,
+    confidence: number,
+    indicators: any,
+    timestamp: Date = new Date(),
+  ): Promise<void> {
+    const name = this.getDisplayName(symbol);
+
+    let emoji = '🔄';
+    let signalText = '관망';
+    let signalColor = '⚪';
+
+    if (signal === 'BUY' || signal === 'STRONG_BUY') {
+      emoji = '🔄';
+      signalText = '평균 회귀 매수';
+      signalColor = '🟢';
+    } else if (signal === 'SELL' || signal === 'STRONG_SELL') {
+      emoji = '🔄';
+      signalText = '평균 회귀 매도';
+      signalColor = '🔴';
+    }
+
+    const message =
+      `${emoji} <b>${name}(${symbol}) 평균 회귀 신호!</b>\n\n` +
+      `📊 시간대: ${timeframe}\n` +
+      `${signalColor} 신호: <b>${signalText}</b>\n` +
+      `🎯 신뢰도: <b>${confidence}%</b>\n` +
+      `📈 현재가 vs 평균: ${indicators.priceVsAverage || 'N/A'}\n` +
+      `📊 RSI: ${indicators.rsi || 'N/A'}\n` +
+      `📊 볼린저 위치: ${indicators.bollingerPosition || 'N/A'}\n\n` +
+      `💡 전략: 과매수/과매도 구간에서 평균으로의 회귀를 노리는 전략입니다.\n` +
+      `⚠️ 주의: 강한 트렌드 시장에서는 주의가 필요합니다.\n\n` +
+      `🕒 신호 시점: ${this.formatTimeWithKST(timestamp)}`;
+
+    await this.sendBasic(symbol, message);
+  }
+
+  /**
+   * 고급/실전 전략 종합 알림
+   */
+  async sendAdvancedStrategyAlert(
+    symbol: string,
+    strategyType: string,
+    signal: string,
+    confidence: number,
+    details: any,
+    timestamp: Date = new Date(),
+  ): Promise<void> {
+    const name = this.getDisplayName(symbol);
+
+    // 전략별 이모지와 이름 매핑
+    const strategyInfo: Record<string, { emoji: string; name: string }> = {
+      SMART_MONEY_FLOW: { emoji: '💰', name: '스마트 머니 플로우' },
+      MULTI_TIMEFRAME_TREND: { emoji: '📊', name: '다중 시간봉 트렌드' },
+      PATTERN_RECOGNITION: { emoji: '🔍', name: '패턴 인식' },
+      ELLIOTT_WAVE: { emoji: '🌊', name: '엘리어트 파동' },
+      AI_PREDICTION: { emoji: '🤖', name: 'AI 예측' },
+      DAY_TRADING_STRATEGY: { emoji: '📊', name: '데이 트레이딩' },
+      SWING_TRADING: { emoji: '🌊', name: '스윙 트레이딩' },
+      POSITION_TRADING: { emoji: '🏛️', name: '포지션 트레이딩' },
+      MEAN_REVERSION: { emoji: '🔄', name: '평균 회귀' },
+    };
+
+    const info = strategyInfo[strategyType] || {
+      emoji: '📊',
+      name: strategyType,
+    };
+
+    let signalColor = '⚪';
+    let signalText = '중립';
+
+    if (signal === 'BUY' || signal === 'STRONG_BUY') {
+      signalColor = '🟢';
+      signalText = '매수';
+    } else if (signal === 'SELL' || signal === 'STRONG_SELL') {
+      signalColor = '🔴';
+      signalText = '매도';
+    }
+
+    // 신뢰도에 따른 강도 표시
+    let confidenceEmoji = '🟡';
+    if (confidence >= 80) confidenceEmoji = '🟢';
+    else if (confidence < 60) confidenceEmoji = '🔴';
+
+    const message =
+      `${info.emoji} <b>${name}(${symbol}) ${info.name} 신호!</b>\n\n` +
+      `${signalColor} 신호: <b>${signalText}</b>\n` +
+      `${confidenceEmoji} 신뢰도: <b>${confidence}%</b>\n` +
+      `📊 전략: ${info.name}\n` +
+      `🎯 근거: ${details.reasoning || '기술적 분석 결과'}\n\n` +
+      `💡 이 신호는 고급 분석 알고리즘을 통해 생성되었습니다.\n\n` +
+      `🕒 신호 시점: ${this.formatTimeWithKST(timestamp)}`;
+
+    await this.sendBasic(symbol, message);
+  }
 }
