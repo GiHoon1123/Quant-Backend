@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { calculateMaxSellableQuantity } from '../../common/utils/binance/CalculateMaxSellableQuantity';
 import { ExternalBalanceResponse } from '../dto/external/ExternalBalanceResponse';
 import { ExternalCancelOrderResponse } from '../dto/external/ExternalCancelOrderResponse';
@@ -11,6 +12,7 @@ import { LimitOrderResponse } from '../dto/response/LimitOrderResponse';
 import { MarketBuyOrderResponse } from '../dto/response/MarketBuyOrderResponse';
 import { MarketSellOrderResponse } from '../dto/response/MarketSellOrderResponse';
 import { BinanceOrderClient } from '../infra/BinanceOrderClient';
+import { TradeExecutedEventFactory } from 'src/transaction/dto/events/TradeExecutedEvent';
 
 /**
  * 📈 현물 거래 서비스 (일반 거래)
@@ -36,7 +38,10 @@ import { BinanceOrderClient } from '../infra/BinanceOrderClient';
  */
 @Injectable()
 export class OrderService {
-  constructor(private readonly orderClient: BinanceOrderClient) {}
+  constructor(
+    private readonly orderClient: BinanceOrderClient,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
   /**
    * 📈 시장가 매수 (Market Buy Order)
@@ -117,6 +122,37 @@ export class OrderService {
       console.log(
         `📊 체결 정보: ${response.executedQty}개 @ 평균가 ${response.avgPrice}`,
       );
+
+      // 🎯 이벤트 발행: 현물 거래 실행 이벤트
+      const tradeEvent = TradeExecutedEventFactory.createSpotTradeEvent({
+        symbol,
+        orderId: response.orderId.toString(),
+        clientOrderId: response.clientOrderId,
+        side: 'BUY',
+        type: 'MARKET',
+        quantity: parseFloat(response.executedQty),
+        price: parseFloat(response.avgPrice || '0'),
+        totalAmount:
+          parseFloat(response.executedQty) *
+          parseFloat(response.avgPrice || '0'),
+        fee:
+          response.fills?.reduce(
+            (sum, fill) => sum + parseFloat(fill.commission || '0'),
+            0,
+          ) || 0,
+        feeAsset: response.fills?.[0]?.commissionAsset || 'USDT',
+        feeRate: 0.1, // 바이낸스 기본 수수료율 0.1%
+        status: response.status,
+        executedAt: new Date(),
+        source: 'API',
+        metadata: {
+          rawResponse: raw,
+          fills: response.fills,
+        },
+      });
+
+      this.eventEmitter.emit('trade.executed', tradeEvent);
+      console.log(`🎯 현물 매수 이벤트 발행 완료: ${tradeEvent.eventId}`);
 
       return response;
     } catch (error) {
@@ -217,6 +253,37 @@ export class OrderService {
       console.log(
         `💰 매도 대금: ${(parseFloat(response.executedQty) * parseFloat(response.avgPrice)).toFixed(2)} USDT`,
       );
+
+      // 🎯 이벤트 발행: 현물 거래 실행 이벤트
+      const tradeEvent = TradeExecutedEventFactory.createSpotTradeEvent({
+        symbol,
+        orderId: response.orderId.toString(),
+        clientOrderId: response.clientOrderId,
+        side: 'SELL',
+        type: 'MARKET',
+        quantity: parseFloat(response.executedQty),
+        price: parseFloat(response.avgPrice || '0'),
+        totalAmount:
+          parseFloat(response.executedQty) *
+          parseFloat(response.avgPrice || '0'),
+        fee:
+          response.fills?.reduce(
+            (sum, fill) => sum + parseFloat(fill.commission || '0'),
+            0,
+          ) || 0,
+        feeAsset: response.fills?.[0]?.commissionAsset || 'USDT',
+        feeRate: 0.1,
+        status: response.status,
+        executedAt: new Date(),
+        source: 'API',
+        metadata: {
+          rawResponse: raw,
+          fills: response.fills,
+        },
+      });
+
+      this.eventEmitter.emit('trade.executed', tradeEvent);
+      console.log(`🎯 현물 매도 이벤트 발행 완료: ${tradeEvent.eventId}`);
 
       return response;
     } catch (error) {
