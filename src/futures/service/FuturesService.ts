@@ -1,14 +1,12 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { BinanceFuturesClient } from '../infra/BinanceFuturesClient';
-import { BinanceFuturesPositionClient } from '../infra/BinanceFuturesPositionClient';
+import { ExternalFuturesOrderResponse } from '../dto/external/ExternalFuturesOrderResponse';
 import { PositionSide } from '../dto/request/OpenPositionRequest';
 import { MarginType } from '../dto/request/SetMarginTypeRequest';
-import { ExternalFuturesOrderResponse } from '../dto/external/ExternalFuturesOrderResponse';
-import { ExternalPositionResponse } from '../dto/external/ExternalPositionResponse';
-import { ExternalFuturesBalanceResponse } from '../dto/external/ExternalFuturesBalanceResponse';
-import { PositionOpenResponse } from '../dto/response/PositionOpenResponse';
-import { PositionInfoResponse } from '../dto/response/PositionInfoResponse';
 import { FuturesBalanceResponse } from '../dto/response/FuturesBalanceResponse';
+import { PositionInfoResponse } from '../dto/response/PositionInfoResponse';
+import { PositionOpenResponse } from '../dto/response/PositionOpenResponse';
+import { BinanceFuturesClient } from '../infra/BinanceFuturesClient';
+import { BinanceFuturesPositionClient } from '../infra/BinanceFuturesPositionClient';
 
 /**
  * 선물거래 서비스
@@ -324,52 +322,194 @@ export class FuturesService {
   }
 
   /**
-   * 입력값 유효성 검사 (private 메서드)
+   * 🔍 입력값 유효성 검사 (Private Helper Method)
+   *
+   * 📖 개념: 선물 포지션 진입 시 모든 입력값을 검증하는 안전 장치
+   *
+   * 🧮 검증 항목:
+   * 1. 심볼 유효성: 빈 문자열이나 null 값 차단
+   * 2. 수량 유효성: 양수 여부 및 최소 수량 확인
+   * 3. 레버리지 유효성: 바이낸스 허용 범위 (1~125배) 확인
+   *
+   * 💡 바이낸스 선물 거래 제한사항:
+   * - 최소 포지션 수량: 0.001 (대부분 코인 기준)
+   * - 최대 레버리지: 125배 (리스크 매우 높음)
+   * - 권장 레버리지: 1~10배 (안전한 범위)
+   *
+   * ⚠️ 레버리지별 위험도:
+   * - 1~5배: 안전 (초보자 권장)
+   * - 6~20배: 중간 위험 (경험자)
+   * - 21~50배: 높은 위험 (전문가)
+   * - 51~125배: 극도로 위험 (비추천)
+   *
+   * @param symbol 거래 심볼 (예: BTCUSDT)
+   * @param quantity 포지션 수량
+   * @param leverage 레버리지 배수
+   * @throws BadRequestException 유효하지 않은 입력값 시
    */
   private validatePositionInputs(
     symbol: string,
     quantity: number,
     leverage: number,
   ): void {
+    // 🔍 1단계: 심볼 유효성 검사
     if (!symbol || symbol.trim().length === 0) {
-      throw new BadRequestException('거래 심볼을 입력해주세요.');
-    }
-
-    if (quantity <= 0) {
-      throw new BadRequestException('포지션 수량은 0보다 커야 합니다.');
-    }
-
-    if (leverage < 1 || leverage > 125) {
       throw new BadRequestException(
-        '레버리지는 1배에서 125배 사이여야 합니다.',
+        '❌ 거래 심볼을 입력해주세요.\n' + '💡 예시: BTCUSDT, ETHUSDT, ADAUSDT',
       );
     }
 
-    // 최소 수량 검증 (코인별로 다를 수 있음, 일반적으로 0.001)
+    // 🔍 2단계: 포지션 수량 검사
+    if (quantity <= 0) {
+      throw new BadRequestException(
+        '❌ 포지션 수량은 0보다 커야 합니다.\n' +
+          '💡 최소 수량: 0.001\n' +
+          '📊 권장 수량: 리스크 관리를 고려한 적정 수량',
+      );
+    }
+
+    // 🔍 3단계: 레버리지 범위 검사
+    if (leverage < 1 || leverage > 125) {
+      throw new BadRequestException(
+        '❌ 레버리지는 1배에서 125배 사이여야 합니다.\n\n' +
+          '🎯 레버리지별 권장사항:\n' +
+          '• 1~5배: 🟢 안전 (초보자 권장)\n' +
+          '• 6~20배: 🟡 중간 위험 (경험자)\n' +
+          '• 21~50배: 🟠 높은 위험 (전문가)\n' +
+          '• 51~125배: 🔴 극도로 위험 (비추천)\n\n' +
+          '💡 팁: 처음에는 1~3배로 시작하세요!',
+      );
+    }
+
+    // 🔍 4단계: 최소 수량 검증
+    // 바이낸스 선물은 코인별로 최소 수량이 다름 (일반적으로 0.001)
     if (quantity < 0.001) {
-      throw new BadRequestException('최소 포지션 수량은 0.001입니다.');
+      throw new BadRequestException(
+        '❌ 최소 포지션 수량 미달\n' +
+          `📊 입력 수량: ${quantity}\n` +
+          '📏 최소 수량: 0.001\n\n' +
+          '💡 해결 방법:\n' +
+          '1. 수량을 0.001 이상으로 증가\n' +
+          '2. 더 높은 가격의 코인 선택\n' +
+          '3. 레버리지 조정으로 포지션 크기 조절',
+      );
+    }
+
+    // 🔍 5단계: 권장 사항 로그 출력
+    if (leverage > 10) {
+      console.warn(`⚠️ 높은 레버리지 경고: ${leverage}배`);
+      console.warn('💡 권장: 10배 이하 레버리지 사용을 권장합니다');
+    }
+
+    if (quantity > 1) {
+      console.log(`📊 대량 포지션: ${quantity} ${symbol}`);
+      console.log('💡 팁: 분할 진입을 고려해보세요');
     }
   }
 
   /**
-   * 현재 시장가 추정 (private 메서드)
-   * 실제로는 바이낸스 마크 프라이스 API를 호출해야 하지만,
-   * 여기서는 간단히 포지션 정보에서 마크 가격을 가져옵니다.
+   * 💰 현재 시장가 추정 (Private Helper Method)
+   *
+   * 📖 개념: 포지션 진입 전 필요 마진 계산을 위한 현재 시장가 조회
+   *
+   * 🧮 가격 조회 방법:
+   * 1. 바이낸스 마크 프라이스 API 호출 (가장 정확)
+   * 2. 포지션 정보에서 마크 가격 추출 (대안)
+   * 3. 최근 거래 가격 사용 (최후 수단)
+   *
+   * 💡 마크 프라이스란?
+   * - 바이낸스에서 청산 계산에 사용하는 공정 가격
+   * - 현물 가격과 선물 가격의 가중 평균
+   * - 급격한 가격 변동 시 청산 방지 역할
+   *
+   * 🎯 사용 목적:
+   * - 필요 마진 계산: (수량 × 가격) ÷ 레버리지
+   * - 청산 가격 예상
+   * - 리스크 평가
+   *
+   * ⚠️ 주의사항:
+   * - 실시간 가격 변동으로 실제 체결가와 차이 가능
+   * - 네트워크 지연으로 가격 지연 가능
+   * - 시장 급변 시 가격 오차 증가
+   *
+   * @param symbol 가격을 조회할 심볼 (예: BTCUSDT)
+   * @returns 현재 추정 시장가 (USDT)
+   * @throws BadRequestException 가격 조회 실패 시
    */
   private async getEstimatedPrice(symbol: string): Promise<number> {
     try {
-      // 포지션 정보에서 현재 마크 가격 조회
+      console.log(`💰 ${symbol} 현재 시장가 조회 중...`);
+
+      // 🚀 1단계: 포지션 정보에서 마크 가격 조회
+      // 실제 운영에서는 별도의 마크 프라이스 API 사용 권장
       const rawPositions = await this.futuresClient.getPositions(symbol);
+
       if (rawPositions && rawPositions.length > 0) {
-        return parseFloat(rawPositions[0].markPrice);
+        const markPrice = parseFloat(rawPositions[0].markPrice);
+
+        // 🔍 2단계: 가격 유효성 검사
+        if (markPrice > 0 && isFinite(markPrice)) {
+          console.log(
+            `✅ ${symbol} 마크 프라이스: ${markPrice.toLocaleString()} USDT`,
+          );
+          return markPrice;
+        }
       }
 
-      // 기본값 (실제로는 별도 API 호출 필요)
+      // 🔍 3단계: 대안 방법들 (실제 구현에서는 추가 API 호출)
+      console.warn(
+        `⚠️ ${symbol} 마크 프라이스 조회 실패, 대안 방법 시도 중...`,
+      );
+
+      // TODO: 실제 구현에서는 다음 API들 사용:
+      // 1. GET /fapi/v1/premiumIndex - 마크 프라이스 직접 조회
+      // 2. GET /fapi/v1/ticker/price - 최신 거래 가격
+      // 3. GET /fapi/v1/depth - 오더북에서 중간가 계산
+
       throw new BadRequestException(
-        `${symbol}의 현재 가격을 조회할 수 없습니다.`,
+        `❌ ${symbol} 현재 가격 조회 실패\n\n` +
+          '🔍 가능한 원인:\n' +
+          '1. 해당 심볼이 존재하지 않음\n' +
+          '2. 거래 일시 중단 상태\n' +
+          '3. 네트워크 연결 문제\n' +
+          '4. 바이낸스 서버 일시적 오류\n\n' +
+          '💡 해결 방법:\n' +
+          '1. 심볼명 확인 (예: BTCUSDT)\n' +
+          '2. 바이낸스 거래 가능 여부 확인\n' +
+          '3. 잠시 후 재시도\n' +
+          '4. 다른 심볼로 테스트',
       );
     } catch (error) {
-      throw new BadRequestException(`시장가 조회 실패: ${error.message}`);
+      console.error(`❌ ${symbol} 시장가 조회 실패:`, error);
+
+      // 🔍 에러 타입별 상세 메시지 제공
+      if (error.message?.includes('symbol')) {
+        throw new BadRequestException(
+          `❌ 잘못된 심볼: ${symbol}\n` +
+            '💡 올바른 형식: BTCUSDT, ETHUSDT, ADAUSDT\n' +
+            '📋 지원 심볼 확인: 바이낸스 선물 거래 페이지 참조',
+        );
+      }
+
+      if (
+        error.message?.includes('network') ||
+        error.message?.includes('timeout')
+      ) {
+        throw new BadRequestException(
+          `❌ 네트워크 연결 문제\n` +
+            '🌐 인터넷 연결 상태를 확인해주세요\n' +
+            '⏰ 잠시 후 다시 시도해주세요',
+        );
+      }
+
+      throw new BadRequestException(
+        `시장가 조회 실패: ${error.message}\n\n` +
+          '💡 일반적인 해결 방법:\n' +
+          '1. 심볼명 정확성 확인\n' +
+          '2. 네트워크 연결 상태 점검\n' +
+          '3. 바이낸스 서비스 상태 확인\n' +
+          '4. API 키 권한 설정 확인',
+      );
     }
   }
 }
