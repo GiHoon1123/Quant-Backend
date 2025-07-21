@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { TradeExecutedEventFactory } from 'src/transaction/dto/events/TradeExecutedEvent';
 import { calculateMaxSellableQuantity } from '../../common/utils/binance/CalculateMaxSellableQuantity';
 import { ExternalBalanceResponse } from '../dto/external/ExternalBalanceResponse';
 import { ExternalCancelOrderResponse } from '../dto/external/ExternalCancelOrderResponse';
@@ -12,7 +13,6 @@ import { LimitOrderResponse } from '../dto/response/LimitOrderResponse';
 import { MarketBuyOrderResponse } from '../dto/response/MarketBuyOrderResponse';
 import { MarketSellOrderResponse } from '../dto/response/MarketSellOrderResponse';
 import { BinanceOrderClient } from '../infra/BinanceOrderClient';
-import { TradeExecutedEventFactory } from 'src/transaction/dto/events/TradeExecutedEvent';
 
 /**
  * 📈 현물 거래 서비스 (일반 거래)
@@ -658,7 +658,7 @@ export class OrderService {
 
       // 📊 잔고 요약 정보 출력
       const nonZeroBalances = response.filter(
-        (b) => parseFloat(b.free) > 0 || parseFloat(b.locked) > 0,
+        (b) => b.free > 0 || b.locked > 0,
       );
       console.log(
         `✅ 잔고 조회 완료: ${nonZeroBalances.length}개 자산 보유 중`,
@@ -668,12 +668,9 @@ export class OrderService {
       const majorAssets = ['USDT', 'BTC', 'ETH', 'BNB'];
       majorAssets.forEach((asset) => {
         const balance = response.find((b) => b.asset === asset);
-        if (
-          balance &&
-          (parseFloat(balance.free) > 0 || parseFloat(balance.locked) > 0)
-        ) {
+        if (balance && (balance.free > 0 || balance.locked > 0)) {
           console.log(
-            `💎 ${asset}: ${balance.free} (사용가능) + ${balance.locked} (주문중) = ${(parseFloat(balance.free) + parseFloat(balance.locked)).toFixed(8)}`,
+            `💎 ${asset}: ${balance.free} (사용가능) + ${balance.locked} (주문중) = ${(balance.free + balance.locked).toFixed(8)}`,
           );
         }
       });

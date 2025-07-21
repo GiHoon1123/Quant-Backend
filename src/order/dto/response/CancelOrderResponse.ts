@@ -17,6 +17,9 @@ export class CancelOrderResponse {
   @ApiProperty({ example: 'LIMIT', description: '주문 유형' })
   type: string;
 
+  @ApiProperty({ example: '0.00000000', description: '체결된 수량' })
+  executedQty: string;
+
   static from(ext: ExternalCancelOrderResponse): CancelOrderResponse {
     const dto = new CancelOrderResponse();
     dto.symbol = ext.symbol;
@@ -24,6 +27,7 @@ export class CancelOrderResponse {
     dto.status = ext.status;
     dto.side = ext.side;
     dto.type = ext.type;
+    dto.executedQty = ext.executedQty;
     return dto;
   }
 }
