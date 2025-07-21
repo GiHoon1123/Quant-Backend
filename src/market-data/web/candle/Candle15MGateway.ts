@@ -10,7 +10,7 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { CandleData } from '../../infra/candle/Candle15MEntity';
+import { CandleData } from '../../infra/persistence/entity/Candle15MEntity';
 import { Candle15MService } from '../../service/candle/Candle15MService';
 
 /**

@@ -2,8 +2,8 @@ import { Module } from '@nestjs/common';
 import { MarketDataModule } from '../market-data/MarketDataModule';
 import { NotificationModule } from '../notification/NotificationModule';
 import { TechnicalAnalysisModule } from '../technical-analysis/TechnicalAnalysisModule';
-import { TestController } from './TestController';
-import { TestService } from './TestService';
+import { TestService } from './service/TestService';
+import { TestController } from './web/TestController';
 
 /**
  * 🧪 테스트 모듈

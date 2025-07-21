@@ -2,8 +2,8 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 // 15분봉 관련 import
-import { Candle15MEntity } from './infra/candle/Candle15MEntity';
-import { Candle15MRepository } from './infra/candle/Candle15MRepository';
+import { Candle15MEntity } from './infra/persistence/entity/Candle15MEntity';
+import { Candle15MRepository } from './infra/persistence/repository/Candle15MRepository';
 import { BinanceHistoryDataService } from './service/candle/BinanceHistoryDataService';
 import { Candle15MService } from './service/candle/Candle15MService';
 import { BinanceHistoryController } from './web/candle/BinanceHistoryController';

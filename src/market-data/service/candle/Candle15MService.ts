@@ -2,12 +2,12 @@ import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { EventEmitter } from 'events';
 import { DEFAULT_SYMBOLS } from 'src/common/constant/DefaultSymbols';
 import { ExternalCandleResponse } from 'src/market-data/dto/candle/ExternalCandleResponse';
-import { BinanceCandle15MManager } from 'src/market-data/infra/candle/BinanceCandle15MManager';
+import { BinanceCandle15MManager } from 'src/market-data/infra/client/BinanceCandle15MManager';
 import {
   Candle15MEntity,
   CandleData,
-} from 'src/market-data/infra/candle/Candle15MEntity';
-import { Candle15MRepository } from 'src/market-data/infra/candle/Candle15MRepository';
+} from 'src/market-data/infra/persistence/entity/Candle15MEntity';
+import { Candle15MRepository } from 'src/market-data/infra/persistence/repository/Candle15MRepository';
 import {
   CandleSavedEvent,
   MARKET_DATA_EVENTS,

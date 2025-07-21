@@ -1,8 +1,8 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { EventEmitter } from 'events';
 import { BinanceWebSocketClient } from '../../../common/binance/BinanceWebSocketClient';
-import { CandleData } from '../../infra/candle/Candle15MEntity';
-import { Candle15MRepository } from '../../infra/candle/Candle15MRepository';
+import { CandleData } from '../../infra/persistence/entity/Candle15MEntity';
+import { Candle15MRepository } from '../../infra/persistence/repository/Candle15MRepository';
 
 /**
  * 실시간 15분봉 집계기 서비스

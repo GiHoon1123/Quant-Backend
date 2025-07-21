@@ -12,7 +12,7 @@ import { CancelOrderResponse } from '../dto/response/CancelOrderResponse';
 import { LimitOrderResponse } from '../dto/response/LimitOrderResponse';
 import { MarketBuyOrderResponse } from '../dto/response/MarketBuyOrderResponse';
 import { MarketSellOrderResponse } from '../dto/response/MarketSellOrderResponse';
-import { BinanceOrderClient } from '../infra/BinanceOrderClient';
+import { BinanceOrderClient } from '../infra/client/BinanceOrderClient';
 
 /**
  * 📈 현물 거래 서비스 (일반 거래)

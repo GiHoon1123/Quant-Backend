@@ -6,7 +6,7 @@ import {
   CandleData,
   CandleQueryOptions,
   CandleStatistics,
-} from './Candle15MEntity';
+} from '../entity/Candle15MEntity';
 
 /**
  * 15분봉 캔들 데이터 레포지토리

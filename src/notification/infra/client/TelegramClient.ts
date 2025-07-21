@@ -35,7 +35,7 @@ import axios from 'axios';
  * ```
  */
 @Injectable()
-export class TelegramNotificationService {
+export class TelegramClient {
   private readonly botToken: string;
   private readonly chatId: string;
 

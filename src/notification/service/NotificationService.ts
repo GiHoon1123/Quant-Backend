@@ -1,11 +1,11 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
-import { TelegramNotificationService } from '../../common/notification/TelegramNotificationService';
 import {
   MARKET_DATA_EVENTS,
   TechnicalAnalysisCompletedEvent,
 } from '../../market-data/types/MarketDataEvents';
+import { TelegramClient } from '../infra/client/TelegramClient';
 import {
   NotificationChannel,
   NotificationMessage,
@@ -96,7 +96,7 @@ export class NotificationService implements OnModuleInit {
   };
 
   constructor(
-    private readonly telegramService: TelegramNotificationService,
+    private readonly telegramService: TelegramClient,
     // TODO: 추후 다른 채널 서비스들 추가
     // private readonly webSocketService: WebSocketNotificationService,
     // private readonly kakaoService: KakaoNotificationService,
@@ -679,7 +679,7 @@ export class NotificationService implements OnModuleInit {
       // 분석 결과 데이터 구조 정규화
       const analysisData = data.analysisResult;
 
-      // TelegramNotificationService가 기대하는 형식으로 변환
+      // TelegramClient가 기대하는 형식으로 변환
       const telegramData = {
         signal: analysisData.overallSignal || analysisData.signal || 'HOLD',
         indicators: {
@@ -698,7 +698,7 @@ export class NotificationService implements OnModuleInit {
 
       console.log(`📱 [Telegram] 정규화된 데이터:`, telegramData);
 
-      // 기존 TelegramNotificationService의 분석 결과 메서드 활용
+      // 기존 TelegramClient의 분석 결과 메서드 활용
       await this.telegramService.sendAnalysisResult(symbol!, telegramData);
     } else {
       // 일반 텍스트 메시지 발송

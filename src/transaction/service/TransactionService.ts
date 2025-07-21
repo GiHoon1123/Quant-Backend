@@ -10,10 +10,10 @@ import {
 import {
   BitcoinTransaction,
   TransactionPurpose,
-} from '../entity/BitcoinTransaction';
-import { BitcoinTransactionRepository } from '../infra/BitcoinTransactionRepository';
-import { FuturesTradeRecordRepository } from '../infra/FuturesTradeRecordRepository';
-import { SpotTradeRecordRepository } from '../infra/SpotTradeRecordRepository';
+} from '../infra/persistence/entity/BitcoinTransaction';
+import { BitcoinTransactionRepository } from '../infra/persistence/repository/BitcoinTransactionRepository';
+import { FuturesTradeRecordRepository } from '../infra/persistence/repository/FuturesTradeRecordRepository';
+import { SpotTradeRecordRepository } from '../infra/persistence/repository/SpotTradeRecordRepository';
 
 /**
  * 거래 내역 관리 서비스

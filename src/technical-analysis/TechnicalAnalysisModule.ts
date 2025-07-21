@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MarketDataModule } from '../market-data/MarketDataModule';
-import { StrategyRepository } from './infra/StrategyRepository';
+import { StrategyRepository } from './infra/persistence/repository/StrategyRepository';
 import { AdvancedStrategyService } from './service/AdvancedStrategyService';
 import { PracticalStrategyService } from './service/PracticalStrategyService';
 import { RiskManagementService } from './service/RiskManagementService';

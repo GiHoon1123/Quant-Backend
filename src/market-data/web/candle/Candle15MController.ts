@@ -1,7 +1,7 @@
 import { Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { CandleQueryOptions } from '../../infra/candle/Candle15MEntity';
-import { Candle15MRepository } from '../../infra/candle/Candle15MRepository';
+import { CandleQueryOptions } from '../../infra/persistence/entity/Candle15MEntity';
+import { Candle15MRepository } from '../../infra/persistence/repository/Candle15MRepository';
 import { Candle15MService } from '../../service/candle/Candle15MService';
 
 /**

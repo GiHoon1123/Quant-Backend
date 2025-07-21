@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { TelegramNotificationService } from '../common/notification/TelegramNotificationService';
+import { TelegramClient } from './infra/client/TelegramClient';
 import { NotificationService } from './service/NotificationService';
 
 /**
@@ -38,7 +38,7 @@ import { NotificationService } from './service/NotificationService';
     NotificationService,
 
     // 📱 채널별 서비스들 (common 모듈의 기존 서비스 활용)
-    TelegramNotificationService,
+    TelegramClient,
 
     // TODO: 추후 추가할 채널 서비스들
     // WebSocketNotificationService,

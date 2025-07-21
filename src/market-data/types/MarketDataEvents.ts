@@ -4,7 +4,7 @@
  * 이벤트 드리븐 아키텍처를 위한 타입 안전성을 제공합니다.
  */
 
-import { CandleData } from '../infra/candle/Candle15MEntity';
+import { CandleData } from '../infra/persistence/entity/Candle15MEntity';
 
 /**
  * 캔들 저장 완료 이벤트

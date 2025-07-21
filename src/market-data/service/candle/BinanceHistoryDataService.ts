@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
-import { CandleData } from '../../infra/candle/Candle15MEntity';
-import { Candle15MRepository } from '../../infra/candle/Candle15MRepository';
+import { CandleData } from '../../infra/persistence/entity/Candle15MEntity';
+import { Candle15MRepository } from '../../infra/persistence/repository/Candle15MRepository';
 
 /**
  * 바이낸스 히스토리컬 데이터 수집 서비스

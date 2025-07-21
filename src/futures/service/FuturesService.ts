@@ -6,8 +6,8 @@ import { AccountType } from '../dto/request/TransferFundsRequest';
 import { FuturesBalanceResponse } from '../dto/response/FuturesBalanceResponse';
 import { PositionInfoResponse } from '../dto/response/PositionInfoResponse';
 import { PositionOpenResponse } from '../dto/response/PositionOpenResponse';
-import { BinanceFuturesClient } from '../infra/BinanceFuturesClient';
-import { BinanceFuturesPositionClient } from '../infra/BinanceFuturesPositionClient';
+import { BinanceFuturesClient } from '../infra/client/BinanceFuturesClient';
+import { BinanceFuturesPositionClient } from '../infra/client/BinanceFuturesPositionClient';
 
 /**
  * 선물거래 서비스
