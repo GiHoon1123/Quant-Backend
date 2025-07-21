@@ -14,20 +14,20 @@ import {
  * 실제 자산을 매매하는 안전한 거래 방식의 기록입니다.
  */
 @Entity('spot_trade_records')
-@Index(['symbol', 'executedAt'])
-@Index(['source', 'executedAt'])
-@Index(['orderId'])
+@Index('idx_spot_symbol_executed', ['symbol', 'executedAt'])
+@Index('idx_spot_source_executed', ['source', 'executedAt'])
+@Index('idx_spot_orderid', ['orderId'])
 export class SpotTradeRecord {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
   // 거래 기본 정보
   @Column({ length: 20 })
-  @Index()
+  @Index('idx_spot_symbol')
   symbol: string; // 거래 심볼 (BTCUSDT 등)
 
   @Column({ type: 'bigint' })
-  @Index()
+  @Index('idx_spot_order_id')
   orderId: string; // 바이낸스 주문 ID
 
   @Column({ length: 100, nullable: true })
@@ -64,12 +64,12 @@ export class SpotTradeRecord {
   status: string; // FILLED/PARTIALLY_FILLED/CANCELED
 
   @Column({ length: 20 })
-  @Index()
+  @Index('idx_spot_source')
   source: string; // API/AUTO/MANUAL
 
   // 시간 정보
   @Column({ type: 'timestamp' })
-  @Index()
+  @Index('idx_spot_executed_at')
   executedAt: Date; // 체결 시간
 
   @CreateDateColumn()

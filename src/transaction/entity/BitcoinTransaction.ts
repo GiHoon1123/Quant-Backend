@@ -25,22 +25,22 @@ export enum TransactionPurpose {
 }
 
 @Entity('bitcoin_transactions')
-@Index(['txid'])
-@Index(['blockHeight'])
-@Index(['purpose', 'timestamp'])
-@Index(['relatedSpotTradeId'])
-@Index(['relatedFuturesTradeId'])
+@Index('idx_btc_txid', ['txid'])
+@Index('idx_btc_blockheight', ['blockHeight'])
+@Index('idx_btc_purpose_time', ['purpose', 'timestamp'])
+@Index('idx_btc_spot_trade', ['relatedSpotTradeId'])
+@Index('idx_btc_futures_trade', ['relatedFuturesTradeId'])
 export class BitcoinTransaction {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
   // 비트코인 트랜잭션 기본 정보
   @Column({ length: 64, unique: true })
-  @Index()
+  @Index('idx_btc_tx_id')
   txid: string; // 트랜잭션 해시
 
   @Column({ type: 'int', nullable: true })
-  @Index()
+  @Index('idx_btc_block_height')
   blockHeight: number; // 블록 높이
 
   @Column({ length: 64, nullable: true })
@@ -50,7 +50,7 @@ export class BitcoinTransaction {
   confirmations: number; // 컨펌 수
 
   @Column({ type: 'timestamp' })
-  @Index()
+  @Index('idx_btc_timestamp')
   timestamp: Date; // 트랜잭션 시간
 
   // 트랜잭션 크기 및 수수료 정보
@@ -75,7 +75,7 @@ export class BitcoinTransaction {
     enum: TransactionPurpose,
     default: TransactionPurpose.UNKNOWN,
   })
-  @Index()
+  @Index('idx_btc_purpose')
   purpose: TransactionPurpose; // 트랜잭션 목적
 
   @Column('decimal', { precision: 18, scale: 8 })
@@ -89,11 +89,11 @@ export class BitcoinTransaction {
 
   // 연관 거래 정보
   @Column({ type: 'uuid', nullable: true })
-  @Index()
+  @Index('idx_btc_spot_trade_id')
   relatedSpotTradeId: string; // 연관된 현물 거래 ID
 
   @Column({ type: 'uuid', nullable: true })
-  @Index()
+  @Index('idx_btc_futures_trade_id')
   relatedFuturesTradeId: string; // 연관된 선물 거래 ID
 
   @Column({ length: 50, nullable: true })
@@ -131,7 +131,7 @@ export class BitcoinTransaction {
 
   // 파싱 정보
   @Column({ type: 'boolean', default: false })
-  @Index()
+  @Index('idx_btc_is_parsed')
   isParsed: boolean; // 파싱 완료 여부
 
   @Column({ type: 'timestamp', nullable: true })

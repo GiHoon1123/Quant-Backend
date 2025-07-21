@@ -7,6 +7,10 @@ import {
   TradeEventUtils,
   TradeExecutedEvent,
 } from '../dto/events/TradeExecutedEvent';
+import {
+  BitcoinTransaction,
+  TransactionPurpose,
+} from '../entity/BitcoinTransaction';
 import { BitcoinTransactionRepository } from '../infra/BitcoinTransactionRepository';
 import { FuturesTradeRecordRepository } from '../infra/FuturesTradeRecordRepository';
 import { SpotTradeRecordRepository } from '../infra/SpotTradeRecordRepository';
@@ -161,22 +165,67 @@ export class TransactionService {
     event: TradeExecutedEvent,
   ): Promise<void> {
     try {
-      console.log(`₿ 비트코인 트랜잭션 파싱 예약: ${event.symbol}`);
+      console.log(`₿ 비트코인 트랜잭션 파싱 시작: ${event.symbol}`);
 
-      // TODO: 실제 구현에서는 큐나 스케줄러를 사용하여 비동기 처리
-      // 예시:
-      // await this.bitcoinTransactionCollector.scheduleCollection({
-      //   relatedTradeId: event.orderId,
-      //   tradeType: event.tradeType,
-      //   symbol: event.symbol,
-      //   expectedAmount: event.quantity,
-      //   timestamp: event.executedAt,
-      //   source: event.source
-      // });
+      // 실제 구현에서는 비트코인 노드나 API를 통해 온체인 데이터를 가져와야 함
+      // 지금은 테스트를 위해 더미 데이터 생성
+      const dummyTxid = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
 
-      console.log(`✅ 비트코인 트랜잭션 파싱 예약 완료`);
+      // 더미 트랜잭션 데이터 생성
+      const transaction: Partial<BitcoinTransaction> = {
+        txid: dummyTxid,
+        blockHeight: 800000 + Math.floor(Math.random() * 1000),
+        blockHash: `000000000000000000${Math.random().toString(36).substring(2, 10)}`,
+        confirmations: 3,
+        timestamp: new Date(),
+        size: 250 + Math.floor(Math.random() * 500),
+        vsize: 200 + Math.floor(Math.random() * 400),
+        weight: 800 + Math.floor(Math.random() * 1600),
+        fee: 0.0001 + Math.random() * 0.0005,
+        feeRate: 10 + Math.random() * 50,
+        purpose: TradeEventUtils.isBuyEvent(event)
+          ? TransactionPurpose.EXCHANGE_DEPOSIT
+          : TransactionPurpose.EXCHANGE_WITHDRAW,
+        netAmount: event.quantity,
+        isIncoming: TradeEventUtils.isBuyEvent(event),
+        isOutgoing: TradeEventUtils.isSellEvent(event),
+        // UUID 형식이 아닌 주문 ID는 저장하지 않음
+        // 대신 메타데이터에 주문 ID 정보 추가
+        relatedExchange: 'binance',
+        confidence: 0.85 + Math.random() * 0.15,
+        tags: ['exchange', 'binance', event.side.toLowerCase()],
+        inputAddresses: [`bc1q${Math.random().toString(36).substring(2, 34)}`],
+        outputAddresses: [`bc1q${Math.random().toString(36).substring(2, 34)}`],
+        primaryInputAddress: `bc1q${Math.random().toString(36).substring(2, 34)}`,
+        primaryOutputAddress: `bc1q${Math.random().toString(36).substring(2, 34)}`,
+        inputs: [
+          {
+            address: `bc1q${Math.random().toString(36).substring(2, 34)}`,
+            value: event.quantity * 1.1,
+          },
+        ],
+        outputs: [
+          {
+            address: `bc1q${Math.random().toString(36).substring(2, 34)}`,
+            value: event.quantity,
+          },
+        ],
+        rawData: {
+          original_event: event,
+          relatedOrderId: event.orderId,
+          tradeType: event.tradeType,
+        },
+        isParsed: true,
+        parsedAt: new Date(),
+        parsedBy: 'dummy-parser-v1',
+      };
+
+      // 트랜잭션 저장
+      const savedTx = await this.bitcoinTransactionRepository.save(transaction);
+      console.log(`✅ 비트코인 트랜잭션 저장 완료: ${savedTx.txid}`);
+      console.log(`🔗 거래 연결: ${event.orderId} → ${savedTx.txid}`);
     } catch (error) {
-      console.error(`❌ 비트코인 트랜잭션 파싱 예약 실패:`, error);
+      console.error(`❌ 비트코인 트랜잭션 파싱 실패:`, error);
     }
   }
 

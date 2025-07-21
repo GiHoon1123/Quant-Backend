@@ -6,11 +6,12 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { CommonResponse } from 'src/common/response/CommonResponse';
-import { FuturesService } from '../service/FuturesService';
-import { OpenPositionRequest } from '../dto/request/OpenPositionRequest';
 import { ClosePositionRequest } from '../dto/request/ClosePositionRequest';
+import { OpenPositionRequest } from '../dto/request/OpenPositionRequest';
 import { SetLeverageRequest } from '../dto/request/SetLeverageRequest';
 import { SetMarginTypeRequest } from '../dto/request/SetMarginTypeRequest';
+import { TransferFundsRequest } from '../dto/request/TransferFundsRequest';
+import { FuturesService } from '../service/FuturesService';
 
 /**
  * 선물거래 컨트롤러
@@ -498,6 +499,76 @@ export class FuturesController {
     return CommonResponse.success({
       status: 200,
       message: `청산 위험이 높은 포지션들입니다. (임계값: ${(threshold * 100).toFixed(0)}%)`,
+      data: result,
+    });
+  }
+
+  /**
+   * 계좌 간 자금 이체 API
+   *
+   * 💰 기능: 현물 계좌와 선물 계좌 간 자금 이체
+   *
+   * 📊 이체 방향:
+   * - SPOT → FUTURES: 선물 거래를 위한 자금 이체
+   * - FUTURES → SPOT: 선물 계좌에서 현물 계좌로 자금 회수
+   *
+   * ⚠️ 주의사항:
+   * - 포지션에 사용 중인 자금은 이체 불가
+   * - 최소 이체 금액은 자산별로 상이
+   */
+  @Post('/transfer')
+  @ApiOperation({
+    summary: '계좌 간 자금 이체',
+    description: `
+      💸 현물 계좌와 선물 계좌 간 자금을 이체합니다.
+      
+      **이체 방향:**
+      - SPOT → FUTURES: 선물 거래를 위한 자금 이체
+      - FUTURES → SPOT: 선물 계좌에서 현물 계좌로 자금 회수
+      
+      **주요 자산:**
+      - USDT: 테더 (가장 일반적인 이체 자산)
+      - BTC: 비트코인
+      - ETH: 이더리움
+      - BNB: 바이낸스 코인
+      
+      **주의사항:**
+      ⚠️ 포지션에 사용 중인 자금은 이체 불가
+      ⚠️ 최소 이체 금액은 자산별로 상이
+      ⚠️ 이체 후 즉시 반영되지만 UI 갱신에 약간의 시간 소요 가능
+    `,
+  })
+  @ApiOkResponse({
+    description: '자금 이체 성공',
+    schema: {
+      example: {
+        status: 200,
+        message: '10 USDT가 현물 계좌에서 선물 계좌로 이체되었습니다.',
+        data: {
+          asset: 'USDT',
+          amount: 10,
+          fromAccount: 'SPOT',
+          toAccount: 'FUTURES',
+          transferId: '123456789',
+          timestamp: '2024-01-01T00:00:00.000Z',
+        },
+      },
+    },
+  })
+  async transferFunds(@Body() dto: TransferFundsRequest) {
+    const result = await this.futuresService.transferFunds(
+      dto.asset,
+      dto.amount,
+      dto.fromAccountType,
+      dto.toAccountType,
+    );
+
+    const fromText = dto.fromAccountType === 'SPOT' ? '현물 계좌' : '선물 계좌';
+    const toText = dto.toAccountType === 'SPOT' ? '현물 계좌' : '선물 계좌';
+
+    return CommonResponse.success({
+      status: 200,
+      message: `${dto.amount} ${dto.asset}가 ${fromText}에서 ${toText}로 이체되었습니다.`,
       data: result,
     });
   }

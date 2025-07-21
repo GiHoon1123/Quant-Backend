@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { ExternalFuturesOrderResponse } from '../dto/external/ExternalFuturesOrderResponse';
 import { PositionSide } from '../dto/request/OpenPositionRequest';
 import { MarginType } from '../dto/request/SetMarginTypeRequest';
+import { AccountType } from '../dto/request/TransferFundsRequest';
 import { FuturesBalanceResponse } from '../dto/response/FuturesBalanceResponse';
 import { PositionInfoResponse } from '../dto/response/PositionInfoResponse';
 import { PositionOpenResponse } from '../dto/response/PositionOpenResponse';
@@ -317,6 +318,91 @@ export class FuturesService {
       console.error('❌ 위험 포지션 조회 실패:', error);
       throw new BadRequestException(
         `위험 포지션 조회에 실패했습니다: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * 현물 계좌와 선물 계좌 간 자금 이체
+   *
+   * @param asset 이체할 자산 (예: USDT, BTC)
+   * @param amount 이체할 금액
+   * @param fromAccountType 출발 계좌 유형 (SPOT, FUTURES)
+   * @param toAccountType 도착 계좌 유형 (SPOT, FUTURES)
+   * @returns 이체 결과
+   *
+   * 📝 이체 방향:
+   * - SPOT → FUTURES: 선물 거래를 위한 자금 이체
+   * - FUTURES → SPOT: 선물 계좌에서 현물 계좌로 자금 회수
+   *
+   * ⚠️ 주의사항:
+   * - 이체 후 즉시 반영되지만 UI 갱신에 약간의 시간 소요 가능
+   * - 포지션에 사용 중인 자금은 이체 불가
+   * - 최소 이체 금액은 자산별로 상이
+   */
+  async transferFunds(
+    asset: string,
+    amount: number,
+    fromAccountType: AccountType,
+    toAccountType: AccountType,
+  ): Promise<any> {
+    // 1. 입력값 유효성 검사
+    if (!asset || asset.trim().length === 0) {
+      throw new BadRequestException(
+        '자산 심볼을 입력해주세요. (예: USDT, BTC)',
+      );
+    }
+
+    if (amount <= 0) {
+      throw new BadRequestException('이체 금액은 0보다 커야 합니다.');
+    }
+
+    if (fromAccountType === toAccountType) {
+      throw new BadRequestException('출발 계좌와 도착 계좌가 동일합니다.');
+    }
+
+    try {
+      // 2. 이체 실행
+      console.log(
+        `💸 자금 이체 시작: ${amount} ${asset} (${fromAccountType} → ${toAccountType})`,
+      );
+
+      const result = await this.futuresClient.transferFunds(
+        asset,
+        amount,
+        fromAccountType,
+        toAccountType,
+      );
+
+      console.log(`✅ 자금 이체 완료: ${amount} ${asset}`);
+      return {
+        asset,
+        amount,
+        fromAccount: fromAccountType,
+        toAccount: toAccountType,
+        transferId: result.tranId || result.id || 'unknown',
+        timestamp: new Date(),
+      };
+    } catch (error) {
+      console.error(`❌ 자금 이체 실패: ${asset} ${amount}`, error);
+
+      // 3. 에러 처리
+      if (error.message?.includes('insufficient')) {
+        throw new BadRequestException(
+          `❌ 잔고 부족: ${fromAccountType} 계좌의 ${asset} 잔고가 부족합니다.\n` +
+            `💰 이체 요청 금액: ${amount} ${asset}\n` +
+            `💡 해결 방법: 잔고를 확인하고 이체 금액을 조정하세요.`,
+        );
+      }
+
+      throw new BadRequestException(
+        `자금 이체에 실패했습니다: ${error.message}\n\n` +
+          '💡 가능한 원인:\n' +
+          '1. 잔고 부족\n' +
+          '2. 최소 이체 금액 미달\n' +
+          '3. 포지션에 사용 중인 자금\n' +
+          '4. API 키 권한 문제\n' +
+          '5. 네트워크 연결 문제',
       );
     }
   }

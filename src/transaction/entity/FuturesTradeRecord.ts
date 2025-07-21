@@ -14,22 +14,22 @@ import {
  * 레버리지를 활용한 고위험 고수익 거래 방식의 기록입니다.
  */
 @Entity('futures_trade_records')
-@Index(['symbol', 'executedAt'])
-@Index(['source', 'executedAt'])
-@Index(['orderId'])
-@Index(['positionSide', 'executedAt'])
-@Index(['isClosed', 'executedAt'])
+@Index('idx_futures_symbol_executed', ['symbol', 'executedAt'])
+@Index('idx_futures_source_executed', ['source', 'executedAt'])
+@Index('idx_futures_orderid', ['orderId'])
+@Index('idx_futures_position_executed', ['positionSide', 'executedAt'])
+@Index('idx_futures_closed_executed', ['isClosed', 'executedAt'])
 export class FuturesTradeRecord {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
   // 거래 기본 정보
   @Column({ length: 20 })
-  @Index()
+  @Index('idx_futures_symbol')
   symbol: string; // 거래 심볼 (BTCUSDT 등)
 
   @Column({ type: 'bigint' })
-  @Index()
+  @Index('idx_futures_order_id')
   orderId: string; // 바이낸스 주문 ID
 
   @Column({ length: 100, nullable: true })
@@ -66,7 +66,7 @@ export class FuturesTradeRecord {
   status: string; // FILLED/PARTIALLY_FILLED/CANCELED
 
   @Column({ length: 20 })
-  @Index()
+  @Index('idx_futures_source')
   source: string; // API/AUTO/MANUAL
 
   // === 선물 거래 전용 필드 ===
@@ -86,7 +86,7 @@ export class FuturesTradeRecord {
 
   // 포지션 정보
   @Column({ length: 10 })
-  @Index()
+  @Index('idx_futures_position_side')
   positionSide: string; // LONG/SHORT
 
   @Column('decimal', { precision: 18, scale: 8, nullable: true })
@@ -110,7 +110,7 @@ export class FuturesTradeRecord {
   closeType: string; // TP/SL/MANUAL/LIQUIDATION
 
   @Column({ type: 'timestamp', nullable: true })
-  @Index()
+  @Index('idx_futures_closed_at')
   closedAt: Date; // 포지션 종료 시간
 
   @Column({ type: 'bigint', nullable: true })
@@ -127,11 +127,11 @@ export class FuturesTradeRecord {
   marginRatio: number; // 마진 비율 (%)
 
   @Column({ type: 'boolean', default: false })
-  @Index()
+  @Index('idx_futures_liquidated')
   isLiquidated: boolean; // 청산 여부
 
   @Column({ type: 'boolean', default: false })
-  @Index()
+  @Index('idx_futures_closed')
   isClosed: boolean; // 포지션 종료 여부
 
   // 거래 성과 분석용 필드
@@ -146,7 +146,7 @@ export class FuturesTradeRecord {
 
   // 시간 정보
   @Column({ type: 'timestamp' })
-  @Index()
+  @Index('idx_futures_executed_at')
   executedAt: Date; // 체결 시간
 
   @CreateDateColumn()

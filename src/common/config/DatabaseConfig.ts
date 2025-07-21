@@ -7,8 +7,13 @@ export const typeOrmConfig: TypeOrmModuleOptions = {
   port: 5432,
   username: 'root',
   password: '1234',
-  database: 'market_data',
-  entities: [path.resolve(__dirname, '..', '..', '**', '*Entity.{ts,js}')],
-  synchronize: true, // 🔥 개발 환경에서 테이블 자동 생성 활성화
-  logging: false, // � SQL 쿼리 로깅 비활성화 (로그 스팸 방지)
+  database: 'quant_engine',
+  entities: [
+    path.resolve(__dirname, '..', '..', '**', '*Entity.{ts,js}'),
+    path.resolve(__dirname, '..', '..', '**', '*Record.{ts,js}'),
+    path.resolve(__dirname, '..', '..', '**', '*Transaction.{ts,js}'),
+  ],
+  synchronize: false, // 🔥 테이블 생성을 위해 다시 활성화
+  logging: false, // SQL 쿼리 로깅 활성화 (문제 파악용)
+  cache: false, // 메타데이터 캐시 비활성화
 };

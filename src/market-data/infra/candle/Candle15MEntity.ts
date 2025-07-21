@@ -36,9 +36,9 @@ import {
  * ```
  */
 @Entity('candle_15m')
-@Index(['symbol', 'market']) // 심볼+시장별 조회 최적화 (가장 자주 사용)
-@Index(['symbol', 'market', 'openTime']) // 시간 범위 조회 최적화 (백테스팅용)
-@Index(['createdAt']) // 최신 데이터 조회 최적화
+@Index('idx_candle_symbol_market', ['symbol', 'market']) // 심볼+시장별 조회 최적화 (가장 자주 사용)
+@Index('idx_candle_symbol_market_time', ['symbol', 'market', 'openTime']) // 시간 범위 조회 최적화 (백테스팅용)
+@Index('idx_candle_created_at', ['createdAt']) // 최신 데이터 조회 최적화
 export class Candle15MEntity {
   /**
    * 고유 식별자 (자동 증가)
@@ -354,7 +354,9 @@ export class Candle15MEntity {
    *
    * 예: 'BTCUSDT' + 'FUTURES' + '2025-01-18 15:00:00' 조합은 유일해야 함
    */
-  @Index(['symbol', 'market', 'openTime'], { unique: true })
+  @Index('idx_candle_unique', ['symbol', 'market', 'openTime'], {
+    unique: true,
+  })
   static uniqueCandle: void;
 
   /**

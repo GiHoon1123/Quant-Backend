@@ -318,4 +318,68 @@ export class BinanceFuturesClient {
       handleBinanceAxiosError(error, '선물 잔고 조회');
     }
   }
+
+  /**
+   * 현물 계좌와 선물 계좌 간 자금 이체
+   *
+   * @param asset 이체할 자산 (예: USDT, BTC)
+   * @param amount 이체할 금액
+   * @param fromAccountType 출발 계좌 유형 (SPOT, FUTURES)
+   * @param toAccountType 도착 계좌 유형 (SPOT, FUTURES)
+   * @returns 이체 결과
+   *
+   * 📝 이체 방향:
+   * - SPOT → FUTURES: 선물 거래를 위한 자금 이체 (type=1)
+   * - FUTURES → SPOT: 선물 계좌에서 현물 계좌로 자금 회수 (type=2)
+   */
+  async transferFunds(
+    asset: string,
+    amount: number,
+    fromAccountType: 'SPOT' | 'FUTURES',
+    toAccountType: 'SPOT' | 'FUTURES',
+  ) {
+    try {
+      // 바이낸스 API에서는 type 파라미터로 이체 방향을 지정
+      // type=1: SPOT → FUTURES
+      // type=2: FUTURES → SPOT
+      const type = fromAccountType === 'SPOT' ? 1 : 2;
+
+      // 현물 API 엔드포인트 사용 (선물 API가 아님)
+      const endpoint = '/sapi/v1/futures/transfer';
+      const timestamp = Date.now();
+
+      const params = new URLSearchParams({
+        asset,
+        amount: amount.toString(),
+        type: type.toString(),
+        timestamp: timestamp.toString(),
+      });
+
+      const signature = CryptoUtil.generateBinanceSignature(
+        params.toString(),
+        this.apiSecret,
+      );
+      params.append('signature', signature);
+
+      // 현물 API 기본 URL 사용
+      const response = await axios.post(
+        `https://api.binance.com${endpoint}`,
+        null,
+        {
+          params,
+          headers: {
+            'X-MBX-APIKEY': this.apiKey,
+          },
+        },
+      );
+
+      return response.data;
+    } catch (error) {
+      handleBinanceAxiosError(
+        error,
+        `자금 이체 (${fromAccountType} → ${toAccountType})`,
+        `${asset} ${amount}`,
+      );
+    }
+  }
 }
