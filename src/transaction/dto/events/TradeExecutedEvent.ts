@@ -116,7 +116,7 @@ export class TradeExecutedEventFactory {
    * 이벤트 ID 생성
    */
   private static generateEventId(): string {
-    return `trade_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `trade_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
   }
 }
 

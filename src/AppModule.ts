@@ -11,6 +11,7 @@ import { NotificationModule } from './notification/NotificationModule';
 import { OrderModule } from './order/OrderModule';
 import { TechnicalAnalysisModule } from './technical-analysis/TechnicalAnalysisModule';
 import { TestModule } from './test/TestModule'; // 🧪 테스트 모듈 추가
+import { TransactionModule } from './transaction/TransactionModule';
 
 // 이벤트 연결을 위한 서비스 import
 import { Candle15MService } from './market-data/service/candle/Candle15MService';
@@ -54,6 +55,7 @@ import { TechnicalAnalysisEventService } from './technical-analysis/service/Tech
     TestModule, // 🧪 테스트 모듈
     OrderModule,
     FuturesModule,
+    TransactionModule, // 💰 거래 내역 관리
   ],
   controllers: [],
   providers: [

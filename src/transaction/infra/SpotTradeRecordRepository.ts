@@ -26,7 +26,7 @@ export class SpotTradeRecordRepository {
     // 기본 거래 정보
     record.symbol = event.symbol;
     record.orderId = event.orderId;
-    record.clientOrderId = event.clientOrderId;
+    record.clientOrderId = event.clientOrderId || '';
     record.side = event.side;
     record.type = event.type;
 
@@ -38,7 +38,7 @@ export class SpotTradeRecordRepository {
     // 수수료 정보
     record.fee = event.fee;
     record.feeAsset = event.feeAsset;
-    record.feeRate = event.feeRate;
+    record.feeRate = event.feeRate || 0;
 
     // 상태 및 분류
     record.status = event.status;
@@ -46,7 +46,7 @@ export class SpotTradeRecordRepository {
     record.executedAt = event.executedAt;
 
     // 추가 정보
-    record.strategyId = event.strategyId;
+    record.strategyId = event.strategyId || '';
     record.metadata = event.metadata;
 
     // 계산된 필드

@@ -187,7 +187,12 @@ export class TransactionService {
    * 예: BTCUSDT → BTC, ETHUSDT → ETH
    */
   private extractCoinFromSymbol(symbol: string): string {
-    return symbol.replace('USDT', '').replace('BUSD', '').replace('BTC', '');
+    // USDT, BUSD 등의 페어 제거
+    return symbol
+      .replace(/USDT$/, '')
+      .replace(/BUSD$/, '')
+      .replace(/USDC$/, '')
+      .replace(/BNB$/, '');
   }
 
   // === 조회 메서드들 ===

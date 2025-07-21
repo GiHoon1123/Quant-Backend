@@ -29,7 +29,7 @@ export class FuturesTradeRecordRepository {
     // 기본 거래 정보
     record.symbol = event.symbol;
     record.orderId = event.orderId;
-    record.clientOrderId = event.clientOrderId;
+    record.clientOrderId = event.clientOrderId || '';
     record.side = event.side;
     record.type = event.type;
 
@@ -41,7 +41,7 @@ export class FuturesTradeRecordRepository {
     // 수수료 정보
     record.fee = event.fee;
     record.feeAsset = event.feeAsset;
-    record.feeRate = event.feeRate;
+    record.feeRate = event.feeRate || 0;
 
     // 상태 및 분류
     record.status = event.status;
@@ -52,14 +52,14 @@ export class FuturesTradeRecordRepository {
     record.leverage = event.leverage;
     record.marginType = event.marginType;
     record.initialMargin = event.initialMargin;
-    record.maintenanceMargin = event.maintenanceMargin;
+    record.maintenanceMargin = event.maintenanceMargin || 0;
     record.positionSide = event.positionSide;
-    record.liquidationPrice = event.liquidationPrice;
-    record.markPrice = event.markPrice;
-    record.marginRatio = event.marginRatio;
+    record.liquidationPrice = event.liquidationPrice || 0;
+    record.markPrice = event.markPrice || 0;
+    record.marginRatio = event.marginRatio || 0;
 
     // 추가 정보
-    record.strategyId = event.strategyId;
+    record.strategyId = event.strategyId || '';
     record.metadata = event.metadata;
 
     // 초기 상태 설정
