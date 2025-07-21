@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Candle15MRepository } from '../../market-data/infra/candle/Candle15MRepository';
+import { Candle15MRepository } from '../../market-data/infra/persistence/repository/Candle15MRepository';
 import {
   SignalType,
   StrategyResult,

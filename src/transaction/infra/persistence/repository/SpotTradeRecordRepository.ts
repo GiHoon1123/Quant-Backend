@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, Repository } from 'typeorm';
 import { SpotTradeExecutedEvent } from '../../../dto/events/TradeExecutedEvent';
-import { SpotTradeRecord } from '../entity/SpotTradeRecord';
+import { SpotTradeRecord } from '../entity/SpotTradeRecordEntity';
 
 /**
  * 현물 거래 내역 저장소

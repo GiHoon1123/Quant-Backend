@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { EventEmitter } from 'events';
-import { Candle15MRepository } from '../../market-data/infra/candle/Candle15MRepository';
+import { Candle15MRepository } from '../../market-data/infra/persistence/repository/Candle15MRepository';
 import {
   CandleSavedEvent,
   MARKET_DATA_EVENTS,

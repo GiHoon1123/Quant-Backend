@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { ExternalFuturesBalanceResponse } from '../../dto/external/ExternalFuturesBalanceResponse';
+import { ExternalPositionResponse } from '../../dto/external/ExternalPositionResponse';
 import { BinanceFuturesClient } from './BinanceFuturesClient';
-import { ExternalPositionResponse } from '../dto/external/ExternalPositionResponse';
-import { ExternalFuturesBalanceResponse } from '../dto/external/ExternalFuturesBalanceResponse';
 
 /**
  * 바이낸스 선물 포지션 관리 클라이언트

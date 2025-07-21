@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { Candle15MRepository } from '../../market-data/infra/candle/Candle15MRepository';
+import { Candle15MRepository } from '../../market-data/infra/persistence/repository/Candle15MRepository';
+import { TechnicalAnalysisMapper } from '../mapper/TechnicalAnalysisMapper';
 import {
   MultiStrategyResult,
   SignalType,
@@ -94,7 +95,7 @@ export class TechnicalAnalysisService {
     symbol: string,
     strategies: StrategyType[] = this.DEFAULT_STRATEGIES,
     timeframes: TimeFrame[] = this.DEFAULT_TIMEFRAMES,
-  ): Promise<MultiStrategyResult> {
+  ): Promise<any> {
     console.log(`🔍 심볼 종합 분석 시작: ${symbol}`);
     console.log(
       `📊 전략: ${strategies.length}개, 시간봉: ${timeframes.length}개`,
@@ -106,11 +107,9 @@ export class TechnicalAnalysisService {
         symbol,
         timeframes,
       );
-
-      // 분석 결과 로깅
       this.logAnalysisResult(symbol, result);
-
-      return result;
+      // 매퍼 적용
+      return TechnicalAnalysisMapper.toResultResponseFromMulti(result);
     } catch (error) {
       console.error(`❌ 심볼 분석 실패: ${symbol}`, error);
       throw new Error(`${symbol} 분석에 실패했습니다: ${error.message}`);

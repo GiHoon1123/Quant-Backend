@@ -10,7 +10,7 @@ import {
 import {
   BitcoinTransaction,
   TransactionPurpose,
-} from '../infra/persistence/entity/BitcoinTransaction';
+} from '../infra/persistence/entity/BitcoinTransactionEntity';
 import { BitcoinTransactionRepository } from '../infra/persistence/repository/BitcoinTransactionRepository';
 import { FuturesTradeRecordRepository } from '../infra/persistence/repository/FuturesTradeRecordRepository';
 import { SpotTradeRecordRepository } from '../infra/persistence/repository/SpotTradeRecordRepository';

@@ -4,7 +4,7 @@ import { Between, In, Repository } from 'typeorm';
 import {
   BitcoinTransaction,
   TransactionPurpose,
-} from '../entity/BitcoinTransaction';
+} from '../entity/BitcoinTransactionEntity';
 
 /**
  * 비트코인 트랜잭션 저장소

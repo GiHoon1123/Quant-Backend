@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import {
-  StrategyResult,
   MultiStrategyResult,
+  StrategyResult,
   StrategyType,
-} from '../types/StrategyTypes';
-import { TimeFrame } from '../types/TechnicalAnalysisTypes';
+} from '../../../types/StrategyTypes';
+import { TimeFrame } from '../../../types/TechnicalAnalysisTypes';
 
 /**
  * 전략 실행 결과 저장소

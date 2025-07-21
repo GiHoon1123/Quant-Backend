@@ -3,9 +3,9 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 // Entities
-import { BitcoinTransaction } from './infra/persistence/entity/BitcoinTransaction';
-import { FuturesTradeRecord } from './infra/persistence/entity/FuturesTradeRecord';
-import { SpotTradeRecord } from './infra/persistence/entity/SpotTradeRecord';
+import { BitcoinTransaction } from './infra/persistence/entity/BitcoinTransactionEntity';
+import { FuturesTradeRecord } from './infra/persistence/entity/FuturesTradeRecordEntity';
+import { SpotTradeRecord } from './infra/persistence/entity/SpotTradeRecordEntity';
 
 // Repositories
 import { BitcoinTransactionRepository } from './infra/persistence/repository/BitcoinTransactionRepository';

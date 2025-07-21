@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TradeClosedEvent } from '../../../dto/events/TradeClosedEvent';
 import { FuturesTradeExecutedEvent } from '../../../dto/events/TradeExecutedEvent';
-import { FuturesTradeRecord } from '../entity/FuturesTradeRecord';
+import { FuturesTradeRecord } from '../entity/FuturesTradeRecordEntity';
 
 /**
  * 선물 거래 내역 저장소

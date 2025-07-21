@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { EventEmitter } from 'events';
-import { CandleData } from '../market-data/infra/candle/Candle15MEntity';
-import { Candle15MRepository } from '../market-data/infra/candle/Candle15MRepository';
-import { Candle15MService } from '../market-data/service/candle/Candle15MService';
-import { NotificationService } from '../notification/service/NotificationService';
-import { TechnicalAnalysisEventService } from '../technical-analysis/service/TechnicalAnalysisEventService';
-import { TechnicalAnalysisService } from '../technical-analysis/service/TechnicalAnalysisService';
-import { SignalType } from '../technical-analysis/types/StrategyTypes';
-import { TimeFrame } from '../technical-analysis/types/TechnicalAnalysisTypes';
+import { CandleData } from '../../market-data/infra/persistence/entity/Candle15MEntity';
+import { Candle15MRepository } from '../../market-data/infra/persistence/repository/Candle15MRepository';
+import { Candle15MService } from '../../market-data/service/candle/Candle15MService';
+import { NotificationService } from '../../notification/service/NotificationService';
+import { TechnicalAnalysisEventService } from '../../technical-analysis/service/TechnicalAnalysisEventService';
+import { TechnicalAnalysisService } from '../../technical-analysis/service/TechnicalAnalysisService';
+import { SignalType } from '../../technical-analysis/types/StrategyTypes';
+import { TimeFrame } from '../../technical-analysis/types/TechnicalAnalysisTypes';
 
 /**
  * 🧪 테스트 서비스

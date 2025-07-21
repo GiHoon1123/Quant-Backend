@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { TestService } from './TestService';
+import { TestService } from '../service/TestService';
 
 /**
  * 🧪 테스트 컨트롤러
