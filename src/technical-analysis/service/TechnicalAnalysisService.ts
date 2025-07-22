@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { v4 as uuidv4 } from 'uuid';
 import { AnalysisCompletedEvent } from '../../common/dto/event/AnalysisCompletedEvent';
-import technicalAnalysisConfig from '../../config/technical-analysis.config';
+import technicalAnalysisConfig from '../../config/TechnicalAnalysisConfig';
 import { Candle15MRepository } from '../../market-data/infra/persistence/repository/Candle15MRepository';
 import { TechnicalAnalysisMapper } from '../mapper/TechnicalAnalysisMapper';
 import {

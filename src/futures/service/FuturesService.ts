@@ -6,7 +6,7 @@ import {
   PositionOpenedEvent,
 } from 'src/common/dto/event/PositionEvent';
 import { v4 as uuidv4 } from 'uuid';
-import futuresConfig from '../../config/futures.config';
+import futuresConfig from '../../config/FuturesConfig';
 import { ExternalFuturesOrderResponse } from '../dto/external/ExternalFuturesOrderResponse';
 import { PositionSide } from '../dto/request/OpenPositionRequest';
 import { MarginType } from '../dto/request/SetMarginTypeRequest';

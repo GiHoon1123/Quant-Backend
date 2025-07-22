@@ -4,7 +4,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { TradeExecutedEvent } from 'src/common/dto/event/TradeExecutedEvent';
 import { v4 as uuidv4 } from 'uuid';
 import { calculateMaxSellableQuantity } from '../../common/utils/binance/CalculateMaxSellableQuantity';
-import orderConfig from '../../config/order.config';
+import orderConfig from '../../config/OrderConfig';
 import { ExternalBalanceResponse } from '../dto/external/ExternalBalanceResponse';
 import { ExternalCancelOrderResponse } from '../dto/external/ExternalCancelOrderResponse';
 import { ExternalLimitOrderResponse } from '../dto/external/ExternalLimitOrderResponse';
@@ -51,7 +51,7 @@ export class OrderService {
     private readonly eventEmitter: EventEmitter2,
     private readonly configService: ConfigService,
   ) {
-    const config = orderConfig();
+    const config = orderConfig;
     this.MIN_ORDER_NOTIONAL = this.configService.get<number>(
       'order.minOrderNotional',
       config.minOrderNotional,

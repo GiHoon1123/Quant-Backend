@@ -8,7 +8,7 @@ import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
 import { AnalysisCompletedEvent } from '../../common/dto/event/AnalysisCompletedEvent';
 import { IndividualSignalEvent } from '../../common/dto/event/IndividualSignalEvent';
-import notificationConfig from '../../config/notification.config';
+import notificationConfig from '../../config/NotificationConfig';
 import {
   MARKET_DATA_EVENTS,
   TechnicalAnalysisCompletedEvent,
