@@ -35,33 +35,27 @@ export class BinanceFuturesClient {
   }
 
   /**
-   * 선물 포지션 진입 (시장가 주문)
+   * 선물 포지션 진입 (시장가 주문) - 단방향 모드
    *
    * @param symbol 거래 심볼 (예: BTCUSDT)
-   * @param side 포지션 방향 (BUY: 롱, SELL: 숏)
+   * @param side 포지션 방향 (BUY: 롱 진입, SELL: 숏 진입)
    * @param quantity 포지션 수량
-   * @param positionSide 포지션 사이드 (LONG 또는 SHORT)
    * @returns 바이낸스 API 응답 데이터
    *
    * ⚠️ 주의: 시장가 주문은 즉시 체결되므로 슬리피지가 발생할 수 있습니다
+   * 📝 단방향 모드: positionSide 불필요, BUY/SELL로만 포지션 관리
    */
-  async openPosition(
-    symbol: string,
-    side: 'BUY' | 'SELL',
-    quantity: number,
-    positionSide: 'LONG' | 'SHORT',
-  ) {
+  async openPosition(symbol: string, side: 'BUY' | 'SELL', quantity: number) {
     try {
       const endpoint = '/fapi/v1/order';
       const timestamp = Date.now();
 
-      // 주문 파라미터 구성
+      // 주문 파라미터 구성 (단방향 모드)
       const params = new URLSearchParams({
         symbol,
-        side, // BUY (롱 진입) 또는 SELL (숏 진입)
+        side, // BUY (롱 진입/숏 청산) 또는 SELL (숏 진입/롱 청산)
         type: 'MARKET', // 시장가 주문
         quantity: quantity.toString(),
-        positionSide, // LONG 또는 SHORT
         timestamp: timestamp.toString(),
       });
 
@@ -91,32 +85,31 @@ export class BinanceFuturesClient {
   }
 
   /**
-   * 선물 포지션 청산 (시장가 주문)
+   * 선물 포지션 청산 (시장가 주문) - 단방향 모드
    *
    * @param symbol 거래 심볼
-   * @param positionSide 청산할 포지션 사이드
+   * @param currentSide 현재 포지션 방향 ('LONG' | 'SHORT')
    * @param quantity 청산할 수량 (undefined면 전체 청산)
    * @returns 바이낸스 API 응답 데이터
    *
-   * 💡 팁: quantity를 지정하지 않으면 해당 포지션을 전체 청산합니다
+   * 💡 단방향 모드: 현재 포지션과 반대 방향으로 주문하여 청산
    */
   async closePosition(
     symbol: string,
-    positionSide: 'LONG' | 'SHORT',
+    currentSide: 'LONG' | 'SHORT',
     quantity?: number,
   ) {
     try {
       const endpoint = '/fapi/v1/order';
       const timestamp = Date.now();
 
-      // 청산은 포지션 방향과 반대로 주문
-      const side = positionSide === 'LONG' ? 'SELL' : 'BUY';
+      // 청산은 포지션 방향과 반대로 주문 (단방향 모드)
+      const side = currentSide === 'LONG' ? 'SELL' : 'BUY';
 
       const params = new URLSearchParams({
         symbol,
         side,
         type: 'MARKET',
-        positionSide,
         timestamp: timestamp.toString(),
       });
 
@@ -147,6 +140,172 @@ export class BinanceFuturesClient {
       return response.data;
     } catch (error) {
       handleBinanceAxiosError(error, '선물 포지션 청산');
+    }
+  }
+
+  /**
+   * 포지션 스위칭 (롱 ↔ 숏 전환) - 단방향 모드
+   *
+   * @param symbol 거래 심볼
+   * @param currentSide 현재 포지션 방향
+   * @param currentQuantity 현재 포지션 수량
+   * @param newQuantity 새로운 포지션 수량
+   * @returns 바이낸스 API 응답 데이터
+   *
+   * 🔄 프로세스: 기존 포지션 청산 + 반대 방향 신규 포지션
+   * 💡 단방향 모드에서는 한 번의 주문으로 스위칭 가능
+   */
+  async switchPosition(
+    symbol: string,
+    currentSide: 'LONG' | 'SHORT',
+    currentQuantity: number,
+    newQuantity: number,
+  ) {
+    try {
+      const endpoint = '/fapi/v1/order';
+      const timestamp = Date.now();
+
+      // 스위칭할 방향 (현재와 반대)
+      const newSide = currentSide === 'LONG' ? 'SELL' : 'BUY';
+
+      // 총 주문 수량 = 기존 포지션 청산 + 새 포지션 생성
+      const totalQuantity = currentQuantity + newQuantity;
+
+      const params = new URLSearchParams({
+        symbol,
+        side: newSide,
+        type: 'MARKET',
+        quantity: totalQuantity.toString(),
+        timestamp: timestamp.toString(),
+      });
+
+      const signature = CryptoUtil.generateBinanceSignature(
+        params.toString(),
+        this.apiSecret,
+      );
+      params.append('signature', signature);
+
+      const response = await axios.post(
+        `${FUTURES_BASE_URL}${endpoint}`,
+        params,
+        {
+          headers: {
+            'X-MBX-APIKEY': this.apiKey,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+        },
+      );
+
+      return response.data;
+    } catch (error) {
+      handleBinanceAxiosError(error, '포지션 스위칭');
+    }
+  }
+
+  /**
+   * 포지션 수량 증가 (기존 포지션과 같은 방향으로 추가 진입)
+   *
+   * @param symbol 거래 심볼
+   * @param currentSide 현재 포지션 방향
+   * @param addQuantity 추가할 수량
+   * @returns 바이낸스 API 응답 데이터
+   *
+   * 💰 용도: 포지션 규모 확대, 평단가 조정
+   */
+  async addToPosition(
+    symbol: string,
+    currentSide: 'LONG' | 'SHORT',
+    addQuantity: number,
+  ) {
+    try {
+      const endpoint = '/fapi/v1/order';
+      const timestamp = Date.now();
+
+      // 현재 포지션과 같은 방향으로 추가 주문
+      const side = currentSide === 'LONG' ? 'BUY' : 'SELL';
+
+      const params = new URLSearchParams({
+        symbol,
+        side,
+        type: 'MARKET',
+        quantity: addQuantity.toString(),
+        timestamp: timestamp.toString(),
+      });
+
+      const signature = CryptoUtil.generateBinanceSignature(
+        params.toString(),
+        this.apiSecret,
+      );
+      params.append('signature', signature);
+
+      const response = await axios.post(
+        `${FUTURES_BASE_URL}${endpoint}`,
+        params,
+        {
+          headers: {
+            'X-MBX-APIKEY': this.apiKey,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+        },
+      );
+
+      return response.data;
+    } catch (error) {
+      handleBinanceAxiosError(error, '포지션 추가');
+    }
+  }
+
+  /**
+   * 포지션 부분 청산 (일부 수량만 청산)
+   *
+   * @param symbol 거래 심볼
+   * @param currentSide 현재 포지션 방향
+   * @param reduceQuantity 청산할 수량
+   * @returns 바이낸스 API 응답 데이터
+   *
+   * 📉 용도: 수익 실현, 리스크 감소, 포지션 규모 축소
+   */
+  async reducePosition(
+    symbol: string,
+    currentSide: 'LONG' | 'SHORT',
+    reduceQuantity: number,
+  ) {
+    try {
+      const endpoint = '/fapi/v1/order';
+      const timestamp = Date.now();
+
+      // 포지션 반대 방향으로 주문하여 부분 청산
+      const side = currentSide === 'LONG' ? 'SELL' : 'BUY';
+
+      const params = new URLSearchParams({
+        symbol,
+        side,
+        type: 'MARKET',
+        quantity: reduceQuantity.toString(),
+        reduceOnly: 'true', // 포지션 감소만 허용
+        timestamp: timestamp.toString(),
+      });
+
+      const signature = CryptoUtil.generateBinanceSignature(
+        params.toString(),
+        this.apiSecret,
+      );
+      params.append('signature', signature);
+
+      const response = await axios.post(
+        `${FUTURES_BASE_URL}${endpoint}`,
+        params,
+        {
+          headers: {
+            'X-MBX-APIKEY': this.apiKey,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+        },
+      );
+
+      return response.data;
+    } catch (error) {
+      handleBinanceAxiosError(error, '포지션 부분 청산');
     }
   }
 

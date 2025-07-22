@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
@@ -113,13 +118,12 @@ export class FuturesService {
     }
 
     try {
-      // 7. 포지션 진입 실행
+      // 7. 포지션 진입 실행 (단방향 모드)
       const orderSide = side === PositionSide.LONG ? 'BUY' : 'SELL';
       const raw = await this.futuresClient.openPosition(
         symbol,
         orderSide,
         quantity,
-        side,
       );
 
       // 8. 응답 변환
@@ -130,7 +134,35 @@ export class FuturesService {
         `✅ 선물 포지션 진입 성공: ${symbol} ${side} ${quantity} (레버리지: ${leverage}x)`,
       );
 
-      // 이벤트 발행 (공통 DTO 적용)
+      // 거래 실행 이벤트 발행 (TransactionService에서 처리)
+      const tradeExecutedEvent = {
+        eventId: uuidv4(),
+        timestamp: new Date(),
+        symbol,
+        service: 'FuturesService',
+        orderId: external.orderId,
+        clientOrderId: external.clientOrderId || '',
+        side: side === PositionSide.LONG ? 'BUY' : 'SELL',
+        type: 'MARKET',
+        quantity,
+        price: parseFloat(external.avgPrice) || 0,
+        totalAmount: parseFloat(external.cumQuote) || 0,
+        fee: 0, // 추후 실제 수수료 정보로 업데이트 필요
+        feeAsset: 'USDT',
+        feeRate: 0,
+        status: external.status,
+        executedAt: new Date(),
+        source: 'FuturesService',
+        metadata: {
+          leverage,
+          positionSide: side,
+          marginType: 'ISOLATED',
+          orderId: external.orderId,
+        },
+      };
+      this.eventEmitter.emit('trade.executed', tradeExecutedEvent);
+
+      // 포지션 오픈 이벤트도 발행 (다른 서비스에서 사용할 수 있음)
       const positionOpenedEvent: PositionOpenedEvent = {
         eventId: uuidv4(),
         timestamp: new Date(),
@@ -212,7 +244,35 @@ export class FuturesService {
         `✅ 선물 포지션 ${actionText} 성공: ${symbol} ${positionSide} ${quantity || positionQuantity}`,
       );
 
-      // 이벤트 발행 (공통 DTO 적용)
+      // 거래 실행 이벤트 발행 (청산은 포지션과 반대 방향 거래)
+      const tradeExecutedEvent = {
+        eventId: uuidv4(),
+        timestamp: new Date(),
+        symbol,
+        service: 'FuturesService',
+        orderId: external.orderId,
+        clientOrderId: external.clientOrderId || '',
+        side: positionSide === 'LONG' ? 'SELL' : 'BUY',
+        type: 'MARKET',
+        quantity: quantity || positionQuantity,
+        price: parseFloat(external.avgPrice) || 0,
+        totalAmount: parseFloat(external.cumQuote) || 0,
+        fee: 0,
+        feeAsset: 'USDT',
+        feeRate: 0,
+        status: external.status,
+        executedAt: new Date(),
+        source: 'FuturesService',
+        metadata: {
+          positionSide,
+          isClosing: true,
+          closeType: quantity ? 'PARTIAL' : 'FULL',
+          orderId: external.orderId,
+        },
+      };
+      this.eventEmitter.emit('trade.executed', tradeExecutedEvent);
+
+      // 포지션 클로즈 이벤트도 발행
       const positionClosedEvent: PositionClosedEvent = {
         eventId: uuidv4(),
         timestamp: new Date(),
@@ -646,6 +706,310 @@ export class FuturesService {
           '3. 바이낸스 서비스 상태 확인\n' +
           '4. API 키 권한 설정 확인',
       );
+    }
+  }
+
+  /**
+   * 현재 포지션 조회 (단일 심볼)
+   * @param symbol 조회할 심볼
+   * @returns 현재 포지션 정보 (없으면 null)
+   */
+  private async getCurrentPosition(symbol: string): Promise<any | null> {
+    try {
+      const positions = await this.futuresClient.getPositions(symbol);
+      const position = positions.find((p: any) => p.symbol === symbol);
+
+      if (!position) {
+        return null;
+      }
+
+      const positionAmt = parseFloat(position.positionAmt);
+
+      // 포지션이 0이면 없는 것으로 처리
+      if (Math.abs(positionAmt) === 0) {
+        return null;
+      }
+
+      // quantity 필드 추가 (절댓값)
+      return {
+        ...position,
+        quantity: Math.abs(positionAmt),
+        side: positionAmt > 0 ? 'LONG' : 'SHORT',
+      };
+    } catch (error) {
+      this.logger.error(`❌ ${symbol} 포지션 조회 실패:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * 포지션 스위칭 (롱 ↔ 숏 전환)
+   *
+   * @param symbol 거래 심볼
+   * @param newSide 새로운 포지션 방향
+   * @param newQuantity 새로운 포지션 수량
+   * @returns 스위칭 결과
+   */
+  async switchPosition(
+    symbol: string,
+    newSide: PositionSide,
+    newQuantity: number,
+  ): Promise<any> {
+    try {
+      // 1. 현재 포지션 조회
+      const currentPosition = await this.getCurrentPosition(symbol);
+      if (!currentPosition) {
+        throw new BadRequestException(
+          `${symbol}에 기존 포지션이 없어서 스위칭할 수 없습니다.`,
+        );
+      }
+
+      const currentSide = currentPosition.side;
+      const currentQuantity = currentPosition.quantity;
+
+      if (currentSide === newSide) {
+        throw new BadRequestException(
+          `현재 이미 ${currentSide} 포지션입니다. 스위칭이 불필요합니다.`,
+        );
+      }
+
+      this.logger.log(
+        `🔄 포지션 스위칭 시작: ${symbol} ${currentSide} ${currentQuantity} → ${newSide} ${newQuantity}`,
+      );
+
+      // 2. 스위칭 실행
+      const raw = await this.futuresClient.switchPosition(
+        symbol,
+        currentSide,
+        currentQuantity,
+        newQuantity,
+      );
+
+      const external = ExternalFuturesOrderResponse.from(raw);
+      const response = PositionOpenResponse.from(external);
+
+      this.logger.log(
+        `✅ 포지션 스위칭 성공: ${symbol} ${currentSide} → ${newSide} ${newQuantity}`,
+      );
+
+      // 스위칭은 청산 + 새 포지션 진입으로 두 개의 이벤트 발행
+      // 1. 기존 포지션 청산 이벤트
+      const closeEvent = {
+        eventId: uuidv4(),
+        timestamp: new Date(),
+        symbol,
+        service: 'FuturesService',
+        orderId: `${external.orderId}_close`,
+        clientOrderId: '',
+        side: currentSide === 'LONG' ? 'SELL' : 'BUY',
+        type: 'MARKET',
+        quantity: currentQuantity,
+        price: parseFloat(external.avgPrice) || 0,
+        totalAmount: 0,
+        fee: 0,
+        feeAsset: 'USDT',
+        feeRate: 0,
+        status: 'FILLED',
+        executedAt: new Date(),
+        source: 'FuturesService',
+        metadata: {
+          positionSide: currentSide,
+          isClosing: true,
+          closeType: 'SWITCH',
+          orderId: external.orderId,
+        },
+      };
+      this.eventEmitter.emit('trade.executed', closeEvent);
+
+      // 2. 새 포지션 진입 이벤트
+      const openEvent = {
+        eventId: uuidv4(),
+        timestamp: new Date(),
+        symbol,
+        service: 'FuturesService',
+        orderId: external.orderId,
+        clientOrderId: external.clientOrderId || '',
+        side: newSide === 'LONG' ? 'BUY' : 'SELL',
+        type: 'MARKET',
+        quantity: newQuantity,
+        price: parseFloat(external.avgPrice) || 0,
+        totalAmount: parseFloat(external.cumQuote) || 0,
+        fee: 0,
+        feeAsset: 'USDT',
+        feeRate: 0,
+        status: external.status,
+        executedAt: new Date(),
+        source: 'FuturesService',
+        metadata: {
+          positionSide: newSide,
+          isSwitch: true,
+          previousSide: currentSide,
+          orderId: external.orderId,
+        },
+      };
+      this.eventEmitter.emit('trade.executed', openEvent);
+
+      return response;
+    } catch (error) {
+      this.logger.error(
+        `❌ 포지션 스위칭 실패: ${symbol} ${newSide} ${newQuantity}`,
+        error,
+      );
+      throw new InternalServerErrorException(`포지션 스위칭 실패`);
+    }
+  }
+
+  /**
+   * 포지션 수량 증가 (기존 포지션에 추가)
+   *
+   * @param symbol 거래 심볼
+   * @param addQuantity 추가할 수량
+   * @returns 추가 결과
+   */
+  async addToPosition(symbol: string, addQuantity: number): Promise<any> {
+    try {
+      // 1. 현재 포지션 조회
+      const currentPosition = await this.getCurrentPosition(symbol);
+      if (!currentPosition) {
+        throw new BadRequestException(
+          `${symbol}에 기존 포지션이 없어서 추가할 수 없습니다. 새로운 포지션을 진입해주세요.`,
+        );
+      }
+
+      const currentSide = currentPosition.side;
+      this.logger.log(
+        `➕ 포지션 추가 시작: ${symbol} ${currentSide} +${addQuantity}`,
+      );
+
+      // 2. 포지션 추가 실행
+      const raw = await this.futuresClient.addToPosition(
+        symbol,
+        currentSide,
+        addQuantity,
+      );
+
+      const external = ExternalFuturesOrderResponse.from(raw);
+      const response = PositionOpenResponse.from(external);
+
+      this.logger.log(
+        `✅ 포지션 추가 성공: ${symbol} ${currentSide} +${addQuantity}`,
+      );
+
+      // 포지션 추가 이벤트 발행
+      const tradeExecutedEvent = {
+        eventId: uuidv4(),
+        timestamp: new Date(),
+        symbol,
+        service: 'FuturesService',
+        orderId: external.orderId,
+        clientOrderId: external.clientOrderId || '',
+        side: currentSide === 'LONG' ? 'BUY' : 'SELL',
+        type: 'MARKET',
+        quantity: addQuantity,
+        price: parseFloat(external.avgPrice) || 0,
+        totalAmount: parseFloat(external.cumQuote) || 0,
+        fee: 0,
+        feeAsset: 'USDT',
+        feeRate: 0,
+        status: external.status,
+        executedAt: new Date(),
+        source: 'FuturesService',
+        metadata: {
+          positionSide: currentSide,
+          isAddition: true,
+          orderId: external.orderId,
+        },
+      };
+      this.eventEmitter.emit('trade.executed', tradeExecutedEvent);
+
+      return response;
+    } catch (error) {
+      this.logger.error(
+        `❌ 포지션 추가 실패: ${symbol} +${addQuantity}`,
+        error,
+      );
+      throw new InternalServerErrorException(`포지션 추가 실패`);
+    }
+  }
+
+  /**
+   * 포지션 부분 청산
+   *
+   * @param symbol 거래 심볼
+   * @param reduceQuantity 청산할 수량
+   * @returns 부분 청산 결과
+   */
+  async reducePosition(symbol: string, reduceQuantity: number): Promise<any> {
+    try {
+      // 1. 현재 포지션 조회
+      const currentPosition = await this.getCurrentPosition(symbol);
+      if (!currentPosition) {
+        throw new BadRequestException(`${symbol}에 청산할 포지션이 없습니다.`);
+      }
+
+      const currentSide = currentPosition.side;
+      const currentQuantity = currentPosition.quantity;
+
+      if (reduceQuantity >= currentQuantity) {
+        throw new BadRequestException(
+          `청산 수량이 너무 큽니다. 현재 포지션: ${currentQuantity}, 요청 청산: ${reduceQuantity}`,
+        );
+      }
+
+      this.logger.log(
+        `📉 포지션 부분 청산 시작: ${symbol} ${currentSide} -${reduceQuantity}`,
+      );
+
+      // 2. 부분 청산 실행
+      const raw = await this.futuresClient.reducePosition(
+        symbol,
+        currentSide,
+        reduceQuantity,
+      );
+
+      const external = ExternalFuturesOrderResponse.from(raw);
+      const response = PositionOpenResponse.from(external);
+
+      this.logger.log(
+        `✅ 포지션 부분 청산 성공: ${symbol} ${currentSide} -${reduceQuantity}`,
+      );
+
+      // 부분 청산 이벤트 발행
+      const tradeExecutedEvent = {
+        eventId: uuidv4(),
+        timestamp: new Date(),
+        symbol,
+        service: 'FuturesService',
+        orderId: external.orderId,
+        clientOrderId: external.clientOrderId || '',
+        side: currentSide === 'LONG' ? 'SELL' : 'BUY',
+        type: 'MARKET',
+        quantity: reduceQuantity,
+        price: parseFloat(external.avgPrice) || 0,
+        totalAmount: parseFloat(external.cumQuote) || 0,
+        fee: 0,
+        feeAsset: 'USDT',
+        feeRate: 0,
+        status: external.status,
+        executedAt: new Date(),
+        source: 'FuturesService',
+        metadata: {
+          positionSide: currentSide,
+          isPartialClose: true,
+          originalQuantity: currentQuantity,
+          remainingQuantity: currentQuantity - reduceQuantity,
+          orderId: external.orderId,
+        },
+      };
+      this.eventEmitter.emit('trade.executed', tradeExecutedEvent);
+
+      return response;
+    } catch (error) {
+      this.logger.error(
+        `❌ 포지션 부분 청산 실패: ${symbol} -${reduceQuantity}`,
+        error,
+      );
+      throw new InternalServerErrorException(`포지션 부분 청산 실패`);
     }
   }
 }

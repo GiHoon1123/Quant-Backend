@@ -6,10 +6,13 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { CommonResponse } from 'src/common/response/CommonResponse';
+import { AddToPositionRequest } from '../dto/request/AddToPositionRequest';
 import { ClosePositionRequest } from '../dto/request/ClosePositionRequest';
 import { OpenPositionRequest } from '../dto/request/OpenPositionRequest';
+import { ReducePositionRequest } from '../dto/request/ReducePositionRequest';
 import { SetLeverageRequest } from '../dto/request/SetLeverageRequest';
 import { SetMarginTypeRequest } from '../dto/request/SetMarginTypeRequest';
+import { SwitchPositionRequest } from '../dto/request/SwitchPositionRequest';
 import { TransferFundsRequest } from '../dto/request/TransferFundsRequest';
 import { FuturesService } from '../service/FuturesService';
 
@@ -569,6 +572,214 @@ export class FuturesController {
     return CommonResponse.success({
       status: 200,
       message: `${dto.amount} ${dto.asset}가 ${fromText}에서 ${toText}로 이체되었습니다.`,
+      data: result,
+    });
+  }
+
+  /**
+   * 포지션 스위칭 API (롱 ↔ 숏 전환)
+   *
+   * 🔄 기능: 기존 포지션을 반대 방향으로 즉시 전환
+   *
+   * ⚡ 처리 과정:
+   * 1. 현재 포지션 조회 및 검증
+   * 2. 기존 포지션 청산 + 반대 방향 신규 포지션 생성
+   * 3. 한 번의 주문으로 스위칭 완료
+   *
+   * 💡 활용 사례:
+   * - 시장 전환점에서 빠른 방향 전환
+   * - 손실 제한 후 반대 베팅
+   * - 기술적 분석 신호 변화 대응
+   */
+  @Post('/position/switch')
+  @ApiOperation({
+    summary: '포지션 스위칭 (롱 ↔ 숏)',
+    description: `
+      🔄 기존 포지션을 반대 방향으로 즉시 전환합니다.
+      
+      **스위칭 프로세스:**
+      1️⃣ 현재 포지션 자동 감지
+      2️⃣ 기존 포지션 완전 청산
+      3️⃣ 반대 방향 새 포지션 생성
+      4️⃣ 한 번의 주문으로 완료
+      
+      **장점:**
+      ✅ 빠른 방향 전환 (슬리피지 최소화)
+      ✅ 자동 포지션 감지
+      ✅ 거래 비용 절약
+      ✅ 타이밍 최적화
+      
+      **주의:** 높은 변동성 시기에는 신중하게 사용하세요.
+    `,
+  })
+  @ApiOkResponse({
+    description: '포지션 스위칭 성공',
+    schema: {
+      example: {
+        status: 200,
+        message: 'BTCUSDT 포지션이 LONG에서 SHORT로 성공적으로 전환되었습니다.',
+        data: {
+          orderId: 987654321,
+          symbol: 'BTCUSDT',
+          fromSide: 'LONG',
+          toSide: 'SHORT',
+          newQuantity: 0.002,
+          avgPrice: 45000.0,
+          status: 'FILLED',
+          timestamp: '2024-01-01T00:00:00.000Z',
+        },
+      },
+    },
+  })
+  async switchPosition(@Body() dto: SwitchPositionRequest) {
+    const result = await this.futuresService.switchPosition(
+      dto.symbol,
+      dto.newSide,
+      dto.newQuantity,
+    );
+
+    return CommonResponse.success({
+      status: 200,
+      message: `${dto.symbol} 포지션이 ${dto.newSide}로 성공적으로 전환되었습니다.`,
+      data: result,
+    });
+  }
+
+  /**
+   * 포지션 수량 추가 API
+   *
+   * ➕ 기능: 기존 포지션과 같은 방향으로 수량 추가
+   *
+   * ⚡ 처리 과정:
+   * 1. 현재 포지션 방향 자동 감지
+   * 2. 같은 방향으로 추가 주문 실행
+   * 3. 평균 진입가 자동 재계산
+   *
+   * 💰 활용 사례:
+   * - 추가 확신 시 포지션 확대
+   * - 평단가 개선 (물타기)
+   * - 수익 극대화 전략
+   */
+  @Post('/position/add')
+  @ApiOperation({
+    summary: '포지션 수량 추가',
+    description: `
+      ➕ 기존 포지션과 같은 방향으로 수량을 추가합니다.
+      
+      **추가 프로세스:**
+      1️⃣ 현재 포지션 방향 확인
+      2️⃣ 동일 방향 추가 주문
+      3️⃣ 평균 진입가 재계산
+      4️⃣ 포지션 규모 확대
+      
+      **전략적 활용:**
+      📈 상승 확신 시 LONG 추가
+      📉 하락 확신 시 SHORT 추가
+      💰 평단가 개선 목적
+      🎯 수익 극대화 전략
+      
+      **리스크:** 포지션 규모 증가로 손실 위험도 함께 증가
+    `,
+  })
+  @ApiOkResponse({
+    description: '포지션 추가 성공',
+    schema: {
+      example: {
+        status: 200,
+        message: 'BTCUSDT LONG 포지션에 0.001 수량이 추가되었습니다.',
+        data: {
+          orderId: 555666777,
+          symbol: 'BTCUSDT',
+          side: 'LONG',
+          addedQuantity: 0.001,
+          totalQuantity: 0.002,
+          newAvgPrice: 44500.0,
+          status: 'FILLED',
+          timestamp: '2024-01-01T00:00:00.000Z',
+        },
+      },
+    },
+  })
+  async addToPosition(@Body() dto: AddToPositionRequest) {
+    const result = await this.futuresService.addToPosition(
+      dto.symbol,
+      dto.addQuantity,
+    );
+
+    return CommonResponse.success({
+      status: 200,
+      message: `${dto.symbol} 포지션에 ${dto.addQuantity} 수량이 추가되었습니다.`,
+      data: result,
+    });
+  }
+
+  /**
+   * 포지션 부분 청산 API
+   *
+   * 📉 기능: 포지션의 일부 수량만 청산
+   *
+   * ⚡ 처리 과정:
+   * 1. 현재 포지션 수량 확인
+   * 2. 청산 수량 유효성 검증
+   * 3. 부분 청산 주문 실행
+   * 4. 잔여 포지션 유지
+   *
+   * 💡 활용 사례:
+   * - 단계별 수익 실현
+   * - 리스크 점진적 감소
+   * - 시장 불확실성 대응
+   */
+  @Post('/position/reduce')
+  @ApiOperation({
+    summary: '포지션 부분 청산',
+    description: `
+      📉 포지션의 일부 수량만 청산하여 리스크를 조절합니다.
+      
+      **부분 청산 프로세스:**
+      1️⃣ 현재 포지션 수량 확인
+      2️⃣ 청산 수량 유효성 검증
+      3️⃣ reduceOnly 주문 실행
+      4️⃣ 잔여 포지션 자동 유지
+      
+      **전략적 활용:**
+      💰 단계별 수익 실현
+      🛡️ 리스크 점진적 감소
+      📊 포지션 사이징 조절
+      ⚖️ 위험-수익 균형 맞추기
+      
+      **안전 기능:**
+      ✅ 전체 포지션 초과 방지
+      ✅ reduceOnly 주문으로 안전성 보장
+    `,
+  })
+  @ApiOkResponse({
+    description: '포지션 부분 청산 성공',
+    schema: {
+      example: {
+        status: 200,
+        message: 'BTCUSDT LONG 포지션에서 0.0005 수량이 청산되었습니다.',
+        data: {
+          orderId: 888999000,
+          symbol: 'BTCUSDT',
+          side: 'LONG',
+          reducedQuantity: 0.0005,
+          remainingQuantity: 0.0015,
+          realizedPnl: 12.5,
+          status: 'FILLED',
+          timestamp: '2024-01-01T00:00:00.000Z',
+        },
+      },
+    },
+  })
+  async reducePosition(@Body() dto: ReducePositionRequest) {
+    const result = await this.futuresService.reducePosition(
+      dto.symbol,
+      dto.reduceQuantity,
+    );
+
+    return CommonResponse.success({
+      status: 200,
+      message: `${dto.symbol} 포지션에서 ${dto.reduceQuantity} 수량이 청산되었습니다.`,
       data: result,
     });
   }
