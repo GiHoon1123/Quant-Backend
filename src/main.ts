@@ -29,3 +29,5 @@ async function bootstrap() {
   console.log(`🚀 Application is running on: http://localhost:${port}`);
 }
 bootstrap();
+
+// AppModule에서 ConfigModule.forRoot(), EventEmitterModule.forRoot()를 import하여 글로벌 적용 필요

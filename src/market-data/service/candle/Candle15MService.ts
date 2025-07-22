@@ -1,6 +1,7 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { EventEmitter } from 'events';
 import { DEFAULT_SYMBOLS } from 'src/common/constant/DefaultSymbols';
+import { CandleCompletedEvent } from 'src/common/dto/event/CandleCompletedEvent';
 import { ExternalCandleResponse } from 'src/market-data/dto/candle/ExternalCandleResponse';
 import { BinanceCandle15MManager } from 'src/market-data/infra/client/BinanceCandle15MManager';
 import {
@@ -417,12 +418,17 @@ export class Candle15MService implements OnModuleInit, OnModuleDestroy {
         ongoingCandle,
       );
 
-      // 완성 이벤트 발생
-      this.eventEmitter.emit('candle.completed', {
+      // 완성 이벤트 발생 (공통 DTO 적용)
+      const candleCompletedEvent: CandleCompletedEvent = {
+        eventId: `${symbol}-${ongoingCandle.openTime}`,
+        service: 'Candle15MService',
         symbol,
-        candleData: ongoingCandle,
-        isCompleted: true,
-      });
+        market: 'FUTURES',
+        timeframe: '15m',
+        candle: ongoingCandle,
+        timestamp: new Date(),
+      };
+      this.eventEmitter.emit('candle.completed', candleCompletedEvent);
 
       console.log(
         `[Candle15MService] 캔들 완성 이벤트 트리거: ${symbol} - ${new Date(ongoingCandle.openTime).toISOString()}`,

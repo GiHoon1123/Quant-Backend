@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { TradeExecutedEvent } from 'src/common/dto/event/TradeExecutedEvent';
 import { Repository } from 'typeorm';
 import { TradeClosedEvent } from '../../../dto/events/TradeClosedEvent';
-import { FuturesTradeExecutedEvent } from '../../../dto/events/TradeExecutedEvent';
 import { FuturesTradeRecord } from '../entity/FuturesTradeRecordEntity';
 
 /**
@@ -21,9 +21,7 @@ export class FuturesTradeRecordRepository {
   /**
    * 선물 거래 이벤트를 엔티티로 변환하여 저장
    */
-  async saveFromEvent(
-    event: FuturesTradeExecutedEvent,
-  ): Promise<FuturesTradeRecord> {
+  async saveFromEvent(event: TradeExecutedEvent): Promise<FuturesTradeRecord> {
     const record = new FuturesTradeRecord();
 
     // 기본 거래 정보
@@ -49,17 +47,16 @@ export class FuturesTradeRecordRepository {
     record.executedAt = event.executedAt;
 
     // 선물 거래 전용 정보
-    record.leverage = event.leverage;
-    record.marginType = event.marginType;
-    record.initialMargin = event.initialMargin;
-    record.maintenanceMargin = event.maintenanceMargin || 0;
-    record.positionSide = event.positionSide;
-    record.liquidationPrice = event.liquidationPrice || 0;
-    record.markPrice = event.markPrice || 0;
-    record.marginRatio = event.marginRatio || 0;
+    record.leverage = event.metadata?.leverage ?? 0;
+    record.marginType = event.metadata?.marginType ?? '';
+    record.initialMargin = event.metadata?.initialMargin ?? 0;
+    record.maintenanceMargin = event.metadata?.maintenanceMargin ?? 0;
+    record.positionSide = event.metadata?.positionSide ?? '';
+    record.liquidationPrice = event.metadata?.liquidationPrice ?? 0;
+    record.markPrice = event.metadata?.markPrice ?? 0;
+    record.marginRatio = event.metadata?.marginRatio ?? 0;
 
     // 추가 정보
-    record.strategyId = event.strategyId || '';
     record.metadata = event.metadata;
 
     // 초기 상태 설정

@@ -1,7 +1,10 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { TradeExecutedEventFactory } from 'src/transaction/dto/events/TradeExecutedEvent';
+import { TradeExecutedEvent } from 'src/common/dto/event/TradeExecutedEvent';
+import { v4 as uuidv4 } from 'uuid';
 import { calculateMaxSellableQuantity } from '../../common/utils/binance/CalculateMaxSellableQuantity';
+import orderConfig from '../../config/order.config';
 import { ExternalBalanceResponse } from '../dto/external/ExternalBalanceResponse';
 import { ExternalCancelOrderResponse } from '../dto/external/ExternalCancelOrderResponse';
 import { ExternalLimitOrderResponse } from '../dto/external/ExternalLimitOrderResponse';
@@ -38,10 +41,31 @@ import { BinanceOrderClient } from '../infra/client/BinanceOrderClient';
  */
 @Injectable()
 export class OrderService {
+  private readonly logger = new Logger(OrderService.name);
+  private readonly MIN_ORDER_NOTIONAL: number;
+  private readonly FEE_RATE: number;
+  private readonly MAJOR_ASSETS: string[];
+
   constructor(
     private readonly orderClient: BinanceOrderClient,
     private readonly eventEmitter: EventEmitter2,
-  ) {}
+    private readonly configService: ConfigService,
+  ) {
+    const config = orderConfig();
+    this.MIN_ORDER_NOTIONAL = this.configService.get<number>(
+      'order.minOrderNotional',
+      config.minOrderNotional,
+    );
+    this.FEE_RATE = this.configService.get<number>(
+      'order.feeRate',
+      config.feeRate,
+    );
+    this.MAJOR_ASSETS =
+      this.configService.get<string[]>(
+        'order.majorAssets',
+        config.majorAssets,
+      ) || config.majorAssets;
+  }
 
   /**
    * 📈 시장가 매수 (Market Buy Order)
@@ -79,10 +103,10 @@ export class OrderService {
 
     // 🔍 2단계: 바이낸스 최소 주문 금액 검증
     // 바이낸스는 시장가 매수 시 최소 10 USDT 이상 요구
-    if (usdtAmount < 10) {
+    if (usdtAmount < this.MIN_ORDER_NOTIONAL) {
       throw new BadRequestException(
-        `❌ 바이낸스 현물 거래 최소 금액: 10 USDT (입력값: ${usdtAmount} USDT)\n` +
-          `💡 팁: 10 USDT 이상으로 주문해주세요.`,
+        `❌ 바이낸스 현물 거래 최소 금액: ${this.MIN_ORDER_NOTIONAL} USDT (입력값: ${usdtAmount} USDT)\n` +
+          `💡 팁: ${this.MIN_ORDER_NOTIONAL} USDT 이상으로 주문해주세요.`,
       );
     }
 
@@ -106,7 +130,7 @@ export class OrderService {
 
     try {
       // 🚀 5단계: 시장가 매수 주문 실행
-      console.log(`📈 시장가 매수 시작: ${symbol} ${usdtAmount} USDT`);
+      this.logger.log(`📈 시장가 매수 시작: ${symbol} ${usdtAmount} USDT`);
 
       const raw = await this.orderClient.placeMarketOrder(
         symbol,
@@ -118,13 +142,16 @@ export class OrderService {
       const external = ExternalMarketBuyResponse.from(raw);
       const response = MarketBuyOrderResponse.from(external);
 
-      console.log(`✅ 시장가 매수 완료: ${symbol} ${usdtAmount} USDT`);
-      console.log(
+      this.logger.log(`✅ 시장가 매수 완료: ${symbol} ${usdtAmount} USDT`);
+      this.logger.log(
         `📊 체결 정보: ${response.executedQty}개 @ 평균가 ${response.avgPrice}`,
       );
 
       // 🎯 이벤트 발행: 현물 거래 실행 이벤트
-      const tradeEvent = TradeExecutedEventFactory.createSpotTradeEvent({
+      const tradeEvent: TradeExecutedEvent = {
+        eventId: uuidv4(),
+        timestamp: new Date(),
+        service: 'OrderService',
         symbol,
         orderId: response.orderId.toString(),
         clientOrderId: response.clientOrderId,
@@ -141,7 +168,7 @@ export class OrderService {
             0,
           ) || 0,
         feeAsset: response.fills?.[0]?.commissionAsset || 'USDT',
-        feeRate: 0.1, // 바이낸스 기본 수수료율 0.1%
+        feeRate: this.FEE_RATE, // 바이낸스 기본 수수료율 0.1%
         status: response.status,
         executedAt: new Date(),
         source: 'API',
@@ -149,14 +176,37 @@ export class OrderService {
           rawResponse: raw,
           fills: response.fills,
         },
-      });
-
-      this.eventEmitter.emit('trade.executed', tradeEvent);
-      console.log(`🎯 현물 매수 이벤트 발행 완료: ${tradeEvent.eventId}`);
+      };
+      // 이벤트 발행 (공통 DTO 적용)
+      const tradeExecutedEvent: TradeExecutedEvent = {
+        eventId: tradeEvent.eventId,
+        service: 'OrderService',
+        symbol: tradeEvent.symbol,
+        orderId: tradeEvent.orderId,
+        clientOrderId: tradeEvent.clientOrderId,
+        side: tradeEvent.side,
+        type: tradeEvent.type,
+        quantity: tradeEvent.quantity,
+        price: tradeEvent.price,
+        totalAmount: tradeEvent.totalAmount,
+        fee: tradeEvent.fee,
+        feeAsset: tradeEvent.feeAsset,
+        feeRate: tradeEvent.feeRate,
+        status: tradeEvent.status,
+        executedAt: tradeEvent.executedAt,
+        source: tradeEvent.source,
+        metadata: tradeEvent.metadata,
+        timestamp: new Date(),
+      };
+      this.eventEmitter.emit('trade.executed', tradeExecutedEvent);
+      this.logger.log(`🎯 현물 매수 이벤트 발행 완료: ${tradeEvent.eventId}`);
 
       return response;
     } catch (error) {
-      console.error(`❌ 시장가 매수 실패: ${symbol} ${usdtAmount} USDT`, error);
+      this.logger.error(
+        `❌ 시장가 매수 실패: ${symbol} ${usdtAmount} USDT`,
+        error.stack,
+      );
       throw new BadRequestException(
         `시장가 매수 실패: ${error.message}\n\n` +
           `🔍 가능한 원인:\n` +
@@ -229,12 +279,12 @@ export class OrderService {
     // 🔍 5단계: 최소 주문 금액 예상 검사
     // 현물 매도도 최소 10 USDT 상당의 가치가 있어야 함
     // 정확한 검사는 바이낸스에서 하지만, 사전 경고 제공
-    console.log(`📉 시장가 매도 준비: ${symbol} ${quantity}개`);
-    console.log(`💰 현재 ${coin} 보유량: ${coinBalance}개`);
+    this.logger.log(`📉 시장가 매도 준비: ${symbol} ${quantity}개`);
+    this.logger.log(`💰 현재 ${coin} 보유량: ${coinBalance}개`);
 
     try {
       // 🚀 6단계: 시장가 매도 주문 실행
-      console.log(`📉 시장가 매도 시작: ${symbol} ${quantity}개`);
+      this.logger.log(`📉 시장가 매도 시작: ${symbol} ${quantity}개`);
 
       const raw = await this.orderClient.placeMarketOrder(
         symbol,
@@ -246,16 +296,19 @@ export class OrderService {
       const external = ExternalMarketSellResponse.from(raw);
       const response = MarketSellOrderResponse.from(external);
 
-      console.log(`✅ 시장가 매도 완료: ${symbol} ${quantity}개`);
-      console.log(
+      this.logger.log(`✅ 시장가 매도 완료: ${symbol} ${quantity}개`);
+      this.logger.log(
         `📊 체결 정보: ${response.executedQty}개 @ 평균가 ${response.avgPrice}`,
       );
-      console.log(
+      this.logger.log(
         `💰 매도 대금: ${(parseFloat(response.executedQty) * parseFloat(response.avgPrice)).toFixed(2)} USDT`,
       );
 
       // 🎯 이벤트 발행: 현물 거래 실행 이벤트
-      const tradeEvent = TradeExecutedEventFactory.createSpotTradeEvent({
+      const tradeEvent: TradeExecutedEvent = {
+        eventId: uuidv4(),
+        timestamp: new Date(),
+        service: 'OrderService',
         symbol,
         orderId: response.orderId.toString(),
         clientOrderId: response.clientOrderId,
@@ -272,7 +325,7 @@ export class OrderService {
             0,
           ) || 0,
         feeAsset: response.fills?.[0]?.commissionAsset || 'USDT',
-        feeRate: 0.1,
+        feeRate: this.FEE_RATE,
         status: response.status,
         executedAt: new Date(),
         source: 'API',
@@ -280,18 +333,41 @@ export class OrderService {
           rawResponse: raw,
           fills: response.fills,
         },
-      });
-
-      this.eventEmitter.emit('trade.executed', tradeEvent);
-      console.log(`🎯 현물 매도 이벤트 발행 완료: ${tradeEvent.eventId}`);
+      };
+      // 이벤트 발행 (공통 DTO 적용)
+      const tradeExecutedEvent: TradeExecutedEvent = {
+        eventId: tradeEvent.eventId,
+        service: 'OrderService',
+        symbol: tradeEvent.symbol,
+        orderId: tradeEvent.orderId,
+        clientOrderId: tradeEvent.clientOrderId,
+        side: tradeEvent.side,
+        type: tradeEvent.type,
+        quantity: tradeEvent.quantity,
+        price: tradeEvent.price,
+        totalAmount: tradeEvent.totalAmount,
+        fee: tradeEvent.fee,
+        feeAsset: tradeEvent.feeAsset,
+        feeRate: tradeEvent.feeRate,
+        status: tradeEvent.status,
+        executedAt: tradeEvent.executedAt,
+        source: tradeEvent.source,
+        metadata: tradeEvent.metadata,
+        timestamp: new Date(),
+      };
+      this.eventEmitter.emit('trade.executed', tradeExecutedEvent);
+      this.logger.log(`🎯 현물 매도 이벤트 발행 완료: ${tradeEvent.eventId}`);
 
       return response;
     } catch (error) {
-      console.error(`❌ 시장가 매도 실패: ${symbol} ${quantity}개`, error);
+      this.logger.error(
+        `❌ 시장가 매도 실패: ${symbol} ${quantity}개`,
+        error.stack,
+      );
       throw new BadRequestException(
         `시장가 매도 실패: ${error.message}\n\n` +
           `🔍 가능한 원인:\n` +
-          `1. 최소 주문 금액 미달 (10 USDT 미만)\n` +
+          `1. 최소 주문 금액 미달 (${this.MIN_ORDER_NOTIONAL} USDT 미만)\n` +
           `2. 네트워크 연결 문제\n` +
           `3. 바이낸스 서버 일시적 오류\n` +
           `4. 해당 심볼 거래 일시 중단\n` +
@@ -347,14 +423,19 @@ export class OrderService {
     // 🔍 2단계: 최소 주문 금액 검증
     // 총 주문 금액 = 수량 × 가격
     const notional = price * quantity;
-    if (notional < 10) {
+    if (notional < this.MIN_ORDER_NOTIONAL) {
       throw new BadRequestException(
         `❌ 최소 주문 금액 미달\n` +
           `📊 현재 주문 금액: ${notional.toFixed(2)} USDT\n` +
-          `📏 최소 주문 금액: 10 USDT\n` +
+          `📏 최소 주문 금액: ${this.MIN_ORDER_NOTIONAL} USDT\n` +
           `💡 해결 방법:\n` +
-          `1. 수량 증가: ${(10 / price).toFixed(8)} ${symbol.replace('USDT', '')} 이상\n` +
-          `2. 가격 상향: ${(10 / quantity).toFixed(2)} USDT 이상`,
+          `1. 수량 증가: ${(this.MIN_ORDER_NOTIONAL / price).toFixed(8)} ${symbol.replace(
+            'USDT',
+            '',
+          )} 이상\n` +
+          `2. 가격 상향: ${(this.MIN_ORDER_NOTIONAL / quantity).toFixed(
+            2,
+          )} USDT 이상`,
       );
     }
 
@@ -382,10 +463,12 @@ export class OrderService {
 
     try {
       // 🚀 5단계: 지정가 매수 주문 실행
-      console.log(
+      this.logger.log(
         `📊 지정가 매수 주문: ${symbol} ${quantity}개 @ ${price} USDT`,
       );
-      console.log(`💰 총 주문 금액: ${notional.toFixed(2)} USDT (수수료 별도)`);
+      this.logger.log(
+        `💰 총 주문 금액: ${notional.toFixed(2)} USDT (수수료 별도)`,
+      );
 
       const raw = await this.orderClient.placeLimitOrder(
         symbol,
@@ -398,14 +481,16 @@ export class OrderService {
       const external = ExternalLimitOrderResponse.from(raw);
       const response = LimitOrderResponse.from(external);
 
-      console.log(`✅ 지정가 매수 주문 완료: ${symbol}`);
-      console.log(`📋 주문 ID: ${response.orderId}`);
-      console.log(`⏰ 주문 상태: ${response.status} (체결 대기 중)`);
-      console.log(`💡 팁: 시장가가 ${price} USDT에 도달하면 자동 체결됩니다`);
+      this.logger.log(`✅ 지정가 매수 주문 완료: ${symbol}`);
+      this.logger.log(`📋 주문 ID: ${response.orderId}`);
+      this.logger.log(`⏰ 주문 상태: ${response.status} (체결 대기 중)`);
+      this.logger.log(
+        `💡 팁: 시장가가 ${price} USDT에 도달하면 자동 체결됩니다`,
+      );
 
       return response;
     } catch (error) {
-      console.error(`❌ 지정가 매수 주문 실패: ${symbol}`, error);
+      this.logger.error(`❌ 지정가 매수 주문 실패: ${symbol}`, error.stack);
       throw new BadRequestException(
         `지정가 매수 주문 실패: ${error.message}\n\n` +
           `🔍 가능한 원인:\n` +
@@ -467,14 +552,19 @@ export class OrderService {
 
     // 🔍 2단계: 최소 주문 금액 검증
     const notional = price * quantity;
-    if (notional < 10) {
+    if (notional < this.MIN_ORDER_NOTIONAL) {
       throw new BadRequestException(
         `❌ 최소 주문 금액 미달\n` +
           `📊 현재 주문 금액: ${notional.toFixed(2)} USDT\n` +
-          `📏 최소 주문 금액: 10 USDT\n` +
+          `📏 최소 주문 금액: ${this.MIN_ORDER_NOTIONAL} USDT\n` +
           `💡 해결 방법:\n` +
-          `1. 수량 증가: ${(10 / price).toFixed(8)} ${symbol.replace('USDT', '')} 이상\n` +
-          `2. 가격 상향: ${(10 / quantity).toFixed(2)} USDT 이상`,
+          `1. 수량 증가: ${(this.MIN_ORDER_NOTIONAL / price).toFixed(8)} ${symbol.replace(
+            'USDT',
+            '',
+          )} 이상\n` +
+          `2. 가격 상향: ${(this.MIN_ORDER_NOTIONAL / quantity).toFixed(
+            2,
+          )} USDT 이상`,
       );
     }
 
@@ -502,16 +592,18 @@ export class OrderService {
 
     try {
       // 🚀 6단계: 지정가 매도 주문 실행
-      console.log(
+      this.logger.log(
         `📊 지정가 매도 주문: ${symbol} ${quantity}개 @ ${price} USDT`,
       );
-      console.log(
+      this.logger.log(
         `💰 예상 매도 대금: ${notional.toFixed(2)} USDT (수수료 별도)`,
       );
-      console.log(
+      this.logger.log(
         `💵 예상 수수료: ${(notional * 0.001).toFixed(2)} USDT (0.1%)`,
       );
-      console.log(`💎 예상 실수령액: ${(notional * 0.999).toFixed(2)} USDT`);
+      this.logger.log(
+        `💎 예상 실수령액: ${(notional * 0.999).toFixed(2)} USDT`,
+      );
 
       const raw = await this.orderClient.placeLimitOrder(
         symbol,
@@ -524,14 +616,16 @@ export class OrderService {
       const external = ExternalLimitOrderResponse.from(raw);
       const response = LimitOrderResponse.from(external);
 
-      console.log(`✅ 지정가 매도 주문 완료: ${symbol}`);
-      console.log(`📋 주문 ID: ${response.orderId}`);
-      console.log(`⏰ 주문 상태: ${response.status} (체결 대기 중)`);
-      console.log(`💡 팁: 시장가가 ${price} USDT에 도달하면 자동 체결됩니다`);
+      this.logger.log(`✅ 지정가 매도 주문 완료: ${symbol}`);
+      this.logger.log(`📋 주문 ID: ${response.orderId}`);
+      this.logger.log(`⏰ 주문 상태: ${response.status} (체결 대기 중)`);
+      this.logger.log(
+        `💡 팁: 시장가가 ${price} USDT에 도달하면 자동 체결됩니다`,
+      );
 
       return response;
     } catch (error) {
-      console.error(`❌ 지정가 매도 주문 실패: ${symbol}`, error);
+      this.logger.error(`❌ 지정가 매도 주문 실패: ${symbol}`, error.stack);
       throw new BadRequestException(
         `지정가 매도 주문 실패: ${error.message}\n\n` +
           `🔍 가능한 원인:\n` +
@@ -583,25 +677,28 @@ export class OrderService {
     }
 
     try {
-      console.log(`❌ 주문 취소 시작: ${symbol} 주문 ID ${orderId}`);
+      this.logger.log(`❌ 주문 취소 시작: ${symbol} 주문 ID ${orderId}`);
 
       // 🚀 주문 취소 실행
       const raw = await this.orderClient.cancelOrder(symbol, orderId);
       const external = ExternalCancelOrderResponse.from(raw);
       const response = CancelOrderResponse.from(external);
 
-      console.log(`✅ 주문 취소 완료: ${symbol} 주문 ID ${orderId}`);
-      console.log(`📊 취소된 주문 상태: ${response.status}`);
+      this.logger.log(`✅ 주문 취소 완료: ${symbol} 주문 ID ${orderId}`);
+      this.logger.log(`📊 취소된 주문 상태: ${response.status}`);
 
       // 부분 체결 여부 확인
       if (response.executedQty && parseFloat(response.executedQty) > 0) {
-        console.log(`⚠️ 부분 체결됨: ${response.executedQty}개 이미 체결`);
-        console.log(`💡 체결된 부분은 취소되지 않고 그대로 유지됩니다`);
+        this.logger.warn(`⚠️ 부분 체결됨: ${response.executedQty}개 이미 체결`);
+        this.logger.log(`💡 체결된 부분은 취소되지 않고 그대로 유지됩니다`);
       }
 
       return response;
     } catch (error) {
-      console.error(`❌ 주문 취소 실패: ${symbol} 주문 ID ${orderId}`, error);
+      this.logger.error(
+        `❌ 주문 취소 실패: ${symbol} 주문 ID ${orderId}`,
+        error,
+      );
       throw new BadRequestException(
         `주문 취소 실패: ${error.message}\n\n` +
           `🔍 가능한 원인:\n` +
@@ -649,7 +746,7 @@ export class OrderService {
    */
   async getBalances(): Promise<BalanceResponse[]> {
     try {
-      console.log(`💰 잔고 조회 시작`);
+      this.logger.log(`💰 잔고 조회 시작`);
 
       // 🚀 잔고 조회 실행
       const raw = await this.orderClient.fetchBalances();
@@ -660,24 +757,25 @@ export class OrderService {
       const nonZeroBalances = response.filter(
         (b) => b.free > 0 || b.locked > 0,
       );
-      console.log(
+      this.logger.log(
         `✅ 잔고 조회 완료: ${nonZeroBalances.length}개 자산 보유 중`,
       );
 
       // 주요 자산 잔고 로그 출력
-      const majorAssets = ['USDT', 'BTC', 'ETH', 'BNB'];
-      majorAssets.forEach((asset) => {
+      this.MAJOR_ASSETS.forEach((asset) => {
         const balance = response.find((b) => b.asset === asset);
         if (balance && (balance.free > 0 || balance.locked > 0)) {
-          console.log(
-            `💎 ${asset}: ${balance.free} (사용가능) + ${balance.locked} (주문중) = ${(balance.free + balance.locked).toFixed(8)}`,
+          this.logger.log(
+            `💎 ${asset}: ${balance.free} (사용가능) + ${balance.locked} (주문중) = ${(
+              balance.free + balance.locked
+            ).toFixed(8)}`,
           );
         }
       });
 
       return response;
     } catch (error) {
-      console.error(`❌ 잔고 조회 실패`, error);
+      this.logger.error(`❌ 잔고 조회 실패`, error);
       throw new BadRequestException(
         `잔고 조회 실패: ${error.message}\n\n` +
           `🔍 가능한 원인:\n` +

@@ -1,8 +1,8 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { EventEmitter } from 'events';
 import { BinanceModule } from './common/binance/BinanceModule';
 import { typeOrmConfig } from './common/config/DatabaseConfig';
 import { FuturesModule } from './futures/FuturesModule';
@@ -44,6 +44,7 @@ import { TechnicalAnalysisEventService } from './technical-analysis/service/Tech
         '.env', // 공통 설정 (fallback)
       ],
     }),
+    EventEmitterModule.forRoot(), // 글로벌 EventEmitter 모듈 등록
     TypeOrmModule.forRoot(typeOrmConfig),
     ScheduleModule.forRoot(),
 
@@ -58,14 +59,8 @@ import { TechnicalAnalysisEventService } from './technical-analysis/service/Tech
     TransactionModule, // 💰 거래 내역 관리
   ],
   controllers: [],
-  providers: [
-    // 🔗 전역 EventEmitter 제공
-    {
-      provide: EventEmitter,
-      useValue: new EventEmitter(),
-    },
-  ],
-  exports: [EventEmitter], // 다른 모듈에서 사용할 수 있도록 export
+  providers: [],
+  exports: [],
 })
 export class AppModule implements OnModuleInit {
   constructor(

@@ -1,4 +1,12 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import {
+  PositionClosedEvent,
+  PositionOpenedEvent,
+} from 'src/common/dto/event/PositionEvent';
+import { v4 as uuidv4 } from 'uuid';
+import futuresConfig from '../../config/futures.config';
 import { ExternalFuturesOrderResponse } from '../dto/external/ExternalFuturesOrderResponse';
 import { PositionSide } from '../dto/request/OpenPositionRequest';
 import { MarginType } from '../dto/request/SetMarginTypeRequest';
@@ -28,10 +36,26 @@ import { BinanceFuturesPositionClient } from '../infra/client/BinanceFuturesPosi
  */
 @Injectable()
 export class FuturesService {
+  private readonly logger = new Logger(FuturesService.name);
+  private readonly MIN_ORDER_NOTIONAL: number;
+  private readonly DEFAULT_RISK_THRESHOLD: number;
+
   constructor(
     private readonly futuresClient: BinanceFuturesClient,
     private readonly positionClient: BinanceFuturesPositionClient,
-  ) {}
+    private readonly eventEmitter: EventEmitter2,
+    private readonly configService: ConfigService,
+  ) {
+    const config = futuresConfig();
+    this.MIN_ORDER_NOTIONAL = this.configService.get<number>(
+      'futures.minOrderNotional',
+      config.minOrderNotional,
+    );
+    this.DEFAULT_RISK_THRESHOLD = this.configService.get<number>(
+      'futures.defaultRiskThreshold',
+      config.defaultRiskThreshold,
+    );
+  }
 
   /**
    * 선물 포지션 진입
@@ -75,15 +99,15 @@ export class FuturesService {
 
     // 5. 최소 주문 금액 검증 (바이낸스 선물 최소 주문 금액: 5 USDT)
     const notionalValue = quantity * estimatedPrice;
-    if (notionalValue < 5) {
+    if (notionalValue < this.MIN_ORDER_NOTIONAL) {
       throw new BadRequestException(
-        `선물 포지션은 최소 5 USDT 이상이어야 합니다. (현재: ${notionalValue.toFixed(2)} USDT)`,
+        `선물 포지션은 최소 ${this.MIN_ORDER_NOTIONAL} USDT 이상이어야 합니다. (현재: ${notionalValue.toFixed(2)} USDT)`,
       );
     }
 
     // 6. 기존 포지션 확인 및 경고
     if (balanceCheck.hasExistingPosition) {
-      console.warn(
+      this.logger.warn(
         `⚠️ 경고: ${symbol}에 기존 포지션이 존재합니다. 추가 포지션을 진입합니다.`,
       );
     }
@@ -102,12 +126,28 @@ export class FuturesService {
       const external = ExternalFuturesOrderResponse.from(raw);
       const response = PositionOpenResponse.from(external);
 
-      console.log(
+      this.logger.log(
         `✅ 선물 포지션 진입 성공: ${symbol} ${side} ${quantity} (레버리지: ${leverage}x)`,
       );
+
+      // 이벤트 발행 (공통 DTO 적용)
+      const positionOpenedEvent: PositionOpenedEvent = {
+        eventId: uuidv4(),
+        timestamp: new Date(),
+        symbol,
+        service: 'FuturesService',
+        side,
+        quantity,
+        leverage,
+        notional: parseFloat(external.cumQuote),
+        source: 'FuturesService',
+        metadata: { orderId: external.orderId },
+      };
+      this.eventEmitter.emit('futures.position.opened', positionOpenedEvent);
+
       return response;
     } catch (error) {
-      console.error(`❌ 선물 포지션 진입 실패: ${symbol} ${side}`, error);
+      this.logger.error(`❌ 선물 포지션 진입 실패: ${symbol} ${side}`, error);
       throw new BadRequestException(
         `포지션 진입에 실패했습니다: ${error.message}`,
       );
@@ -168,13 +208,26 @@ export class FuturesService {
       const response = PositionOpenResponse.from(external);
 
       const actionText = quantity ? '부분 청산' : '전체 청산';
-      console.log(
+      this.logger.log(
         `✅ 선물 포지션 ${actionText} 성공: ${symbol} ${positionSide} ${quantity || positionQuantity}`,
       );
 
+      // 이벤트 발행 (공통 DTO 적용)
+      const positionClosedEvent: PositionClosedEvent = {
+        eventId: uuidv4(),
+        timestamp: new Date(),
+        symbol,
+        service: 'FuturesService',
+        side: positionSide,
+        quantity: quantity || positionQuantity,
+        source: 'FuturesService',
+        metadata: { orderId: external.orderId },
+      };
+      this.eventEmitter.emit('futures.position.closed', positionClosedEvent);
+
       return response;
     } catch (error) {
-      console.error(`❌ 선물 포지션 청산 실패: ${symbol}`, error);
+      this.logger.error(`❌ 선물 포지션 청산 실패: ${symbol}`, error);
       throw new BadRequestException(
         `포지션 청산에 실패했습니다: ${error.message}`,
       );
@@ -202,17 +255,14 @@ export class FuturesService {
 
     try {
       const result = await this.futuresClient.setLeverage(symbol, leverage);
-      console.log(`✅ 레버리지 설정 성공: ${symbol} ${leverage}x`);
+      this.logger.log(`✅ 레버리지 설정 성공: ${symbol} ${leverage}x`);
       return result;
     } catch (error) {
-      console.error(`❌ 레버리지 설정 실패: ${symbol} ${leverage}x`, error);
-
-      // 이미 설정된 레버리지인 경우는 에러가 아님
+      this.logger.error(`❌ 레버리지 설정 실패: ${symbol} ${leverage}x`, error);
       if (error.message?.includes('leverage not modified')) {
-        console.log(`ℹ️ 레버리지 이미 설정됨: ${symbol} ${leverage}x`);
+        this.logger.log(`ℹ️ 레버리지 이미 설정됨: ${symbol} ${leverage}x`);
         return { symbol, leverage, status: 'already_set' };
       }
-
       throw new BadRequestException(
         `레버리지 설정에 실패했습니다: ${error.message}`,
       );
@@ -233,17 +283,17 @@ export class FuturesService {
   async setMarginType(symbol: string, marginType: MarginType): Promise<any> {
     try {
       const result = await this.futuresClient.setMarginType(symbol, marginType);
-      console.log(`✅ 마진 모드 설정 성공: ${symbol} ${marginType}`);
+      this.logger.log(`✅ 마진 모드 설정 성공: ${symbol} ${marginType}`);
       return result;
     } catch (error) {
-      console.error(`❌ 마진 모드 설정 실패: ${symbol} ${marginType}`, error);
-
-      // 이미 설정된 마진 모드인 경우는 에러가 아님
+      this.logger.error(
+        `❌ 마진 모드 설정 실패: ${symbol} ${marginType}`,
+        error,
+      );
       if (error.message?.includes('No need to change margin type')) {
-        console.log(`ℹ️ 마진 모드 이미 설정됨: ${symbol} ${marginType}`);
+        this.logger.log(`ℹ️ 마진 모드 이미 설정됨: ${symbol} ${marginType}`);
         return { symbol, marginType, status: 'already_set' };
       }
-
       throw new BadRequestException(
         `마진 모드 설정에 실패했습니다: ${error.message}`,
       );
@@ -268,7 +318,7 @@ export class FuturesService {
         await this.positionClient.getActivePositions(symbol);
       return PositionInfoResponse.fromList(activePositions);
     } catch (error) {
-      console.error('❌ 포지션 정보 조회 실패:', error);
+      this.logger.error('❌ 포지션 정보 조회 실패:', error);
       throw new BadRequestException(
         `포지션 정보 조회에 실패했습니다: ${error.message}`,
       );
@@ -291,7 +341,7 @@ export class FuturesService {
       const balances = await this.positionClient.getAvailableBalances();
       return FuturesBalanceResponse.fromList(balances);
     } catch (error) {
-      console.error('❌ 선물 잔고 조회 실패:', error);
+      this.logger.error('❌ 선물 잔고 조회 실패:', error);
       throw new BadRequestException(
         `선물 잔고 조회에 실패했습니다: ${error.message}`,
       );
@@ -311,11 +361,12 @@ export class FuturesService {
     riskThreshold: number = 0.8,
   ): Promise<PositionInfoResponse[]> {
     try {
-      const highRiskPositions =
-        await this.positionClient.getHighRiskPositions(riskThreshold);
+      const highRiskPositions = await this.positionClient.getHighRiskPositions(
+        riskThreshold ?? this.DEFAULT_RISK_THRESHOLD,
+      );
       return PositionInfoResponse.fromList(highRiskPositions);
     } catch (error) {
-      console.error('❌ 위험 포지션 조회 실패:', error);
+      this.logger.error('❌ 위험 포지션 조회 실패:', error);
       throw new BadRequestException(
         `위험 포지션 조회에 실패했습니다: ${error.message}`,
       );
@@ -363,7 +414,7 @@ export class FuturesService {
 
     try {
       // 2. 이체 실행
-      console.log(
+      this.logger.log(
         `💸 자금 이체 시작: ${amount} ${asset} (${fromAccountType} → ${toAccountType})`,
       );
 
@@ -374,7 +425,7 @@ export class FuturesService {
         toAccountType,
       );
 
-      console.log(`✅ 자금 이체 완료: ${amount} ${asset}`);
+      this.logger.log(`✅ 자금 이체 완료: ${amount} ${asset}`);
       return {
         asset,
         amount,
@@ -384,7 +435,7 @@ export class FuturesService {
         timestamp: new Date(),
       };
     } catch (error) {
-      console.error(`❌ 자금 이체 실패: ${asset} ${amount}`, error);
+      this.logger.error(`❌ 자금 이체 실패: ${asset} ${amount}`, error);
 
       // 3. 에러 처리
       if (error.message?.includes('insufficient')) {
@@ -483,13 +534,13 @@ export class FuturesService {
 
     // 🔍 5단계: 권장 사항 로그 출력
     if (leverage > 10) {
-      console.warn(`⚠️ 높은 레버리지 경고: ${leverage}배`);
-      console.warn('💡 권장: 10배 이하 레버리지 사용을 권장합니다');
+      this.logger.warn(`⚠️ 높은 레버리지 경고: ${leverage}배`);
+      this.logger.warn('💡 권장: 10배 이하 레버리지 사용을 권장합니다');
     }
 
     if (quantity > 1) {
-      console.log(`📊 대량 포지션: ${quantity} ${symbol}`);
-      console.log('💡 팁: 분할 진입을 고려해보세요');
+      this.logger.log(`📊 대량 포지션: ${quantity} ${symbol}`);
+      this.logger.log('💡 팁: 분할 진입을 고려해보세요');
     }
   }
 
@@ -524,8 +575,7 @@ export class FuturesService {
    */
   private async getEstimatedPrice(symbol: string): Promise<number> {
     try {
-      console.log(`💰 ${symbol} 현재 시장가 조회 중...`);
-
+      this.logger.log(`💰 ${symbol} 현재 시장가 조회 중...`);
       // 🚀 1단계: 포지션 정보에서 마크 가격 조회
       // 실제 운영에서는 별도의 마크 프라이스 API 사용 권장
       const rawPositions = await this.futuresClient.getPositions(symbol);
@@ -535,7 +585,7 @@ export class FuturesService {
 
         // 🔍 2단계: 가격 유효성 검사
         if (markPrice > 0 && isFinite(markPrice)) {
-          console.log(
+          this.logger.log(
             `✅ ${symbol} 마크 프라이스: ${markPrice.toLocaleString()} USDT`,
           );
           return markPrice;
@@ -543,7 +593,7 @@ export class FuturesService {
       }
 
       // 🔍 3단계: 대안 방법들 (실제 구현에서는 추가 API 호출)
-      console.warn(
+      this.logger.warn(
         `⚠️ ${symbol} 마크 프라이스 조회 실패, 대안 방법 시도 중...`,
       );
 
@@ -566,7 +616,7 @@ export class FuturesService {
           '4. 다른 심볼로 테스트',
       );
     } catch (error) {
-      console.error(`❌ ${symbol} 시장가 조회 실패:`, error);
+      this.logger.error(`❌ ${symbol} 시장가 조회 실패:`, error);
 
       // 🔍 에러 타입별 상세 메시지 제공
       if (error.message?.includes('symbol')) {

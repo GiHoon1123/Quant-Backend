@@ -1,6 +1,11 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
+import { AnalysisCompletedEvent } from '../../common/dto/event/AnalysisCompletedEvent';
+import { IndividualSignalEvent } from '../../common/dto/event/IndividualSignalEvent';
+import notificationConfig from '../../config/notification.config';
 import {
   MARKET_DATA_EVENTS,
   TechnicalAnalysisCompletedEvent,
@@ -37,72 +42,66 @@ import {
  */
 @Injectable()
 export class NotificationService implements OnModuleInit {
+  private readonly logger = new Logger(NotificationService.name);
+  private readonly eventEmitter2: EventEmitter2;
   private readonly eventEmitter: EventEmitter;
   private readonly messageQueue: NotificationMessage[] = [];
   private readonly sentMessages = new Map<string, NotificationMessage>();
 
-  // 기본 알림 설정
-  private readonly defaultSettings: NotificationSettings = {
-    channels: {
-      [NotificationChannel.TELEGRAM]: {
-        enabled: true,
-        priority: [
-          NotificationPriority.CRITICAL,
-          NotificationPriority.HIGH,
-          NotificationPriority.MEDIUM,
-        ],
-        types: [
-          NotificationType.ANALYSIS_RESULT,
-          NotificationType.PRICE_ALERT,
-          NotificationType.BREAKOUT_ALERT,
-        ],
-      },
-      [NotificationChannel.WEBSOCKET]: {
-        enabled: false, // 추후 구현
-        priority: [NotificationPriority.CRITICAL, NotificationPriority.HIGH],
-        types: [NotificationType.ANALYSIS_RESULT, NotificationType.PRICE_ALERT],
-      },
-      [NotificationChannel.KAKAO]: {
-        enabled: false, // 추후 구현
-        priority: [NotificationPriority.CRITICAL],
-        types: [NotificationType.ANALYSIS_RESULT],
-      },
-      [NotificationChannel.EMAIL]: {
-        enabled: false, // 추후 구현
-        priority: [NotificationPriority.MEDIUM, NotificationPriority.LOW],
-        types: [NotificationType.NEWS_ALERT, NotificationType.SYSTEM_ALERT],
-      },
-      [NotificationChannel.DISCORD]: {
-        enabled: false, // 추후 구현
-        priority: [NotificationPriority.HIGH, NotificationPriority.MEDIUM],
-        types: [
-          NotificationType.ANALYSIS_RESULT,
-          NotificationType.BREAKOUT_ALERT,
-        ],
-      },
-    },
-    globalSettings: {
-      rateLimiting: {
-        enabled: true,
-        maxPerMinute: 10,
-        maxPerHour: 100,
-      },
-      quietHours: {
-        enabled: false,
-        startHour: 23,
-        endHour: 7,
-      },
-    },
-  };
+  // 알림 설정을 config에서 주입
+  private readonly settings: NotificationSettings;
 
   constructor(
     private readonly telegramService: TelegramClient,
-    // TODO: 추후 다른 채널 서비스들 추가
-    // private readonly webSocketService: WebSocketNotificationService,
-    // private readonly kakaoService: KakaoNotificationService,
+    private readonly configService: ConfigService,
+    eventEmitter2?: EventEmitter2,
   ) {
     this.eventEmitter = new EventEmitter();
-    console.log('📢 [NotificationService] 통합 알림 서비스 초기화');
+    this.eventEmitter2 = eventEmitter2 || new EventEmitter2();
+    this.logger.log('📢 [NotificationService] 통합 알림 서비스 초기화');
+    // 환경설정 적용 (telegram만 config 기반, 나머지는 기존 default)
+    this.settings = {
+      channels: {
+        [NotificationChannel.TELEGRAM]: {
+          enabled: this.configService.get<boolean>(
+            'notification.telegram.enabled',
+            notificationConfig.telegram.enabled,
+          ),
+          priority: notificationConfig.telegram.priority,
+          types: notificationConfig.telegram.types,
+        },
+        [NotificationChannel.WEBSOCKET]: {
+          enabled: false,
+          priority: [NotificationPriority.CRITICAL, NotificationPriority.HIGH],
+          types: [
+            NotificationType.ANALYSIS_RESULT,
+            NotificationType.PRICE_ALERT,
+          ],
+        },
+        [NotificationChannel.KAKAO]: {
+          enabled: false,
+          priority: [NotificationPriority.CRITICAL],
+          types: [NotificationType.ANALYSIS_RESULT],
+        },
+        [NotificationChannel.EMAIL]: {
+          enabled: false,
+          priority: [NotificationPriority.MEDIUM, NotificationPriority.LOW],
+          types: [NotificationType.NEWS_ALERT, NotificationType.SYSTEM_ALERT],
+        },
+        [NotificationChannel.DISCORD]: {
+          enabled: false,
+          priority: [NotificationPriority.HIGH, NotificationPriority.MEDIUM],
+          types: [
+            NotificationType.ANALYSIS_RESULT,
+            NotificationType.BREAKOUT_ALERT,
+          ],
+        },
+      },
+      globalSettings: {
+        rateLimiting: notificationConfig.rateLimiting,
+        quietHours: notificationConfig.quietHours,
+      },
+    };
   }
 
   /**
@@ -111,7 +110,7 @@ export class NotificationService implements OnModuleInit {
   async onModuleInit(): Promise<void> {
     // Technical-analysis 도메인의 EventEmitter와 연결은
     // AppModule에서 처리됩니다.
-    console.log('📢 [NotificationService] 이벤트 핸들러 준비 완료');
+    this.logger.log('📢 [NotificationService] 이벤트 핸들러 준비 완료');
   }
 
   /**
@@ -142,8 +141,10 @@ export class NotificationService implements OnModuleInit {
       this.handleIndividualSignal.bind(this),
     );
 
-    console.log('🔗 [NotificationService] Technical-analysis 이벤트 연결 완료');
-    console.log(
+    this.logger.log(
+      '🔗 [NotificationService] Technical-analysis 이벤트 연결 완료',
+    );
+    this.logger.log(
       `📡 [NotificationService] 구독 중인 이벤트: ${MARKET_DATA_EVENTS.TECHNICAL_ANALYSIS_COMPLETED}, analysis.completed, individual.signal`,
     );
   }
@@ -159,13 +160,13 @@ export class NotificationService implements OnModuleInit {
     try {
       const { signalType, symbol, timeframe, confidence } = event;
 
-      console.log(
+      this.logger.log(
         `🎯 [IndividualSignal] 개별 신호 수신: ${signalType} - ${symbol} (신뢰도: ${confidence}%)`,
       );
 
       // 신뢰도가 너무 낮으면 알림 발송하지 않음
       if (confidence < 60) {
-        console.log(
+        this.logger.log(
           `🎯 [IndividualSignal] 신뢰도 부족으로 알림 스킵: ${signalType} - ${symbol} (${confidence}%)`,
         );
         return;
@@ -173,8 +174,24 @@ export class NotificationService implements OnModuleInit {
 
       // 신호 타입별 개별 알림 발송
       await this.sendIndividualSignalNotification(signalType, event);
+
+      // 명시적 DTO 객체 생성 및 emit
+      const individualSignalEvent: IndividualSignalEvent = {
+        eventId: uuidv4(),
+        symbol,
+        signalType,
+        confidence,
+        timeframe,
+        currentPrice: event.currentPrice,
+        service: 'NotificationService',
+        timestamp: new Date(),
+      };
+      this.eventEmitter2.emit(
+        'notification.individual.signal',
+        individualSignalEvent,
+      );
     } catch (error) {
-      console.error('❌ [IndividualSignal] 개별 신호 처리 실패:', error);
+      this.logger.error('❌ [IndividualSignal] 개별 신호 처리 실패:', error);
     }
   }
 
@@ -259,17 +276,17 @@ export class NotificationService implements OnModuleInit {
           break;
 
         default:
-          console.log(
+          this.logger.warn(
             `⚠️ [IndividualSignal] 알 수 없는 신호 타입: ${signalType}`,
           );
           break;
       }
 
-      console.log(
+      this.logger.log(
         `✅ [IndividualSignal] 개별 알림 발송 완료: ${signalType} - ${symbol}`,
       );
     } catch (error) {
-      console.error(
+      this.logger.error(
         `❌ [IndividualSignal] 개별 알림 발송 실패: ${signalType}`,
         error,
       );
@@ -285,7 +302,7 @@ export class NotificationService implements OnModuleInit {
     event: TechnicalAnalysisCompletedEvent | any,
   ): Promise<void> {
     try {
-      console.log(`📢 [NotificationService] 이벤트 수신됨:`, {
+      this.logger.log(`📢 [NotificationService] 이벤트 수신됨:`, {
         type: event.type || 'unknown',
         symbol: event.symbol,
         signal: event.analysisResult?.signal || event.signal,
@@ -302,13 +319,13 @@ export class NotificationService implements OnModuleInit {
 
       // HOLD 신호는 알림 발송하지 않음 (스팸 방지)
       if (analysisResult.signal === 'HOLD') {
-        console.log(
+        this.logger.log(
           `📢 [NotificationService] HOLD 신호 - 알림 스킵: ${symbol}`,
         );
         return;
       }
 
-      console.log(
+      this.logger.log(
         `📢 [Notification] 분석 완료 이벤트 수신: ${symbol} - ${analysisResult.signal} (신뢰도: ${analysisResult.confidence}%)`,
       );
 
@@ -337,8 +354,18 @@ export class NotificationService implements OnModuleInit {
           event.practicalStrategies,
         );
       }
+
+      this.eventEmitter2.emit('notification.analysis.completed', {
+        eventId: uuidv4(),
+        symbol,
+        signal: analysisResult.signal,
+        confidence: analysisResult.confidence,
+        analyzedAt: event.analyzedAt || new Date(),
+        service: 'NotificationService',
+        timestamp: new Date(),
+      } as AnalysisCompletedEvent);
     } catch (error) {
-      console.error('❌ [Notification] 분석 완료 이벤트 처리 실패:', error);
+      this.logger.error('❌ [Notification] 분석 완료 이벤트 처리 실패:', error);
     }
   }
 
@@ -350,7 +377,7 @@ export class NotificationService implements OnModuleInit {
     advancedStrategies: any[],
   ): Promise<void> {
     try {
-      console.log(
+      this.logger.log(
         `🚀 [AdvancedStrategies] 고급 전략 알림 처리 시작: ${symbol} (${advancedStrategies.length}개)`,
       );
 
@@ -408,12 +435,12 @@ export class NotificationService implements OnModuleInit {
             break;
         }
 
-        console.log(
+        this.logger.log(
           `✅ [AdvancedStrategy] ${strategy.type} 알림 발송 완료: ${symbol}`,
         );
       }
     } catch (error) {
-      console.error(
+      this.logger.error(
         `❌ [AdvancedStrategies] 고급 전략 알림 처리 실패: ${symbol}`,
         error,
       );
@@ -428,7 +455,7 @@ export class NotificationService implements OnModuleInit {
     practicalStrategies: any[],
   ): Promise<void> {
     try {
-      console.log(
+      this.logger.log(
         `💼 [PracticalStrategies] 실전 전략 알림 처리 시작: ${symbol} (${practicalStrategies.length}개)`,
       );
 
@@ -498,12 +525,12 @@ export class NotificationService implements OnModuleInit {
             break;
         }
 
-        console.log(
+        this.logger.log(
           `✅ [PracticalStrategy] ${strategy.type} 알림 발송 완료: ${symbol}`,
         );
       }
     } catch (error) {
-      console.error(
+      this.logger.error(
         `❌ [PracticalStrategies] 실전 전략 알림 처리 실패: ${symbol}`,
         error,
       );
@@ -567,11 +594,32 @@ export class NotificationService implements OnModuleInit {
    * @returns 포맷된 메시지
    */
   private formatAnalysisMessage(symbol: string, analysisResult: any): string {
-    const { signal, confidence, indicators } = analysisResult;
-
+    const { signal, confidence, indicators, timestamp } = analysisResult;
     let emoji = '📊';
     if (signal === 'BUY' || signal === 'STRONG_BUY') emoji = '📈';
     if (signal === 'SELL' || signal === 'STRONG_SELL') emoji = '📉';
+
+    // 분석 시점 UTC/KST 변환 개선
+    let timeStr = '';
+    if (timestamp) {
+      const dateObj =
+        typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
+      // UTC/KST 변환
+      const utcStr =
+        dateObj.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+      const kstDate = new Date(dateObj.getTime() + 9 * 60 * 60 * 1000);
+      const kstStr =
+        kstDate.toISOString().replace('T', ' ').substring(11, 19) + ' KST';
+      timeStr = `${utcStr} (${kstStr})`;
+    } else {
+      const now = new Date();
+      const utcStr =
+        now.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+      const kstDate = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+      const kstStr =
+        kstDate.toISOString().replace('T', ' ').substring(11, 19) + ' KST';
+      timeStr = `${utcStr} (${kstStr})`;
+    }
 
     return [
       `${emoji} **${symbol} 기술적 분석 완료**`,
@@ -580,10 +628,9 @@ export class NotificationService implements OnModuleInit {
       `📊 **신뢰도**: ${confidence}%`,
       '',
       '📈 **주요 지표**:',
-      // 기본 지표들 (실제 데이터가 있을 때 표시)
       indicators ? this.formatIndicators(indicators) : '• 분석 중...',
       '',
-      `🕒 **분석 시점**: ${new Date().toLocaleString('ko-KR')}`,
+      `🕒 **분석 시점**: ${timeStr}`,
     ].join('\n');
   }
 
@@ -622,6 +669,14 @@ export class NotificationService implements OnModuleInit {
     notification: NotificationMessage,
   ): Promise<void> {
     try {
+      // 중복 메시지 방지: 심볼+분석시점+신호+신뢰도 기준으로 체크
+      const uniqueKey = `${notification.symbol}-${notification.data?.analyzedAt?.toISOString?.() ?? ''}-${notification.data?.analysisResult?.signal ?? ''}-${notification.data?.analysisResult?.confidence ?? ''}`;
+      if (this.sentMessages.has(uniqueKey)) {
+        this.logger.warn(
+          `🚫 [Notification] 중복 분석 결과 스킵: ${notification.title}`,
+        );
+        return;
+      }
       notification.status = NotificationStatus.SENDING;
 
       // 채널별 발송 처리
@@ -645,15 +700,17 @@ export class NotificationService implements OnModuleInit {
       // 발송 완료 처리
       notification.status = NotificationStatus.SENT;
       notification.sentAt = new Date();
-      this.sentMessages.set(notification.id, notification);
+      this.sentMessages.set(uniqueKey, notification);
 
-      console.log(`✅ [Notification] 알림 발송 완료: ${notification.title}`);
+      this.logger.log(
+        `✅ [Notification] 알림 발송 완료: ${notification.title}`,
+      );
     } catch (error) {
       // 발송 실패 처리
       notification.status = NotificationStatus.FAILED;
       notification.error = error.message;
 
-      console.error(
+      this.logger.error(
         `❌ [Notification] 알림 발송 실패: ${notification.title}`,
         error,
       );
@@ -670,7 +727,7 @@ export class NotificationService implements OnModuleInit {
   ): Promise<void> {
     const { symbol, data } = notification;
 
-    console.log(`📱 [Telegram] 알림 발송 시작: ${symbol}`, data);
+    this.logger.log(`📱 [Telegram] 알림 발송 시작: ${symbol}`, data);
 
     if (
       notification.type === NotificationType.ANALYSIS_RESULT &&
@@ -696,7 +753,7 @@ export class NotificationService implements OnModuleInit {
         timestamp: data.analyzedAt || new Date(),
       };
 
-      console.log(`📱 [Telegram] 정규화된 데이터:`, telegramData);
+      this.logger.log(`📱 [Telegram] 정규화된 데이터:`, telegramData);
 
       // 기존 TelegramClient의 분석 결과 메서드 활용
       await this.telegramService.sendAnalysisResult(symbol!, telegramData);
@@ -705,7 +762,7 @@ export class NotificationService implements OnModuleInit {
       await this.telegramService.sendTextMessage(notification.message);
     }
 
-    console.log(`✅ [Telegram] 알림 발송 완료: ${symbol}`);
+    this.logger.log(`✅ [Telegram] 알림 발송 완료: ${symbol}`);
   }
 
   /**
@@ -717,7 +774,10 @@ export class NotificationService implements OnModuleInit {
     notification: NotificationMessage,
   ): Promise<void> {
     // TODO: 웹소켓 서비스 구현 후 추가
-    console.log('🌐 [WebSocket] 알림 발송 (추후 구현):', notification.title);
+    this.logger.log(
+      '🌐 [WebSocket] 알림 발송 (추후 구현):',
+      notification.title,
+    );
   }
 
   /**
@@ -729,7 +789,7 @@ export class NotificationService implements OnModuleInit {
     notification: NotificationMessage,
   ): Promise<void> {
     // TODO: 카카오톡 서비스 구현 후 추가
-    console.log('💬 [Kakao] 알림 발송 (추후 구현):', notification.title);
+    this.logger.log('💬 [Kakao] 알림 발송 (추후 구현):', notification.title);
   }
 
   /**

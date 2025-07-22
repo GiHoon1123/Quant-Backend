@@ -1,12 +1,9 @@
-import { Injectable } from '@nestjs/common';
-import { OnEvent } from '@nestjs/event-emitter';
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
+import { TradeExecutedEvent } from 'src/common/dto/event/TradeExecutedEvent';
+import { v4 as uuidv4 } from 'uuid';
 import { TradeClosedEvent } from '../dto/events/TradeClosedEvent';
-import {
-  FuturesTradeExecutedEvent,
-  SpotTradeExecutedEvent,
-  TradeEventUtils,
-  TradeExecutedEvent,
-} from '../dto/events/TradeExecutedEvent';
 import {
   BitcoinTransaction,
   TransactionPurpose,
@@ -14,6 +11,8 @@ import {
 import { BitcoinTransactionRepository } from '../infra/persistence/repository/BitcoinTransactionRepository';
 import { FuturesTradeRecordRepository } from '../infra/persistence/repository/FuturesTradeRecordRepository';
 import { SpotTradeRecordRepository } from '../infra/persistence/repository/SpotTradeRecordRepository';
+import { BitcoinTransactionParsedEvent } from '../../common/dto/event/BitcoinTransactionParsedEvent';
+import { BitcoinTransactionParseFailedEvent } from '../../common/dto/event/BitcoinTransactionParseFailedEvent';
 
 /**
  * 거래 내역 관리 서비스
@@ -24,10 +23,13 @@ import { SpotTradeRecordRepository } from '../infra/persistence/repository/SpotT
  */
 @Injectable()
 export class TransactionService {
+  private readonly logger = new Logger(TransactionService.name);
   constructor(
     private readonly spotTradeRepository: SpotTradeRecordRepository,
     private readonly futuresTradeRepository: FuturesTradeRecordRepository,
     private readonly bitcoinTransactionRepository: BitcoinTransactionRepository,
+    private readonly eventEmitter: EventEmitter2,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -40,7 +42,7 @@ export class TransactionService {
   @OnEvent('trade.executed')
   async handleTradeExecuted(event: TradeExecutedEvent): Promise<void> {
     try {
-      console.log(
+      this.logger.log(
         `📝 거래 내역 저장 시작: ${event.symbol} ${event.side} ${event.quantity}`,
       );
 
@@ -50,9 +52,40 @@ export class TransactionService {
       // 2. 코인별 트랜잭션 파싱 트리거
       await this.triggerTransactionParsing(event);
 
-      console.log(`✅ 거래 내역 처리 완료: ${event.orderId}`);
+      this.logger.log(`✅ 거래 내역 처리 완료: ${event.orderId}`);
+      // 거래 저장 이벤트 발행 (공통 DTO 적용)
+      const tradeSavedEvent: TradeExecutedEvent = {
+        eventId: uuidv4(),
+        symbol: event.symbol,
+        service: 'TransactionService',
+        orderId: event.orderId,
+        clientOrderId: event.clientOrderId ?? '',
+        side: event.side,
+        type: event.type ?? 'MARKET',
+        quantity: event.quantity,
+        price: event.price,
+        totalAmount: event.totalAmount ?? 0,
+        fee: event.fee ?? 0,
+        feeAsset: event.feeAsset ?? 'USDT',
+        feeRate: event.feeRate ?? 0,
+        status: event.status ?? '',
+        executedAt: event.executedAt ?? new Date(),
+        source: 'TransactionService',
+        metadata: event.metadata ?? {},
+        timestamp: new Date(),
+      };
+      this.eventEmitter.emit('transaction.trade.saved', tradeSavedEvent);
     } catch (error) {
-      console.error(`❌ 거래 내역 처리 실패: ${event.orderId}`, error);
+      this.logger.error(`❌ 거래 내역 처리 실패: ${event.orderId}`, error);
+      this.eventEmitter.emit('transaction.trade.save.failed', {
+        eventId: uuidv4(),
+        orderId: event.orderId,
+        symbol: event.symbol,
+        side: event.side,
+        error: error.message,
+        timestamp: new Date(),
+        service: 'TransactionService',
+      });
       // 에러가 발생해도 거래 실행에는 영향을 주지 않도록 에러를 던지지 않음
     }
   }
@@ -66,19 +99,36 @@ export class TransactionService {
   @OnEvent('trade.closed')
   async handleTradeClosed(event: TradeClosedEvent): Promise<void> {
     try {
-      console.log(
+      this.logger.log(
         `📝 포지션 종료 처리 시작: ${event.symbol} ${event.closeType}`,
       );
 
       // 선물 거래 내역 업데이트
       await this.futuresTradeRepository.updateFromCloseEvent(event);
 
-      console.log(`✅ 포지션 종료 처리 완료: ${event.closeOrderId}`);
+      this.logger.log(`✅ 포지션 종료 처리 완료: ${event.closeOrderId}`);
+      this.eventEmitter.emit('transaction.position.closed', {
+        eventId: uuidv4(),
+        closeOrderId: event.closeOrderId,
+        symbol: event.symbol,
+        closeType: event.closeType,
+        timestamp: new Date(),
+        service: 'TransactionService',
+      });
     } catch (error) {
-      console.error(
+      this.logger.error(
         `❌ 포지션 종료 처리 실패: ${event.originalOrderId}`,
         error,
       );
+      this.eventEmitter.emit('transaction.position.close.failed', {
+        eventId: uuidv4(),
+        closeOrderId: event.closeOrderId,
+        symbol: event.symbol,
+        closeType: event.closeType,
+        error: error.message,
+        timestamp: new Date(),
+        service: 'TransactionService',
+      });
     }
   }
 
@@ -86,24 +136,20 @@ export class TransactionService {
    * 거래 내역 저장
    */
   private async saveTradeRecord(event: TradeExecutedEvent): Promise<void> {
-    if (TradeEventUtils.isSpotTradeEvent(event)) {
-      await this.saveSpotTradeRecord(event);
-    } else if (TradeEventUtils.isFuturesTradeEvent(event)) {
-      await this.saveFuturesTradeRecord(event);
-    }
+    // 이벤트 타입 구분 유틸 제거, 모든 이벤트를 공통 DTO로 저장
+    await this.saveSpotTradeRecord(event);
+    await this.saveFuturesTradeRecord(event);
   }
 
   /**
    * 현물 거래 내역 저장
    */
-  private async saveSpotTradeRecord(
-    event: SpotTradeExecutedEvent,
-  ): Promise<void> {
+  private async saveSpotTradeRecord(event: TradeExecutedEvent): Promise<void> {
     try {
       const record = await this.spotTradeRepository.saveFromEvent(event);
-      console.log(`💰 현물 거래 저장 완료: ${record.id} (${event.symbol})`);
+      this.logger.log(`💰 현물 거래 저장 완료: ${record.id} (${event.symbol})`);
     } catch (error) {
-      console.error(`❌ 현물 거래 저장 실패: ${event.orderId}`, error);
+      this.logger.error(`❌ 현물 거래 저장 실패: ${event.orderId}`, error);
       throw error;
     }
   }
@@ -112,15 +158,16 @@ export class TransactionService {
    * 선물 거래 내역 저장
    */
   private async saveFuturesTradeRecord(
-    event: FuturesTradeExecutedEvent,
+    event: TradeExecutedEvent,
   ): Promise<void> {
     try {
       const record = await this.futuresTradeRepository.saveFromEvent(event);
-      console.log(
-        `🚀 선물 거래 저장 완료: ${record.id} (${event.symbol} ${event.positionSide})`,
+      // positionSide는 metadata에서 추출
+      this.logger.log(
+        `🚀 선물 거래 저장 완료: ${record.id} (${event.symbol} ${event.metadata?.positionSide ?? ''})`,
       );
     } catch (error) {
-      console.error(`❌ 선물 거래 저장 실패: ${event.orderId}`, error);
+      this.logger.error(`❌ 선물 거래 저장 실패: ${event.orderId}`, error);
       throw error;
     }
   }
@@ -136,7 +183,7 @@ export class TransactionService {
   ): Promise<void> {
     const coin = this.extractCoinFromSymbol(event.symbol);
 
-    console.log(`🔍 ${coin} 트랜잭션 파싱 트리거: ${event.symbol}`);
+    this.logger.log(`🔍 ${coin} 트랜잭션 파싱 트리거: ${event.symbol}`);
 
     switch (coin) {
       case 'BTC':
@@ -144,14 +191,14 @@ export class TransactionService {
         break;
       case 'ETH':
         // TODO: 이더리움 트랜잭션 파싱 구현
-        console.log(`⏳ ETH 트랜잭션 파싱은 아직 구현되지 않았습니다`);
+        this.logger.log(`⏳ ETH 트랜잭션 파싱은 아직 구현되지 않았습니다`);
         break;
       case 'SOL':
         // TODO: 솔라나 트랜잭션 파싱 구현
-        console.log(`⏳ SOL 트랜잭션 파싱은 아직 구현되지 않았습니다`);
+        this.logger.log(`⏳ SOL 트랜잭션 파싱은 아직 구현되지 않았습니다`);
         break;
       default:
-        console.log(`⚠️ 지원하지 않는 코인입니다: ${coin}`);
+        this.logger.warn(`⚠️ 지원하지 않는 코인입니다: ${coin}`);
     }
   }
 
@@ -165,7 +212,7 @@ export class TransactionService {
     event: TradeExecutedEvent,
   ): Promise<void> {
     try {
-      console.log(`₿ 비트코인 트랜잭션 파싱 시작: ${event.symbol}`);
+      this.logger.log(`₿ 비트코인 트랜잭션 파싱 시작: ${event.symbol}`);
 
       // 실제 구현에서는 비트코인 노드나 API를 통해 온체인 데이터를 가져와야 함
       // 지금은 테스트를 위해 더미 데이터 생성
@@ -183,12 +230,10 @@ export class TransactionService {
         weight: 800 + Math.floor(Math.random() * 1600),
         fee: 0.0001 + Math.random() * 0.0005,
         feeRate: 10 + Math.random() * 50,
-        purpose: TradeEventUtils.isBuyEvent(event)
-          ? TransactionPurpose.EXCHANGE_DEPOSIT
-          : TransactionPurpose.EXCHANGE_WITHDRAW,
+        purpose: TransactionPurpose.EXCHANGE_DEPOSIT,
         netAmount: event.quantity,
-        isIncoming: TradeEventUtils.isBuyEvent(event),
-        isOutgoing: TradeEventUtils.isSellEvent(event),
+        isIncoming: true,
+        isOutgoing: false,
         // UUID 형식이 아닌 주문 ID는 저장하지 않음
         // 대신 메타데이터에 주문 ID 정보 추가
         relatedExchange: 'binance',
@@ -213,7 +258,7 @@ export class TransactionService {
         rawData: {
           original_event: event,
           relatedOrderId: event.orderId,
-          tradeType: event.tradeType,
+          // tradeType: event.tradeType,
         },
         isParsed: true,
         parsedAt: new Date(),
@@ -222,10 +267,22 @@ export class TransactionService {
 
       // 트랜잭션 저장
       const savedTx = await this.bitcoinTransactionRepository.save(transaction);
-      console.log(`✅ 비트코인 트랜잭션 저장 완료: ${savedTx.txid}`);
-      console.log(`🔗 거래 연결: ${event.orderId} → ${savedTx.txid}`);
+      this.logger.log(`✅ 비트코인 트랜잭션 저장 완료: ${savedTx.txid}`);
+      this.logger.log(`🔗 거래 연결: ${event.orderId} → ${savedTx.txid}`);
+      this.eventEmitter.emit('bitcoin.transaction.parsed', {
+        eventId: uuidv4(),
+        service: 'TransactionService',
+        transaction: savedTx,
+        timestamp: new Date(),
+      });
     } catch (error) {
-      console.error(`❌ 비트코인 트랜잭션 파싱 실패:`, error);
+      this.logger.error(`❌ 비트코인 트랜잭션 파싱 실패:`, error);
+      this.eventEmitter.emit('bitcoin.transaction.parse.failed', {
+        eventId: uuidv4(),
+        service: 'TransactionService',
+        error: error.message,
+        timestamp: new Date(),
+      });
     }
   }
 

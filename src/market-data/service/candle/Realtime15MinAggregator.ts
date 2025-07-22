@@ -1,8 +1,21 @@
-import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { EventEmitter } from 'events';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { v4 as uuidv4 } from 'uuid';
 import { BinanceWebSocketClient } from '../../../common/binance/BinanceWebSocketClient';
+import marketDataConfig from '../../../config/market-data.config';
+import { CandleCompletedEvent } from '../../../common/dto/event/CandleCompletedEvent';
 import { CandleData } from '../../infra/persistence/entity/Candle15MEntity';
 import { Candle15MRepository } from '../../infra/persistence/repository/Candle15MRepository';
+import { HighVolumeEvent } from '../../../common/dto/event/HighVolumeEvent';
+import { PriceSpikeEvent } from '../../../common/dto/event/PriceSpikeEvent';
+import { GapDetectedEvent } from '../../../common/dto/event/GapDetectedEvent';
+import { HealthCheckEvent } from '../../../common/dto/event/HealthCheckEvent';
 
 /**
  * 실시간 15분봉 집계기 서비스
@@ -49,18 +62,7 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
    * 시장 점유율과 거래량을 고려하여 선정된 대표 심볼들이며,
    * 설정 파일이나 환경 변수를 통해 동적 관리 가능합니다.
    */
-  private readonly MONITORED_SYMBOLS = [
-    'BTCUSDT', // 비트코인 (시가총액 1위, 가장 중요)
-    'ETHUSDT', // 이더리움 (시가총액 2위, DeFi 중심)
-    'ADAUSDT', // 에이다 (카르다노, 스테이킹 인기)
-    'SOLUSDT', // 솔라나 (고성능 블록체인)
-    'DOGEUSDT', // 도지코인 (밈코인 대표)
-    'XRPUSDT', // 리플 (국제송금 솔루션)
-    'DOTUSDT', // 폴카닷 (멀티체인 플랫폼)
-    'AVAXUSDT', // 아발란체 (고속 거래)
-    'MATICUSDT', // 폴리곤 (이더리움 스케일링)
-    'LINKUSDT', // 체인링크 (오라클 네트워크)
-  ];
+  private readonly MONITORED_SYMBOLS: string[];
 
   /**
    * 메모리 캔들 캐시
@@ -117,29 +119,49 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
    * - 너무 작으면 분석용 데이터 부족
    * - 일반적인 기술적 지표는 50-200개 캔들로 계산 가능
    */
-  private readonly MAX_MEMORY_CANDLES = 200;
+  private readonly MAX_MEMORY_CANDLES: number;
 
   /**
    * 웹소켓 재연결 간격 (밀리초)
    */
-  private readonly RECONNECT_INTERVAL = 5000; // 5초
+  private readonly RECONNECT_INTERVAL: number;
 
   /**
    * 헬스체크 간격 (밀리초)
    */
-  private readonly HEALTH_CHECK_INTERVAL = 60000; // 1분
+  private readonly HEALTH_CHECK_INTERVAL: number;
 
   /**
    * 헬스체크 타이머 ID
    */
   private healthCheckTimer?: NodeJS.Timeout;
 
+  private readonly logger = new Logger(Realtime15MinAggregator.name);
+
   constructor(
     private readonly wsClient: BinanceWebSocketClient,
     private readonly candleRepository: Candle15MRepository,
-    private readonly eventEmitter: EventEmitter,
+    private readonly eventEmitter: EventEmitter2,
+    private readonly configService: ConfigService,
   ) {
-    console.log('🚀 Realtime15MinAggregator 서비스 생성 완료');
+    this.logger.log('🚀 Realtime15MinAggregator 서비스 생성 완료');
+    // 환경설정 적용
+    this.MONITORED_SYMBOLS = this.configService.get<string[]>(
+      'marketData.monitoredSymbols',
+      marketDataConfig.monitoredSymbols,
+    );
+    this.MAX_MEMORY_CANDLES = this.configService.get<number>(
+      'marketData.maxMemoryCandles',
+      marketDataConfig.maxMemoryCandles,
+    );
+    this.RECONNECT_INTERVAL = this.configService.get<number>(
+      'marketData.reconnectInterval',
+      marketDataConfig.reconnectInterval,
+    );
+    this.HEALTH_CHECK_INTERVAL = this.configService.get<number>(
+      'marketData.healthCheckInterval',
+      marketDataConfig.healthCheckInterval,
+    );
   }
 
   /**
@@ -156,7 +178,7 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
    */
   async onModuleInit(): Promise<void> {
     try {
-      console.log('🚀 Realtime15MinAggregator 모듈 초기화 시작');
+      this.logger.log('🚀 Realtime15MinAggregator 모듈 초기화 시작');
 
       // 1. 기존 데이터를 메모리에 로드 (서버 재시작 시 복구)
       await this.loadRecentDataToMemory();
@@ -167,17 +189,18 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
       // 3. 헬스체크 시작
       this.startHealthCheck();
 
-      console.log('✅ Realtime15MinAggregator 초기화 완료');
+      this.logger.log('✅ Realtime15MinAggregator 초기화 완료');
 
       // 초기화 완료 이벤트 발생
       this.eventEmitter.emit('aggregator.initialized', {
+        eventId: uuidv4(),
         service: 'Realtime15MinAggregator',
         symbolCount: this.MONITORED_SYMBOLS.length,
         memoryDataLoaded: this.memoryCandles.size,
         timestamp: new Date(),
       });
     } catch (error) {
-      console.error('❌ Realtime15MinAggregator 초기화 실패:', error);
+      this.logger.error('❌ Realtime15MinAggregator 초기화 실패:', error);
       throw error;
     }
   }
@@ -190,7 +213,7 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
    */
   async onModuleDestroy(): Promise<void> {
     try {
-      console.log('🛑 Realtime15MinAggregator 종료 시작');
+      this.logger.log('🛑 Realtime15MinAggregator 종료 시작');
 
       this.isRunning = false;
 
@@ -204,22 +227,23 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
       for (const symbol of this.MONITORED_SYMBOLS) {
         try {
           // TODO: 실제 웹소켓 구독 해제 로직 필요
-          console.log(`📡 ${symbol} 웹소켓 구독 해제`);
+          this.logger.log(`📡 ${symbol} 웹소켓 구독 해제`);
           this.connectionStatus.set(symbol, false);
         } catch (error) {
-          console.error(`❌ ${symbol} 웹소켓 해제 실패:`, error.message);
+          this.logger.error(`❌ ${symbol} 웹소켓 해제 실패:`, error.message);
         }
       }
 
       // 종료 이벤트 발생
       this.eventEmitter.emit('aggregator.destroyed', {
+        eventId: uuidv4(),
         service: 'Realtime15MinAggregator',
         timestamp: new Date(),
       });
 
-      console.log('✅ Realtime15MinAggregator 종료 완료');
+      this.logger.log('✅ Realtime15MinAggregator 종료 완료');
     } catch (error) {
-      console.error('❌ Realtime15MinAggregator 종료 중 오류:', error);
+      this.logger.error('❌ Realtime15MinAggregator 종료 중 오류:', error);
     }
   }
 
@@ -239,13 +263,15 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
    */
   async startMonitoring(): Promise<void> {
     if (this.isRunning) {
-      console.log('⚠️ 실시간 모니터링이 이미 실행 중입니다.');
+      this.logger.warn('⚠️ 실시간 모니터링이 이미 실행 중입니다.');
       return;
     }
 
-    console.log('🚀 선물 15분봉 실시간 모니터링 시작');
-    console.log(`📊 모니터링 대상: ${this.MONITORED_SYMBOLS.length}개 심볼`);
-    console.log(`📋 대상 심볼: ${this.MONITORED_SYMBOLS.join(', ')}`);
+    this.logger.log('🚀 선물 15분봉 실시간 모니터링 시작');
+    this.logger.log(
+      `📊 모니터링 대상: ${this.MONITORED_SYMBOLS.length}개 심볼`,
+    );
+    this.logger.log(`📋 대상 심볼: ${this.MONITORED_SYMBOLS.join(', ')}`);
 
     this.isRunning = true;
     let successCount = 0;
@@ -254,7 +280,7 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
     // 각 심볼에 대해 웹소켓 구독 시작
     for (const symbol of this.MONITORED_SYMBOLS) {
       try {
-        console.log(`📡 ${symbol} 선물 15분봉 웹소켓 구독 시도...`);
+        this.logger.log(`📡 ${symbol} 선물 15분봉 웹소켓 구독 시도...`);
 
         // 바이낸스 선물 15분봉 웹소켓 구독
         await this.wsClient.subscribeKline(
@@ -269,12 +295,12 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
         this.lastReceivedTime.set(symbol, Date.now());
         successCount++;
 
-        console.log(`✅ ${symbol} 선물 15분봉 구독 완료`);
+        this.logger.log(`✅ ${symbol} 선물 15분봉 구독 완료`);
 
         // 구독 간 간격 (API 제한 방지)
         await this.sleep(100);
       } catch (error) {
-        console.error(`❌ ${symbol} 웹소켓 구독 실패:`, error.message);
+        this.logger.error(`❌ ${symbol} 웹소켓 구독 실패:`, error.message);
         this.connectionStatus.set(symbol, false);
         failureCount++;
 
@@ -284,7 +310,7 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
     }
 
     // 구독 결과 로깅
-    console.log(
+    this.logger.log(
       `📊 웹소켓 구독 완료: 성공 ${successCount}개, 실패 ${failureCount}개`,
     );
 
@@ -297,13 +323,15 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
 
     // 모니터링 시작 이벤트 발생
     this.eventEmitter.emit('aggregator.monitoring.started', {
+      eventId: uuidv4(),
+      service: 'Realtime15MinAggregator',
       totalSymbols: this.MONITORED_SYMBOLS.length,
       successCount,
       failureCount,
       timestamp: new Date(),
     });
 
-    console.log('🎯 실시간 15분봉 데이터 수집 시작!');
+    this.logger.log('🎯 실시간 15분봉 데이터 수집 시작!');
   }
 
   /**
@@ -321,7 +349,7 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
    */
   private async loadRecentDataToMemory(): Promise<void> {
     const loadStartTime = Date.now();
-    console.log('💾 데이터베이스에서 최근 캔들 데이터 로딩 시작');
+    this.logger.log('💾 데이터베이스에서 최근 캔들 데이터 로딩 시작');
 
     let loadedSymbols = 0;
     let totalCandles = 0;
@@ -344,26 +372,30 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
           const latestTime = new Date(
             recentCandles[recentCandles.length - 1].openTime,
           );
-          console.log(
+          this.logger.log(
             `📊 ${symbol} 메모리 로딩 완료: ${recentCandles.length}개 캔들 (최신: ${latestTime.toISOString()})`,
           );
         } else {
-          console.log(`ℹ️ ${symbol} 기존 데이터 없음 - 실시간 수집부터 시작`);
+          this.logger.log(
+            `ℹ️ ${symbol} 기존 데이터 없음 - 실시간 수집부터 시작`,
+          );
         }
       } catch (error) {
-        console.error(`❌ ${symbol} 메모리 로딩 실패:`, error.message);
+        this.logger.error(`❌ ${symbol} 메모리 로딩 실패:`, error.message);
         // 개별 심볼 실패가 전체를 막지 않도록 처리
         continue;
       }
     }
 
     const loadDuration = Date.now() - loadStartTime;
-    console.log(
+    this.logger.log(
       `✅ 메모리 캔들 데이터 로딩 완료: ${loadedSymbols}개 심볼, ${totalCandles.toLocaleString()}개 캔들 (${loadDuration}ms)`,
     );
 
     // 메모리 로드 완료 이벤트 발생
     this.eventEmitter.emit('aggregator.memory.loaded', {
+      eventId: uuidv4(),
+      service: 'Realtime15MinAggregator',
       loadedSymbols,
       totalCandles,
       duration: loadDuration,
@@ -399,7 +431,9 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
       // 웹소켓 데이터 파싱 및 검증
       const candleData = this.parseKlineData(klineData);
       if (!candleData) {
-        console.warn(`⚠️ [${symbol}] 캔들 데이터 파싱 실패 - 무효한 데이터`);
+        this.logger.warn(
+          `⚠️ [${symbol}] 캔들 데이터 파싱 실패 - 무효한 데이터`,
+        );
         return;
       }
 
@@ -414,7 +448,7 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
         const candleTime = new Date(candleData.openTime).toLocaleString(
           'ko-KR',
         );
-        console.log(
+        this.logger.log(
           `🕐 [${symbol}] 15분봉 완성: ${candleTime} (종가: $${candleData.close.toFixed(2)})`,
         );
 
@@ -431,14 +465,14 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
         const lastLogTime = (this as any)[lastLogKey] || 0;
 
         if (now - lastLogTime > 30000) {
-          console.log(
+          this.logger.log(
             `📊 [${symbol}] 15분봉 업데이트: $${candleData.close.toFixed(2)} (거래량: ${candleData.volume.toFixed(2)})`,
           );
           (this as any)[lastLogKey] = now;
         }
       }
     } catch (error) {
-      console.error(`❌ [${symbol}] 캔들 처리 실패:`, error.message);
+      this.logger.error(`❌ [${symbol}] 캔들 처리 실패:`, error.message);
 
       // 연결 상태 업데이트 (에러 발생 시)
       this.connectionStatus.set(symbol, false);
@@ -488,7 +522,10 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
     try {
       const k = klineData.k;
       if (!k) {
-        console.warn('⚠️ kline 데이터가 없습니다:', JSON.stringify(klineData));
+        this.logger.warn(
+          '⚠️ kline 데이터가 없습니다:',
+          JSON.stringify(klineData),
+        );
         return null;
       }
 
@@ -508,7 +545,7 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
       ];
       for (const field of requiredFields) {
         if (k[field] === undefined || k[field] === null) {
-          console.warn(`⚠️ 필수 필드 누락: ${field}`);
+          this.logger.warn(`⚠️ 필수 필드 누락: ${field}`);
           return null;
         }
       }
@@ -535,7 +572,7 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
         isNaN(candleData.low) ||
         isNaN(candleData.close)
       ) {
-        console.warn('⚠️ 유효하지 않은 가격 데이터:', candleData);
+        this.logger.warn('⚠️ 유효하지 않은 가격 데이터:', candleData);
         return null;
       }
 
@@ -546,7 +583,7 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
         candleData.low <= 0 ||
         candleData.close <= 0
       ) {
-        console.warn('⚠️ 가격은 0보다 커야 합니다:', candleData);
+        this.logger.warn('⚠️ 가격은 0보다 커야 합니다:', candleData);
         return null;
       }
 
@@ -555,7 +592,7 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
         candleData.high < Math.max(candleData.open, candleData.close) ||
         candleData.low > Math.min(candleData.open, candleData.close)
       ) {
-        console.warn('⚠️ OHLC 데이터 논리 오류:', candleData);
+        this.logger.warn('⚠️ OHLC 데이터 논리 오류:', candleData);
         return null;
       }
 
@@ -565,13 +602,13 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
         candleData.quoteVolume < 0 ||
         candleData.trades < 0
       ) {
-        console.warn('⚠️ 거래량 데이터는 0 이상이어야 합니다:', candleData);
+        this.logger.warn('⚠️ 거래량 데이터는 0 이상이어야 합니다:', candleData);
         return null;
       }
 
       return candleData;
     } catch (error) {
-      console.error('❌ 캔들 데이터 파싱 실패:', error.message);
+      this.logger.error('❌ 캔들 데이터 파싱 실패:', error.message);
       return null;
     }
   }
@@ -607,7 +644,7 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
         // 새로운 시간의 캔들이면 추가
         candles.push({ ...newCandle });
         // 새로운 캔들 추가는 중요한 이벤트이므로 로깅 유지
-        console.log(
+        this.logger.log(
           `➕ [${cacheKey}] 메모리 캐시 추가: 새로운 캔들 (총 ${candles.length}개)`,
         );
       }
@@ -617,7 +654,7 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
         const removedCount = candles.length - this.MAX_MEMORY_CANDLES;
         candles = candles.slice(-this.MAX_MEMORY_CANDLES);
         // 메모리 정리는 가끔 발생하므로 로깅 유지
-        console.log(
+        this.logger.log(
           `🗑️ [${cacheKey}] 오래된 캔들 ${removedCount}개 메모리에서 제거 (현재: ${candles.length}개)`,
         );
       }
@@ -625,7 +662,7 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
       // 업데이트된 캐시 저장
       this.memoryCandles.set(cacheKey, candles);
     } catch (error) {
-      console.error(
+      this.logger.error(
         `❌ [${cacheKey}] 메모리 캐시 업데이트 실패:`,
         error.message,
       );
@@ -655,7 +692,7 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
         const candleTime = new Date(candleData.openTime).toLocaleString(
           'ko-KR',
         );
-        console.log(
+        this.logger.log(
           `💾 [${symbol}] DB 저장 완료: ${candleTime} (ID: ${savedCandle.id})`,
         );
 
@@ -669,7 +706,7 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
         });
       })
       .catch((error) => {
-        console.error(
+        this.logger.error(
           `❌ [${symbol}] DB 저장 실패 (메모리 캐시는 유지됨):`,
           error.message,
         );
@@ -703,9 +740,12 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
     candleData: CandleData,
   ): void {
     try {
-      const eventData = {
+      const eventId = uuidv4();
+      const eventData: CandleCompletedEvent = {
+        eventId,
+        service: 'Realtime15MinAggregator',
         symbol,
-        market: 'FUTURES' as const,
+        market: 'FUTURES',
         timeframe: '15m',
         candle: candleData,
         timestamp: new Date(),
@@ -717,11 +757,11 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
       // 추가 분석 및 특별 이벤트
       this.analyzeAndEmitSpecialEvents(symbol, candleData, eventData);
 
-      console.log(
-        `🎯 [${symbol}] 캔들 완성 이벤트 발생: ${new Date(candleData.openTime).toISOString()}`,
+      this.logger.log(
+        `🎯 [${symbol}] 캔들 완성 이벤트 발생: ${new Date(candleData.openTime).toISOString()} (eventId: ${eventId})`,
       );
     } catch (error) {
-      console.error(
+      this.logger.error(
         `❌ [${symbol}] 캔들 완성 이벤트 발생 실패:`,
         error.message,
       );
@@ -741,7 +781,7 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
   private analyzeAndEmitSpecialEvents(
     symbol: string,
     candleData: CandleData,
-    baseEventData: any,
+    baseEventData: CandleCompletedEvent,
   ): void {
     try {
       // 1. 높은 거래량 감지 (평균의 3배 이상)
@@ -755,15 +795,22 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
           recentVolumes.length;
 
         if (candleData.volume > avgVolume * 3) {
-          this.eventEmitter.emit('candle.high.volume', {
-            ...baseEventData,
+          const highVolumeEvent: HighVolumeEvent = {
+            eventId: uuidv4(),
+            service: 'Realtime15MinAggregator',
+            symbol,
+            market: 'FUTURES',
+            timeframe: '15m',
+            candle: candleData,
             currentVolume: candleData.volume,
             averageVolume: avgVolume,
             volumeRatio: candleData.volume / avgVolume,
-          });
+            timestamp: new Date(),
+          };
+          this.eventEmitter.emit('candle.high.volume', highVolumeEvent);
 
-          console.log(
-            `🔥 [${symbol}] 높은 거래량 감지: ${candleData.volume.toFixed(2)} (평균의 ${(candleData.volume / avgVolume).toFixed(1)}배)`,
+          this.logger.log(
+            `🔥 [${symbol}] 높은 거래량 감지: ${candleData.volume.toFixed(2)} (평균의 ${(candleData.volume / avgVolume).toFixed(1)}배, eventId: ${highVolumeEvent.eventId})`,
           );
         }
       }
@@ -773,14 +820,21 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
         ((candleData.close - candleData.open) / candleData.open) * 100,
       );
       if (priceChangePercent >= 3) {
-        this.eventEmitter.emit('candle.price.spike', {
-          ...baseEventData,
+        const priceSpikeEvent: PriceSpikeEvent = {
+          eventId: uuidv4(),
+          service: 'Realtime15MinAggregator',
+          symbol,
+          market: 'FUTURES',
+          timeframe: '15m',
+          candle: candleData,
           priceChangePercent,
           direction: candleData.close > candleData.open ? 'UP' : 'DOWN',
-        });
+          timestamp: new Date(),
+        };
+        this.eventEmitter.emit('candle.price.spike', priceSpikeEvent);
 
-        console.log(
-          `📈 [${symbol}] 급격한 가격 변동 감지: ${priceChangePercent.toFixed(2)}% (${candleData.close > candleData.open ? '상승' : '하락'})`,
+        this.logger.log(
+          `📈 [${symbol}] 급격한 가격 변동 감지: ${priceChangePercent.toFixed(2)}% (${candleData.close > candleData.open ? '상승' : '하락'}, eventId: ${priceSpikeEvent.eventId})`,
         );
       }
 
@@ -792,21 +846,28 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
         );
 
         if (gapPercent >= 1) {
-          this.eventEmitter.emit('candle.gap.detected', {
-            ...baseEventData,
+          const gapDetectedEvent: GapDetectedEvent = {
+            eventId: uuidv4(),
+            service: 'Realtime15MinAggregator',
+            symbol,
+            market: 'FUTURES',
+            timeframe: '15m',
+            candle: candleData,
             gapPercent,
             direction: candleData.open > prevCandle.close ? 'UP' : 'DOWN',
             prevClose: prevCandle.close,
             currentOpen: candleData.open,
-          });
+            timestamp: new Date(),
+          };
+          this.eventEmitter.emit('candle.gap.detected', gapDetectedEvent);
 
-          console.log(
-            `🕳️ [${symbol}] 갭 발생 감지: ${gapPercent.toFixed(2)}% (${candleData.open > prevCandle.close ? '상승' : '하락'} 갭)`,
+          this.logger.log(
+            `🕳️ [${symbol}] 갭 발생 감지: ${gapPercent.toFixed(2)}% (${candleData.open > prevCandle.close ? '상승' : '하락'} 갭, eventId: ${gapDetectedEvent.eventId})`,
           );
         }
       }
     } catch (error) {
-      console.error(`❌ [${symbol}] 특별 이벤트 분석 실패:`, error.message);
+      this.logger.error(`❌ [${symbol}] 특별 이벤트 분석 실패:`, error.message);
     }
   }
 
@@ -825,7 +886,7 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
       this.performHealthCheck();
     }, this.HEALTH_CHECK_INTERVAL);
 
-    console.log(
+    this.logger.log(
       `💊 헬스체크 시작: ${this.HEALTH_CHECK_INTERVAL / 1000}초 간격`,
     );
   }
@@ -836,7 +897,7 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
   private async performHealthCheck(): Promise<void> {
     try {
       const now = Date.now();
-      const healthStatus = {
+      const healthStatus: HealthCheckEvent = {
         timestamp: new Date(),
         connectedSymbols: 0,
         disconnectedSymbols: 0,
@@ -857,7 +918,7 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
         } else if (timeSinceLastData > 10 * 60 * 1000) {
           // 10분 이상
           healthStatus.staleConnections++;
-          console.warn(
+          this.logger.warn(
             `⚠️ [${symbol}] 데이터 수신 중단: ${Math.round(timeSinceLastData / 1000 / 60)}분 전`,
           );
         } else {
@@ -869,23 +930,28 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
       healthStatus.dbConnected = await this.candleRepository.checkHealth();
 
       // 헬스체크 결과 이벤트 발생
-      this.eventEmitter.emit('aggregator.health.check', healthStatus);
+      this.eventEmitter.emit('aggregator.health.check', {
+        eventId: uuidv4(),
+        service: 'Realtime15MinAggregator',
+        ...healthStatus,
+        timestamp: new Date(),
+      } as HealthCheckEvent);
 
       // 경고 상황 로깅
       if (
         healthStatus.disconnectedSymbols > 0 ||
         healthStatus.staleConnections > 0
       ) {
-        console.warn(
+        this.logger.warn(
           `⚠️ 헬스체크 경고: 연결됨 ${healthStatus.connectedSymbols}, 끊어짐 ${healthStatus.disconnectedSymbols}, 정체됨 ${healthStatus.staleConnections}`,
         );
       } else {
-        console.log(
+        this.logger.log(
           `💊 헬스체크 정상: ${healthStatus.connectedSymbols}개 심볼 연결 상태 양호`,
         );
       }
     } catch (error) {
-      console.error('❌ 헬스체크 수행 실패:', error.message);
+      this.logger.error('❌ 헬스체크 수행 실패:', error.message);
     }
   }
 
@@ -919,7 +985,7 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
       if (!this.isRunning) return;
 
       try {
-        console.log(`🔄 [${symbol}] 웹소켓 재연결 시도...`);
+        this.logger.log(`🔄 [${symbol}] 웹소켓 재연결 시도...`);
 
         await this.wsClient.subscribeKline(
           symbol,
@@ -931,9 +997,9 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
         this.connectionStatus.set(symbol, true);
         this.lastReceivedTime.set(symbol, Date.now());
 
-        console.log(`✅ [${symbol}] 웹소켓 재연결 성공`);
+        this.logger.log(`✅ [${symbol}] 웹소켓 재연결 성공`);
       } catch (error) {
-        console.error(`❌ [${symbol}] 웹소켓 재연결 실패:`, error.message);
+        this.logger.error(`❌ [${symbol}] 웹소켓 재연결 실패:`, error.message);
 
         // 재시도 제한 체크 후 다시 스케줄링
         this.scheduleReconnect(symbol);
@@ -970,7 +1036,7 @@ export class Realtime15MinAggregator implements OnModuleInit, OnModuleDestroy {
     // 요청된 개수만큼 최근 데이터 반환
     const result = candles.slice(-limit);
 
-    console.log(
+    this.logger.log(
       `🔍 [${symbol}_${market}] 메모리 캔들 조회: ${result.length}개 (요청: ${limit}개)`,
     );
     return result;

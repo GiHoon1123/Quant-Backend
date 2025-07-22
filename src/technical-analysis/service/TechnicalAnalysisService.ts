@@ -1,4 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { v4 as uuidv4 } from 'uuid';
+import { AnalysisCompletedEvent } from '../../common/dto/event/AnalysisCompletedEvent';
+import technicalAnalysisConfig from '../../config/technical-analysis.config';
 import { Candle15MRepository } from '../../market-data/infra/persistence/repository/Candle15MRepository';
 import { TechnicalAnalysisMapper } from '../mapper/TechnicalAnalysisMapper';
 import {
@@ -31,19 +36,11 @@ import { TechnicalIndicatorService } from './TechnicalIndicatorService';
  */
 @Injectable()
 export class TechnicalAnalysisService {
-  // 기본 분석 대상 코인들
-  private readonly DEFAULT_SYMBOLS = [
-    'BTCUSDT',
-    'ETHUSDT',
-    'ADAUSDT',
-    'DOTUSDT',
-    'LINKUSDT',
-    'SOLUSDT',
-    'MATICUSDT',
-    'AVAXUSDT',
-    'ATOMUSDT',
-    'NEARUSDT',
-  ];
+  private readonly logger = new Logger(TechnicalAnalysisService.name);
+  private readonly DEFAULT_SYMBOLS: string[];
+  private readonly DEFAULT_CONFIDENCE: number;
+  private readonly STRONG_BUY_CONFIDENCE: number;
+  private readonly ALERT_THRESHOLD: number;
 
   // 기본 전략 세트
   private readonly DEFAULT_STRATEGIES = [
@@ -68,7 +65,27 @@ export class TechnicalAnalysisService {
     private readonly candleRepository: Candle15MRepository,
     private readonly strategyService: StrategyExecutionService,
     private readonly indicatorService: TechnicalIndicatorService,
-  ) {}
+    private readonly eventEmitter: EventEmitter2,
+    private readonly configService: ConfigService,
+  ) {
+    const config = technicalAnalysisConfig();
+    this.DEFAULT_SYMBOLS = this.configService.get<string[]>(
+      'technicalAnalysis.defaultSymbols',
+      config.defaultSymbols,
+    );
+    this.DEFAULT_CONFIDENCE = this.configService.get<number>(
+      'technicalAnalysis.defaultConfidence',
+      config.defaultConfidence,
+    );
+    this.STRONG_BUY_CONFIDENCE = this.configService.get<number>(
+      'technicalAnalysis.strongBuyConfidence',
+      config.strongBuyConfidence,
+    );
+    this.ALERT_THRESHOLD = this.configService.get<number>(
+      'technicalAnalysis.alertThreshold',
+      config.alertThreshold,
+    );
+  }
 
   /**
    * 단일 심볼 종합 분석
@@ -96,8 +113,8 @@ export class TechnicalAnalysisService {
     strategies: StrategyType[] = this.DEFAULT_STRATEGIES,
     timeframes: TimeFrame[] = this.DEFAULT_TIMEFRAMES,
   ): Promise<any> {
-    console.log(`🔍 심볼 종합 분석 시작: ${symbol}`);
-    console.log(
+    this.logger.log(`🔍 심볼 종합 분석 시작: ${symbol}`);
+    this.logger.log(
       `📊 전략: ${strategies.length}개, 시간봉: ${timeframes.length}개`,
     );
 
@@ -108,10 +125,24 @@ export class TechnicalAnalysisService {
         timeframes,
       );
       this.logAnalysisResult(symbol, result);
+      // 이벤트 발행 (공통 DTO 적용)
+      const analysisCompletedEvent: AnalysisCompletedEvent = {
+        eventId: uuidv4(),
+        service: 'TechnicalAnalysisService',
+        symbol,
+        signal: result.overallSignal,
+        confidence: result.overallConfidence,
+        analyzedAt: new Date(),
+        timestamp: new Date(),
+      };
+      this.eventEmitter.emit(
+        'technical.analysis.completed',
+        analysisCompletedEvent,
+      );
       // 매퍼 적용
       return TechnicalAnalysisMapper.toResultResponseFromMulti(result);
     } catch (error) {
-      console.error(`❌ 심볼 분석 실패: ${symbol}`, error);
+      this.logger.error(`❌ 심볼 분석 실패: ${symbol}`, error);
       throw new Error(`${symbol} 분석에 실패했습니다: ${error.message}`);
     }
   }
@@ -143,7 +174,7 @@ export class TechnicalAnalysisService {
     timeframes: TimeFrame[] = this.DEFAULT_TIMEFRAMES,
     minConfidence: number = 60,
   ): Promise<Map<string, MultiStrategyResult>> {
-    console.log(`🔍 다중 심볼 스크리닝 시작: ${symbols.length}개 심볼`);
+    this.logger.log(`🔍 다중 심볼 스크리닝 시작: ${symbols.length}개 심볼`);
 
     const results = new Map<string, MultiStrategyResult>();
     const errors: string[] = [];
@@ -164,18 +195,18 @@ export class TechnicalAnalysisService {
           // 최소 신뢰도 필터링
           if (result.overallConfidence >= minConfidence) {
             results.set(symbol, result);
-            console.log(
+            this.logger.log(
               `✅ ${symbol}: ${result.overallSignal} (${result.overallConfidence}%)`,
             );
           } else {
-            console.log(
+            this.logger.log(
               `⚪ ${symbol}: 신뢰도 부족 (${result.overallConfidence}% < ${minConfidence}%)`,
             );
           }
         } catch (error) {
           const errorMsg = `${symbol}: ${error.message}`;
           errors.push(errorMsg);
-          console.warn(`⚠️ ${errorMsg}`);
+          this.logger.warn(`⚠️ ${errorMsg}`);
         }
       });
 
@@ -187,9 +218,9 @@ export class TechnicalAnalysisService {
       }
     }
 
-    console.log(`✅ 다중 심볼 스크리닝 완료: ${results.size}개 유효 결과`);
+    this.logger.log(`✅ 다중 심볼 스크리닝 완료: ${results.size}개 유효 결과`);
     if (errors.length > 0) {
-      console.warn(`⚠️ 실패한 심볼들: ${errors.join(', ')}`);
+      this.logger.warn(`⚠️ 실패한 심볼들: ${errors.join(', ')}`);
     }
 
     return results;
@@ -211,7 +242,7 @@ export class TechnicalAnalysisService {
     symbols: string[] = this.DEFAULT_SYMBOLS,
     minConfidence: number = 75,
   ): Promise<Array<{ symbol: string; result: MultiStrategyResult }>> {
-    console.log(
+    this.logger.log(
       `🔍 강한 매수 신호 검색: ${symbols.length}개 심볼, 최소 신뢰도 ${minConfidence}%`,
     );
 
@@ -227,17 +258,27 @@ export class TechnicalAnalysisService {
         ([_, result]) =>
           result.overallSignal === SignalType.STRONG_BUY ||
           (result.overallSignal === SignalType.BUY &&
-            result.overallConfidence >= 80),
+            result.overallConfidence >= this.STRONG_BUY_CONFIDENCE),
       )
       .map(([symbol, result]) => ({ symbol, result }))
       .sort((a, b) => b.result.overallConfidence - a.result.overallConfidence); // 신뢰도 높은 순
 
-    console.log(`🎯 강한 매수 신호 발견: ${strongBuySignals.length}개`);
+    this.logger.log(`🎯 강한 매수 신호 발견: ${strongBuySignals.length}개`);
     strongBuySignals.forEach(({ symbol, result }) => {
-      console.log(
+      this.logger.log(
         `🚀 ${symbol}: ${result.overallSignal} (신뢰도: ${result.overallConfidence}%, 합의도: ${result.consensus})`,
       );
     });
+
+    // 이벤트 발행
+    if (strongBuySignals.length > 0) {
+      this.eventEmitter.emit('technical.strong.buy.signal', {
+        eventId: uuidv4(),
+        service: 'TechnicalAnalysisService',
+        symbols: strongBuySignals.map((s) => s.symbol),
+        timestamp: new Date(),
+      });
+    }
 
     return strongBuySignals;
   }
@@ -260,7 +301,7 @@ export class TechnicalAnalysisService {
     timeframe: TimeFrame,
     symbols: string[] = this.DEFAULT_SYMBOLS,
   ): Promise<StrategyResult[]> {
-    console.log(
+    this.logger.log(
       `🔍 전략 스캔: ${strategy} - ${timeframe} (${symbols.length}개 심볼)`,
     );
 
@@ -283,14 +324,14 @@ export class TechnicalAnalysisService {
     // 결과 정렬 (신뢰도 높은 순)
     results.sort((a, b) => b.confidence - a.confidence);
 
-    console.log(`✅ 전략 스캔 완료: ${results.length}개 결과`);
+    this.logger.log(`✅ 전략 스캔 완료: ${results.length}개 결과`);
     if (errors.length > 0) {
-      console.warn(`⚠️ 실패: ${errors.length}개 심볼`);
+      this.logger.warn(`⚠️ 실패: ${errors.length}개 심볼`);
     }
 
     // 상위 결과들 로깅
     results.slice(0, 5).forEach((result, index) => {
-      console.log(
+      this.logger.log(
         `${index + 1}. ${result.symbol}: ${result.signal} (${result.confidence}%)`,
       );
     });
@@ -316,7 +357,7 @@ export class TechnicalAnalysisService {
   ): Promise<
     Array<{ symbol: string; alert: string; result: MultiStrategyResult }>
   > {
-    console.log(`📡 실시간 시장 모니터링: ${symbols.length}개 심볼`);
+    this.logger.log(`📡 실시간 시장 모니터링: ${symbols.length}개 심볼`);
 
     const alerts: Array<{
       symbol: string;
@@ -359,10 +400,20 @@ export class TechnicalAnalysisService {
       }
     }
 
-    console.log(`🚨 알림 발생: ${alerts.length}개`);
+    this.logger.log(`🚨 알림 발생: ${alerts.length}개`);
     alerts.forEach(({ symbol, alert }) => {
-      console.log(`🔔 ${symbol}: ${alert}`);
+      this.logger.log(`🔔 ${symbol}: ${alert}`);
     });
+
+    // 이벤트 발행
+    if (alerts.length > 0) {
+      this.eventEmitter.emit('technical.market.alert', {
+        eventId: uuidv4(),
+        service: 'TechnicalAnalysisService',
+        symbols: alerts.map((a) => a.symbol),
+        timestamp: new Date(),
+      });
+    }
 
     return alerts;
   }
@@ -379,7 +430,7 @@ export class TechnicalAnalysisService {
    * - 빠른 현황 파악
    * - 지표 모니터링
    */ async getIndicatorSummary(symbol: string, timeframe: TimeFrame) {
-    console.log(`📊 지표 요약 조회: ${symbol} ${timeframe}`);
+    this.logger.log(`📊 지표 요약 조회: ${symbol} ${timeframe}`);
 
     // Market-data 도메인의 저장된 데이터 조회
     const candles = await this.candleRepository.findLatestCandles(
@@ -473,7 +524,7 @@ export class TechnicalAnalysisService {
       },
     };
 
-    console.log(`✅ 지표 요약 완료: ${symbol} ${timeframe}`);
+    this.logger.log(`✅ 지표 요약 완료: ${symbol} ${timeframe}`);
     return summary;
   }
 
@@ -481,15 +532,15 @@ export class TechnicalAnalysisService {
    * 분석 결과 로깅 (private)
    */
   private logAnalysisResult(symbol: string, result: MultiStrategyResult): void {
-    console.log(`\n📈 === ${symbol} 분석 결과 ===`);
-    console.log(`🎯 종합 신호: ${result.overallSignal}`);
-    console.log(`🎲 종합 신뢰도: ${result.overallConfidence}%`);
-    console.log(`🤝 합의도: ${(result.consensus * 100).toFixed(1)}%`);
+    this.logger.log(`\n📈 === ${symbol} 분석 결과 ===`);
+    this.logger.log(`🎯 종합 신호: ${result.overallSignal}`);
+    this.logger.log(`🎲 종합 신뢰도: ${result.overallConfidence}%`);
+    this.logger.log(`🤝 합의도: ${(result.consensus * 100).toFixed(1)}%`);
 
     // 시간봉별 요약
-    console.log(`\n⏰ 시간봉별 요약:`);
+    this.logger.log(`\n⏰ 시간봉별 요약:`);
     Object.entries(result.timeframeSummary).forEach(([tf, summary]) => {
-      console.log(
+      this.logger.log(
         `  ${tf}: ${summary.signal} (${summary.confidence}%) - ${summary.strategyCount}개 전략`,
       );
     });
@@ -501,14 +552,14 @@ export class TechnicalAnalysisService {
       .slice(0, 5);
 
     if (significantResults.length > 0) {
-      console.log(`\n🔍 주요 신호들:`);
+      this.logger.log(`\n🔍 주요 신호들:`);
       significantResults.forEach((s, index) => {
-        console.log(
+        this.logger.log(
           `  ${index + 1}. ${s.strategy}: ${s.signal} (${s.confidence}%) - ${s.timeframe}`,
         );
       });
     }
 
-    console.log(`===============================\n`);
+    this.logger.log(`===============================\n`);
   }
 }

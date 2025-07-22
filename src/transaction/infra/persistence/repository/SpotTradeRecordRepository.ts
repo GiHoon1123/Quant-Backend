@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { TradeExecutedEvent } from 'src/common/dto/event/TradeExecutedEvent';
 import { Between, Repository } from 'typeorm';
-import { SpotTradeExecutedEvent } from '../../../dto/events/TradeExecutedEvent';
 import { SpotTradeRecord } from '../entity/SpotTradeRecordEntity';
 
 /**
@@ -20,7 +20,7 @@ export class SpotTradeRecordRepository {
   /**
    * 현물 거래 이벤트를 엔티티로 변환하여 저장
    */
-  async saveFromEvent(event: SpotTradeExecutedEvent): Promise<SpotTradeRecord> {
+  async saveFromEvent(event: TradeExecutedEvent): Promise<SpotTradeRecord> {
     const record = new SpotTradeRecord();
 
     // 기본 거래 정보
@@ -46,7 +46,6 @@ export class SpotTradeRecordRepository {
     record.executedAt = event.executedAt;
 
     // 추가 정보
-    record.strategyId = event.strategyId || '';
     record.metadata = event.metadata;
 
     // 계산된 필드
