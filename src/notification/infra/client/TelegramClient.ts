@@ -91,12 +91,9 @@ export class TelegramClient {
    * @returns "2025-01-16 14:30:15 UTC (23:30:15 KST)" 형태의 문자열
    */
   private formatTimeWithKST(utcTime: Date): string {
-    // UTC 시간 포맷팅
     const utcStr = utcTime.toISOString().slice(0, 19).replace('T', ' ');
-
-    // 한국 시간 계산 (UTC + 9시간)
     const kstTime = new Date(utcTime.getTime() + 9 * 60 * 60 * 1000);
-    const kstStr = kstTime.toTimeString().slice(0, 8);
+    const kstStr = kstTime.toISOString().slice(0, 19).replace('T', ' ');
 
     return `${utcStr} UTC (${kstStr} KST)`;
   }
@@ -674,7 +671,7 @@ export class TelegramClient {
     }
 
     const message =
-      `${emoji} <b>${name}(${symbol}) 기술적 분석 완료!</b>\n\n` +
+      `${emoji} <b>${name}(${symbol}) 15분봉 종합 분석 결과</b>\n\n` +
       `📊 시간대: 15분봉\n` +
       `💵 현재가: ${formatPrice(result.price)}\n` +
       `${signalColor} 시그널: <b>${signalText}</b> ${getConfidenceEmoji(confidence)} (신뢰도: ${confidence}%)\n\n` +

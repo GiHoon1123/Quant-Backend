@@ -1,6 +1,9 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import * as dayjs from 'dayjs';
+import * as timezone from 'dayjs/plugin/timezone';
+import * as utc from 'dayjs/plugin/utc';
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
 import { AnalysisCompletedEvent } from '../../common/dto/event/AnalysisCompletedEvent';
@@ -19,6 +22,9 @@ import {
   NotificationStatus,
   NotificationType,
 } from '../types/NotificationTypes';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 /**
  * 📢 통합 알림 서비스
@@ -423,7 +429,7 @@ export class NotificationService implements OnModuleInit {
             break;
 
           default:
-            // 기타 고급 전략들은 종합 알림으로 처리
+            // 기타 고급 전략들은 종합 알림로 처리
             await this.telegramService.sendAdvancedStrategyAlert(
               symbol,
               strategy.type || strategy.strategy,
@@ -594,56 +600,66 @@ export class NotificationService implements OnModuleInit {
    * @returns 포맷된 메시지
    */
   private formatAnalysisMessage(symbol: string, analysisResult: any): string {
-    const { signal, confidence, indicators, timestamp } = analysisResult;
+    const { signal, confidence, indicators, timestamp, timeframe } =
+      analysisResult;
+
     let emoji = '📊';
     if (signal === 'BUY' || signal === 'STRONG_BUY') emoji = '📈';
     if (signal === 'SELL' || signal === 'STRONG_SELL') emoji = '📉';
 
-    // 분석 시점 UTC/KST 변환 개선
+    // 🕒 시간 포맷 처리
     let timeStr = '';
-    if (timestamp) {
-      const dateObj =
-        typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
-      // UTC/KST 변환
-      const utcStr =
-        dateObj.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
-      const kstDate = new Date(dateObj.getTime() + 9 * 60 * 60 * 1000);
+    try {
+      const baseTime = timestamp ? dayjs(timestamp) : dayjs();
+      console.log('Base time:', baseTime.toISOString());
+      const validTime = baseTime.isValid() ? baseTime : dayjs();
+      console.log('Valid time:', validTime.toISOString());
+      const utcStr = validTime.utc().format('YYYY-MM-DD HH:mm:ss') + ' UTC';
       const kstStr =
-        kstDate.toISOString().replace('T', ' ').substring(11, 19) + ' KST';
+        validTime.tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss') + ' KST';
+
+      console.log('Formatted times:', { utcStr, kstStr });
+
       timeStr = `${utcStr} (${kstStr})`;
-    } else {
-      const now = new Date();
-      const utcStr =
-        now.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
-      const kstDate = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+      console.log('Final time string:', timeStr);
+    } catch (error) {
+      this.logger.error('❌ [Notification] 시간 변환 실패:', error);
+      const now = dayjs();
+      const utcStr = now.utc().format('YYYY-MM-DD HH:mm:ss') + ' UTC';
       const kstStr =
-        kstDate.toISOString().replace('T', ' ').substring(11, 19) + ' KST';
+        now.tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss') + ' KST';
       timeStr = `${utcStr} (${kstStr})`;
     }
+
+    const timeframeStr = timeframe ? `⏱️ **시간대**: ${timeframe}` : '';
 
     return [
       `${emoji} **${symbol} 기술적 분석 완료**`,
       '',
+      timeframeStr,
       `🎯 **신호**: ${signal}`,
       `📊 **신뢰도**: ${confidence}%`,
       '',
       '📈 **주요 지표**:',
-      indicators ? this.formatIndicators(indicators) : '• 분석 중...',
+      indicators
+        ? this.formatIndicators(indicators, timeframe)
+        : '• 분석 중...',
       '',
       `🕒 **분석 시점**: ${timeStr}`,
-    ].join('\n');
+    ]
+      .filter(Boolean)
+      .join('\n');
   }
-
   /**
-   * 📊 지표 정보 포맷팅
-   *
-   * @param indicators 지표 데이터
-   * @returns 포맷된 지표 문자열
+   * 📊 지표 정보 포맷팅 (거래량 단위에 timeframe 추가)
    */
-  private formatIndicators(indicators: Record<string, any>): string {
+  private formatIndicators(
+    indicators: Record<string, any>,
+    timeframe?: string,
+  ): string {
     const lines: string[] = [];
 
-    // 기본 지표들 표시
+    // 기본 지표들 표시 (단위 및 기준 추가)
     if (indicators.sma) {
       lines.push(`• SMA: ${indicators.sma}`);
     }
@@ -653,8 +669,50 @@ export class NotificationService implements OnModuleInit {
     if (indicators.macd) {
       lines.push(`• MACD: ${indicators.macd}`);
     }
-    if (indicators.volume) {
-      lines.push(`• 거래량: ${indicators.volume}`);
+
+    // 거래량 관련 지표 (단위와 timeframe 명시)
+    const timeframeText = timeframe ? ` (${timeframe} 기준)` : '';
+
+    if (indicators.volume !== undefined && indicators.volume !== null) {
+      lines.push(`• 거래량: ${indicators.volume} BTC${timeframeText}`);
+    }
+    if (indicators.avgVolume !== undefined && indicators.avgVolume !== null) {
+      lines.push(`• 평균 거래량: ${indicators.avgVolume} BTC${timeframeText}`);
+    }
+    if (
+      indicators.volumeRatio !== undefined &&
+      indicators.volumeRatio !== null
+    ) {
+      lines.push(`• 거래량 비율: ${indicators.volumeRatio}배`);
+    }
+
+    // 추가 지표들
+    if (indicators.SMA5) {
+      lines.push(`• SMA5 (단기): $${indicators.SMA5}`);
+    }
+    if (indicators.SMA10) {
+      lines.push(`• SMA10 (중기): $${indicators.SMA10}`);
+    }
+    if (indicators.SMA20) {
+      lines.push(`• SMA20 (장기): $${indicators.SMA20}`);
+    }
+    if (indicators.RSI) {
+      lines.push(`• RSI: ${indicators.RSI}`);
+    }
+    if (indicators.MACD) {
+      lines.push(`• MACD: ${indicators.MACD}`);
+    }
+    if (indicators.Volume !== undefined && indicators.Volume !== null) {
+      lines.push(`• 거래량: ${indicators.Volume} BTC${timeframeText}`);
+    }
+    if (indicators.AvgVolume !== undefined && indicators.AvgVolume !== null) {
+      lines.push(`• 평균 거래량: ${indicators.AvgVolume} BTC${timeframeText}`);
+    }
+    if (
+      indicators.VolumeRatio !== undefined &&
+      indicators.VolumeRatio !== null
+    ) {
+      lines.push(`• 거래량 비율: ${indicators.VolumeRatio}배`);
     }
 
     return lines.length > 0 ? lines.join('\n') : '• 데이터 수집 중...';
@@ -669,8 +727,22 @@ export class NotificationService implements OnModuleInit {
     notification: NotificationMessage,
   ): Promise<void> {
     try {
-      // 중복 메시지 방지: 심볼+분석시점+신호+신뢰도 기준으로 체크
-      const uniqueKey = `${notification.symbol}-${notification.data?.analyzedAt?.toISOString?.() ?? ''}-${notification.data?.analysisResult?.signal ?? ''}-${notification.data?.analysisResult?.confidence ?? ''}`;
+      // 중복 메시지 방지: 심볼+신호+신뢰도+타입+분석시점(분 단위까지)+timeframe 기준으로 체크
+      const analyzedAt = notification.data?.analyzedAt;
+      let analyzedMinute = '';
+      if (analyzedAt instanceof Date) {
+        analyzedMinute = analyzedAt.toISOString().substring(0, 16); // yyyy-MM-ddTHH:mm
+      } else if (typeof analyzedAt === 'string') {
+        analyzedMinute = analyzedAt.substring(0, 16);
+      }
+      const uniqueKey = [
+        notification.symbol,
+        notification.data?.analysisResult?.signal ?? '',
+        notification.data?.analysisResult?.confidence ?? '',
+        notification.type,
+        notification.data?.analysisResult?.timeframe ?? '',
+        analyzedMinute,
+      ].join('-');
       if (this.sentMessages.has(uniqueKey)) {
         this.logger.warn(
           `🚫 [Notification] 중복 분석 결과 스킵: ${notification.title}`,
