@@ -181,9 +181,11 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
       const currentPrice = candleData.close;
 
       // 1. RSI 임계값 체크
+      console.log(`🔍 [IndividualSignals] RSI 체크 시작: ${symbol}`);
       await this.checkRSISignals(symbol, timeframe, candles, currentPrice);
 
       // 2. 이동평균선 돌파 체크
+      console.log(`🔍 [IndividualSignals] MA 돌파 체크 시작: ${symbol}`);
       await this.checkMABreakoutSignals(
         symbol,
         timeframe,
@@ -192,9 +194,11 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
       );
 
       // 3. MACD 신호 체크
+      console.log(`🔍 [IndividualSignals] MACD 신호 체크 시작: ${symbol}`);
       await this.checkMACDSignals(symbol, timeframe, candles, currentPrice);
 
       // 4. 볼린저 밴드 신호 체크
+      console.log(`🔍 [IndividualSignals] 볼린저 밴드 체크 시작: ${symbol}`);
       await this.checkBollingerSignals(
         symbol,
         timeframe,
@@ -203,6 +207,7 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
       );
 
       // 5. 거래량 급증 체크
+      console.log(`🔍 [IndividualSignals] 거래량 신호 체크 시작: ${symbol}`);
       await this.checkVolumeSignals(symbol, timeframe, candles);
 
       console.log(`✅ [IndividualSignals] 개별 전략 신호 체크 완료: ${symbol}`);
@@ -224,14 +229,28 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
     currentPrice: number,
   ): Promise<void> {
     try {
+      console.log(
+        `📈 [RSICheck] RSI 분석 시작: ${symbol}, 캔들 개수: ${candles.length}`,
+      );
+
       const rsiData = this.technicalIndicatorService.calculateRSI(candles, 14);
-      if (rsiData.length < 2) return;
+      console.log(`📈 [RSICheck] RSI 데이터 길이: ${rsiData.length}`);
+      if (rsiData.length < 2) {
+        console.log(`⚠️ [RSICheck] RSI 데이터 부족: ${symbol}`);
+        return;
+      }
 
       const currentRSI = rsiData[rsiData.length - 1].value;
       const previousRSI = rsiData[rsiData.length - 2].value;
+      console.log(
+        `📈 [RSICheck] 현재 RSI: ${currentRSI}, 이전 RSI: ${previousRSI}`,
+      );
 
-      // RSI 과매수 진입 (70 돌파)
-      if (currentRSI > 70 && previousRSI <= 70) {
+      // [임계값 대폭 완화] RSI 과매수 진입 (60 돌파)
+      if (currentRSI > 60 && previousRSI <= 60) {
+        console.log(
+          `🔴 [RSICheck] RSI 과매수 신호 발생! ${previousRSI} → ${currentRSI}`,
+        );
         this.emitIndividualSignal('rsi_overbought', {
           symbol,
           timeframe,
@@ -240,10 +259,17 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
           confidence: 75,
           currentPrice,
         });
+      } else {
+        console.log(
+          `📈 [RSICheck] RSI 과매수 조건 미충족: ${currentRSI} <= 60 OR ${previousRSI} > 60`,
+        );
       }
 
-      // RSI 과매도 진입 (30 이탈)
-      if (currentRSI < 30 && previousRSI >= 30) {
+      // [임계값 대폭 완화] RSI 과매도 진입 (40 이탈)
+      if (currentRSI < 40 && previousRSI >= 40) {
+        console.log(
+          `🟢 [RSICheck] RSI 과매도 신호 발생! ${previousRSI} → ${currentRSI}`,
+        );
         this.emitIndividualSignal('rsi_oversold', {
           symbol,
           timeframe,
@@ -252,10 +278,17 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
           confidence: 75,
           currentPrice,
         });
+      } else {
+        console.log(
+          `📈 [RSICheck] RSI 과매도 조건 미충족: ${currentRSI} >= 40 OR ${previousRSI} < 40`,
+        );
       }
 
-      // RSI 50 상향 돌파 (상승 모멘텀)
-      if (currentRSI > 50 && previousRSI <= 50) {
+      // [임계값 대폭 완화] RSI 40 상향 돌파 (상승 모멘텀)
+      if (currentRSI > 40 && previousRSI <= 40) {
+        console.log(
+          `🔵 [RSICheck] RSI 상승 모멘텀 신호 발생! ${previousRSI} → ${currentRSI}`,
+        );
         this.emitIndividualSignal('rsi_bullish_50', {
           symbol,
           timeframe,
@@ -264,10 +297,17 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
           confidence: 60,
           currentPrice,
         });
+      } else {
+        console.log(
+          `📈 [RSICheck] RSI 상승 모멘텀 조건 미충족: ${currentRSI} <= 40 OR ${previousRSI} > 40`,
+        );
       }
 
-      // RSI 50 하향 이탈 (하락 모멘텀)
-      if (currentRSI < 50 && previousRSI >= 50) {
+      // [임계값 대폭 완화] RSI 60 하향 이탈 (하락 모멘텀)
+      if (currentRSI < 60 && previousRSI >= 60) {
+        console.log(
+          `🟠 [RSICheck] RSI 하락 모멘텀 신호 발생! ${previousRSI} → ${currentRSI}`,
+        );
         this.emitIndividualSignal('rsi_bearish_50', {
           symbol,
           timeframe,
@@ -292,8 +332,8 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
     currentPrice: number,
   ): Promise<void> {
     try {
-      // MA20, MA50 체크
-      const maPeriods = [20, 50];
+      // [임계값 대폭 완화] MA5, MA10 체크로 신호 빈도 극대화
+      const maPeriods = [5, 10];
 
       for (const period of maPeriods) {
         const maData = this.technicalIndicatorService.calculateSMA(
@@ -360,10 +400,11 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
       const current = macdData[macdData.length - 1];
       const previous = macdData[macdData.length - 2];
 
-      // 골든크로스 (MACD 라인이 시그널 라인 상향 돌파)
+      // [극단적 임계값 완화] 골든크로스 (MACD 라인이 시그널 라인 상향 돌파, histogram 0.001 이상)
       if (
         current.macdLine > current.signalLine &&
-        previous.macdLine <= previous.signalLine
+        previous.macdLine <= previous.signalLine &&
+        Math.abs(current.histogram) > 0.001
       ) {
         this.emitIndividualSignal('macd_golden_cross', {
           symbol,
@@ -376,10 +417,11 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
         });
       }
 
-      // 데드크로스 (MACD 라인이 시그널 라인 하향 이탈)
+      // [극단적 임계값 완화] 데드크로스 (MACD 라인이 시그널 라인 하향 이탈, histogram 0.001 이상)
       if (
         current.macdLine < current.signalLine &&
-        previous.macdLine >= previous.signalLine
+        previous.macdLine >= previous.signalLine &&
+        Math.abs(current.histogram) > 0.001
       ) {
         this.emitIndividualSignal('macd_dead_cross', {
           symbol,
@@ -416,8 +458,11 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
 
       if (!previousPrice) return;
 
-      // 상단 밴드 터치/돌파
-      if (currentPrice >= current.upper && previousPrice < previous.upper) {
+      // [임계값 대폭 완화] 상단 밴드 근접(98%) 터치/돌파
+      if (
+        currentPrice >= current.upper * 0.98 &&
+        previousPrice < previous.upper * 0.98
+      ) {
         const signalType =
           currentPrice > current.upper ? 'break_upper' : 'touch_upper';
         this.emitIndividualSignal('bollinger_upper', {
@@ -432,8 +477,11 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
         });
       }
 
-      // 하단 밴드 터치/이탈
-      if (currentPrice <= current.lower && previousPrice > previous.lower) {
+      // [임계값 대폭 완화] 하단 밴드 근접(102%) 터치/이탈
+      if (
+        currentPrice <= current.lower * 1.02 &&
+        previousPrice > previous.lower * 1.02
+      ) {
         const signalType =
           currentPrice < current.lower ? 'break_lower' : 'touch_lower';
         this.emitIndividualSignal('bollinger_lower', {
@@ -464,16 +512,33 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
     candles: any[],
   ): Promise<void> {
     try {
+      console.log(
+        `📊 [VolumeCheck] 거래량 분석 시작: ${symbol}, 캔들 개수: ${candles.length}`,
+      );
+
       const volumeData = this.technicalIndicatorService.calculateVolumeAnalysis(
         candles,
         20,
       );
-      if (volumeData.length < 1) return;
+
+      console.log(
+        `📊 [VolumeCheck] 거래량 분석 데이터 길이: ${volumeData.length}`,
+      );
+      if (volumeData.length < 1) {
+        console.log(`⚠️ [VolumeCheck] 거래량 분석 데이터 부족: ${symbol}`);
+        return;
+      }
 
       const current = volumeData[volumeData.length - 1];
+      console.log(
+        `📊 [VolumeCheck] 현재 거래량 비율: ${current.volumeRatio}, 현재: ${current.currentVolume}, 평균: ${current.volumeMA}`,
+      );
 
-      // 거래량 급증 (평균 대비 2배 이상)
-      if (current.volumeRatio >= 2.0) {
+      // [극단적 임계값 완화] 거래량 급증 (평균 대비 1.01배 이상) - 거의 항상 트리거
+      if (current.volumeRatio >= 1.01) {
+        console.log(
+          `🚀 [VolumeCheck] 거래량 급증 신호 발생! 비율: ${current.volumeRatio}`,
+        );
         this.emitIndividualSignal('volume_surge', {
           symbol,
           timeframe,
@@ -481,12 +546,19 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
           avgVolume: current.volumeMA,
           volumeRatio: current.volumeRatio,
           signalType: 'volume_surge',
-          confidence: Math.min(85, 50 + (current.volumeRatio - 2) * 10), // 거래량 비율에 따라 신뢰도 조정
+          confidence: Math.min(85, 50 + (current.volumeRatio - 1.01) * 10), // 거래량 비율에 따라 신뢰도 조정
         });
+      } else {
+        console.log(
+          `📊 [VolumeCheck] 거래량 급증 조건 미충족: ${current.volumeRatio} < 1.1`,
+        );
       }
 
-      // 거래량 감소 (평균 대비 0.5배 이하)
-      if (current.volumeRatio <= 0.5) {
+      // [극단적 임계값 완화] 거래량 감소 (평균 대비 0.99배 이하) - 거의 항상 트리거
+      if (current.volumeRatio <= 0.99) {
+        console.log(
+          `📉 [VolumeCheck] 거래량 감소 신호 발생! 비율: ${current.volumeRatio}`,
+        );
         this.emitIndividualSignal('volume_dry_up', {
           symbol,
           timeframe,
@@ -494,8 +566,12 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
           avgVolume: current.volumeMA,
           volumeRatio: current.volumeRatio,
           signalType: 'volume_dry_up',
-          confidence: 60,
+          confidence: Math.max(40, 80 - (0.99 - current.volumeRatio) * 20), // 거래량 비율에 따라 신뢰도 조정
         });
+      } else {
+        console.log(
+          `📊 [VolumeCheck] 거래량 감소 조건 미충족: ${current.volumeRatio} > 0.99`,
+        );
       }
     } catch (error) {
       console.error(
@@ -709,13 +785,7 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
         indicators: event.analysisResult.indicators,
       });
 
-      // 🔔 표준 이벤트 발송 (notification 도메인에서 수신)
-      this.eventEmitter.emit(
-        MARKET_DATA_EVENTS.TECHNICAL_ANALYSIS_COMPLETED,
-        event,
-      );
-
-      // 🔔 확장된 이벤트 발송 (TestService 호환성을 위해)
+      // 🔔 분석 완료 이벤트 발송 (중복 방지: analysis.completed만 emit)
       this.eventEmitter.emit('analysis.completed', extendedEvent);
 
       // HOLD 시그널이 아닌 경우에만 로그 출력

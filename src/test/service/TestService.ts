@@ -1,3 +1,5 @@
+// ...existing code...
+// ...existing code...
 import { Injectable } from '@nestjs/common';
 import { EventEmitter } from 'events';
 import { CandleData } from '../../market-data/infra/persistence/entity/Candle15MEntity';
@@ -39,6 +41,13 @@ export class TestService {
     // 테스트용 독립적인 EventEmitter 생성
     this.eventEmitter = new EventEmitter();
     console.log('🧪 [TestService] 테스트 서비스 초기화');
+  }
+
+  /**
+   * 15분봉 캔들 직접 입력 테스트 (TestController에서 호출)
+   */
+  async testCandle15m(symbol: string, candleData: any) {
+    return await this.candle15MService.processTestCandle(symbol, candleData);
   }
 
   /**

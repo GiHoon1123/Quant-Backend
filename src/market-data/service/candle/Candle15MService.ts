@@ -9,10 +9,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { v4 as uuidv4 } from 'uuid';
 import { BinanceWebSocketClient } from '../../../common/binance/BinanceWebSocketClient';
 import { CandleCompletedEvent } from '../../../common/dto/event/CandleCompletedEvent';
-import { GapDetectedEvent } from '../../../common/dto/event/GapDetectedEvent';
 import { HealthCheckEvent } from '../../../common/dto/event/HealthCheckEvent';
-import { HighVolumeEvent } from '../../../common/dto/event/HighVolumeEvent';
-import { PriceSpikeEvent } from '../../../common/dto/event/PriceSpikeEvent';
 import marketDataConfig from '../../../config/MarketDataConfig';
 import {
   Candle15MEntity,
@@ -761,9 +758,6 @@ export class Candle15MService implements OnModuleInit, OnModuleDestroy {
       // 기본 캔들 완성 이벤트
       this.eventEmitter.emit('candle.15m.completed', eventData);
 
-      // 추가 분석 및 특별 이벤트
-      this.analyzeAndEmitSpecialEvents(symbol, candleData, eventData);
-
       this.logger.log(
         `🎯 [${symbol}] 캔들 완성 이벤트 발생: ${new Date(candleData.openTime).toISOString()} (eventId: ${eventId})`,
       );
@@ -775,108 +769,7 @@ export class Candle15MService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /**
-   * 특별 이벤트 분석 및 발생
-   *
-   * 완성된 캔들을 분석하여 특별한 상황을 감지하고
-   * 해당하는 이벤트를 발생시킵니다.
-   *
-   * @param symbol 거래 심볼
-   * @param candleData 캔들 데이터
-   * @param baseEventData 기본 이벤트 데이터
-   */
-  private analyzeAndEmitSpecialEvents(
-    symbol: string,
-    candleData: CandleData,
-    baseEventData: CandleCompletedEvent,
-  ): void {
-    try {
-      // 1. 높은 거래량 감지 (평균의 3배 이상)
-      const cacheKey = `${symbol}_FUTURES`;
-      const recentCandles = this.memoryCandles.get(cacheKey) || [];
-
-      if (recentCandles.length >= 10) {
-        const recentVolumes = recentCandles.slice(-10).map((c) => c.volume);
-        const avgVolume =
-          recentVolumes.reduce((sum, vol) => sum + vol, 0) /
-          recentVolumes.length;
-
-        if (candleData.volume > avgVolume * 3) {
-          const highVolumeEvent: HighVolumeEvent = {
-            eventId: uuidv4(),
-            service: 'Candle15MService',
-            symbol,
-            market: 'FUTURES',
-            timeframe: '15m',
-            candle: candleData,
-            currentVolume: candleData.volume,
-            averageVolume: avgVolume,
-            volumeRatio: candleData.volume / avgVolume,
-            timestamp: new Date(),
-          };
-          this.eventEmitter.emit('candle.high.volume', highVolumeEvent);
-
-          this.logger.log(
-            `🔥 [${symbol}] 높은 거래량 감지: ${candleData.volume.toFixed(2)} (평균의 ${(candleData.volume / avgVolume).toFixed(1)}배, eventId: ${highVolumeEvent.eventId})`,
-          );
-        }
-      }
-
-      // 2. 급격한 가격 변동 감지 (3% 이상)
-      const priceChangePercent = Math.abs(
-        ((candleData.close - candleData.open) / candleData.open) * 100,
-      );
-      if (priceChangePercent >= 3) {
-        const priceSpikeEvent: PriceSpikeEvent = {
-          eventId: uuidv4(),
-          service: 'Candle15MService',
-          symbol,
-          market: 'FUTURES',
-          timeframe: '15m',
-          candle: candleData,
-          priceChangePercent,
-          direction: candleData.close > candleData.open ? 'UP' : 'DOWN',
-          timestamp: new Date(),
-        };
-        this.eventEmitter.emit('candle.price.spike', priceSpikeEvent);
-
-        this.logger.log(
-          `📈 [${symbol}] 급격한 가격 변동 감지: ${priceChangePercent.toFixed(2)}% (${candleData.close > candleData.open ? '상승' : '하락'}, eventId: ${priceSpikeEvent.eventId})`,
-        );
-      }
-
-      // 3. 갭 발생 감지 (이전 종가와 현재 시가 차이)
-      if (recentCandles.length > 0) {
-        const prevCandle = recentCandles[recentCandles.length - 1];
-        const gapPercent = Math.abs(
-          ((candleData.open - prevCandle.close) / prevCandle.close) * 100,
-        );
-
-        if (gapPercent >= 1) {
-          const gapDetectedEvent: GapDetectedEvent = {
-            eventId: uuidv4(),
-            service: 'Candle15MService',
-            symbol,
-            market: 'FUTURES',
-            timeframe: '15m',
-            candle: candleData,
-            gapPercent,
-            direction: candleData.open > prevCandle.close ? 'UP' : 'DOWN',
-            prevClose: prevCandle.close,
-            currentOpen: candleData.open,
-            timestamp: new Date(),
-          };
-          this.eventEmitter.emit('candle.gap.detected', gapDetectedEvent);
-
-          this.logger.log(
-            `🕳️ [${symbol}] 갭 발생 감지: ${gapPercent.toFixed(2)}% (${candleData.open > prevCandle.close ? '상승' : '하락'} 갭, eventId: ${gapDetectedEvent.eventId})`,
-          );
-        }
-      }
-    } catch (error) {
-      this.logger.error(`❌ [${symbol}] 특별 이벤트 분석 실패:`, error.message);
-    }
-  }
+  // ...existing code...
 
   /**
    * 헬스체크 시작

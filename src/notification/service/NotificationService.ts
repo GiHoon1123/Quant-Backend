@@ -129,9 +129,13 @@ export class NotificationService implements OnModuleInit {
   connectToTechnicalAnalysisEvents(
     technicalAnalysisEventEmitter: EventEmitter,
   ): void {
-    // 기술적 분석 완료 이벤트 구독
+    // 기술적 분석 완료 이벤트 구독 (표준 및 확장 이벤트 모두 처리)
     technicalAnalysisEventEmitter.on(
       MARKET_DATA_EVENTS.TECHNICAL_ANALYSIS_COMPLETED,
+      this.handleAnalysisCompleted.bind(this),
+    );
+    technicalAnalysisEventEmitter.on(
+      'analysis.completed',
       this.handleAnalysisCompleted.bind(this),
     );
 
@@ -145,7 +149,7 @@ export class NotificationService implements OnModuleInit {
       '🔗 [NotificationService] Technical-analysis 이벤트 연결 완료',
     );
     this.logger.log(
-      `📡 [NotificationService] 구독 중인 이벤트: ${MARKET_DATA_EVENTS.TECHNICAL_ANALYSIS_COMPLETED}, individual.signal`,
+      `📡 [NotificationService] 구독 중인 이벤트: ${MARKET_DATA_EVENTS.TECHNICAL_ANALYSIS_COMPLETED}, analysis.completed, individual.signal`,
     );
   }
 
@@ -250,6 +254,10 @@ export class NotificationService implements OnModuleInit {
 
         case 'bollinger_upper':
         case 'bollinger_lower':
+        case 'break_upper':
+        case 'touch_upper':
+        case 'break_lower':
+        case 'touch_lower':
           await this.telegramService.sendBollingerIndividualAlert(
             symbol,
             timeframe,
