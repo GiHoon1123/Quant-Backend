@@ -11,8 +11,6 @@ import {
 import { BitcoinTransactionRepository } from '../infra/persistence/repository/BitcoinTransactionRepository';
 import { FuturesTradeRecordRepository } from '../infra/persistence/repository/FuturesTradeRecordRepository';
 import { SpotTradeRecordRepository } from '../infra/persistence/repository/SpotTradeRecordRepository';
-import { BitcoinTransactionParsedEvent } from '../../common/dto/event/BitcoinTransactionParsedEvent';
-import { BitcoinTransactionParseFailedEvent } from '../../common/dto/event/BitcoinTransactionParseFailedEvent';
 
 /**
  * 거래 내역 관리 서비스
@@ -226,7 +224,7 @@ export class TransactionService {
         // 계정 정보 추가
         accountId: event.accountId || null,
         userId: event.userId || null,
-        
+
         txid: dummyTxid,
         blockHeight: 800000 + Math.floor(Math.random() * 1000),
         blockHash: `000000000000000000${Math.random().toString(36).substring(2, 10)}`,

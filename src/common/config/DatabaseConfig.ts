@@ -1,6 +1,6 @@
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
 import * as path from 'path';
+import { DataSource } from 'typeorm';
 
 const AppDataSource = new DataSource({
   type: 'postgres',
@@ -14,9 +14,7 @@ const AppDataSource = new DataSource({
     path.resolve(__dirname, '..', '..', '**', '*Record.{ts,js}'),
     path.resolve(__dirname, '..', '..', '**', '*Transaction.{ts,js}'),
   ],
-  migrations: [
-    path.resolve(__dirname, '..', '..', 'migrations', '*.{ts,js}'),
-  ],
+  migrations: [path.resolve(__dirname, '..', '..', 'migrations', '*.{ts,js}')],
   synchronize: false,
   logging: true,
 });

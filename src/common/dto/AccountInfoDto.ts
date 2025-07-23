@@ -3,7 +3,7 @@ import { IsOptional, IsString } from 'class-validator';
 
 /**
  * 계정 정보 베이스 DTO
- * 
+ *
  * 모든 거래 요청에서 계정 정보를 포함하기 위한 베이스 클래스입니다.
  * 실제로는 JWT 토큰이나 API 키에서 추출하여 자동으로 설정됩니다.
  */
