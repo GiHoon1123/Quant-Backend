@@ -135,12 +135,6 @@ export class NotificationService implements OnModuleInit {
       this.handleAnalysisCompleted.bind(this),
     );
 
-    // 연결 확인을 위한 테스트 이벤트도 구독
-    technicalAnalysisEventEmitter.on(
-      'analysis.completed',
-      this.handleAnalysisCompleted.bind(this),
-    );
-
     // 🎯 개별 전략 신호 이벤트 구독
     technicalAnalysisEventEmitter.on(
       'individual.signal',
@@ -151,7 +145,7 @@ export class NotificationService implements OnModuleInit {
       '🔗 [NotificationService] Technical-analysis 이벤트 연결 완료',
     );
     this.logger.log(
-      `📡 [NotificationService] 구독 중인 이벤트: ${MARKET_DATA_EVENTS.TECHNICAL_ANALYSIS_COMPLETED}, analysis.completed, individual.signal`,
+      `📡 [NotificationService] 구독 중인 이벤트: ${MARKET_DATA_EVENTS.TECHNICAL_ANALYSIS_COMPLETED}, individual.signal`,
     );
   }
 

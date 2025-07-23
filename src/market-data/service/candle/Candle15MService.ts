@@ -479,9 +479,11 @@ export class Candle15MService implements OnModuleInit, OnModuleDestroy {
         );
 
         // 4-1. 데이터베이스에 영구 저장 (비동기 처리로 성능 최적화)
+        // 이 메서드에서 candle.saved 이벤트가 발생하여 기술적 분석이 트리거됩니다
         this.saveToDatabaseAsync(symbol, candleData, isNewCandle);
 
-        // 4-2. 캔들 완성 이벤트 발생 (기술적 분석 시스템 트리거)
+        // 4-2. 캔들 완성 이벤트 발생 (추가 분석용, 기술적 분석 트리거는 하지 않음)
+        // 중복 알림 방지를 위해 candle.saved 이벤트만 기술적 분석을 트리거하도록 수정
         this.emitCandleCompletedEvent(symbol, candleData);
       } else {
         // 진행 중인 캔들 (실시간 업데이트)
@@ -699,7 +701,7 @@ export class Candle15MService implements OnModuleInit, OnModuleDestroy {
           `💾 [${symbol}] DB 저장 완료: ${candleTime} (ID: ${savedCandle.id})`,
         );
 
-        // Candle15MService 호환 이벤트 발송
+        // Candle15MService 호환 이벤트 발송 (중복 방지)
         if (isNewCandle) {
           await this.emitCandleSavedEvent(
             symbol,
@@ -708,15 +710,7 @@ export class Candle15MService implements OnModuleInit, OnModuleDestroy {
             isNewCandle,
           );
         }
-
-        // DB 저장 성공 이벤트
-        this.eventEmitter.emit('candle.saved', {
-          symbol,
-          market: 'FUTURES',
-          candleId: savedCandle.id,
-          openTime: candleData.openTime,
-          close: candleData.close,
-        });
+        // 기존 candle.saved 이벤트는 emitCandleSavedEvent에서만 발행
       })
       .catch((error) => {
         this.logger.error(
