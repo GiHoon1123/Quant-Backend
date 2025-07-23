@@ -48,7 +48,8 @@ export class TechnicalIndicatorService {
       const amount = typicalPrice * candle.volume;
       cumulativeVolume += candle.volume;
       cumulativeAmount += amount;
-      const vwap = cumulativeVolume === 0 ? 0 : cumulativeAmount / cumulativeVolume;
+      const vwap =
+        cumulativeVolume === 0 ? 0 : cumulativeAmount / cumulativeVolume;
       results.push({ timestamp: candle.closeTime, value: vwap });
     }
     return results;
@@ -564,7 +565,8 @@ export class TechnicalIndicatorService {
     }> = [];
 
     for (let i = 1; i < maResults.length; i++) {
-      const prevPrice = candles[i - 1 + (candles.length - maResults.length)].close;
+      const prevPrice =
+        candles[i - 1 + (candles.length - maResults.length)].close;
       const currPrice = candles[i + (candles.length - maResults.length)].close;
       const prevAvg = maResults[i - 1].value;
       const currAvg = maResults[i].value;

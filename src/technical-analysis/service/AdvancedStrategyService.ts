@@ -483,7 +483,9 @@ export class AdvancedStrategyService {
         ema9: this.indicatorService.calculateEMA(candles, 9),
         ema21: this.indicatorService.calculateEMA(candles, 21),
         ema50: this.indicatorService.calculateEMA(candles, 50),
-        vwap: this.indicatorService.calculateVWAP ? this.indicatorService.calculateVWAP(candles) : null,
+        vwap: this.indicatorService.calculateVWAP
+          ? this.indicatorService.calculateVWAP(candles)
+          : null,
       },
     };
 
