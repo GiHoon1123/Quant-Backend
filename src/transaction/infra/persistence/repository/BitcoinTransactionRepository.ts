@@ -25,6 +25,13 @@ export class BitcoinTransactionRepository {
   async save(
     transaction: Partial<BitcoinTransaction>,
   ): Promise<BitcoinTransaction> {
+    // accountId, userId에 string 또는 null만 할당
+    if (transaction.accountId && typeof transaction.accountId !== 'string') {
+      transaction.accountId = null;
+    }
+    if (transaction.userId && typeof transaction.userId !== 'string') {
+      transaction.userId = null;
+    }
     const entity = this.repository.create(transaction);
     return this.repository.save(entity);
   }
