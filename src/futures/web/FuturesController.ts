@@ -96,6 +96,8 @@ export class FuturesController {
       dto.side,
       dto.quantity,
       dto.leverage,
+      dto.accountId,
+      dto.userId,
     );
 
     return CommonResponse.success({

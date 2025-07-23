@@ -69,6 +69,8 @@ export class FuturesService {
    * @param side 포지션 방향 (LONG: 상승베팅, SHORT: 하락베팅)
    * @param quantity 포지션 수량
    * @param leverage 레버리지 배수
+   * @param accountId 계정 식별자 (선택적)
+   * @param userId 사용자 ID (선택적)
    * @returns 포지션 진입 결과
    *
    * 🔒 안전 검증 항목:
@@ -82,6 +84,8 @@ export class FuturesService {
     side: PositionSide,
     quantity: number,
     leverage: number,
+    accountId?: string,
+    userId?: string,
   ): Promise<PositionOpenResponse> {
     // 1. 입력값 유효성 검사
     this.validatePositionInputs(symbol, quantity, leverage);
@@ -153,6 +157,9 @@ export class FuturesService {
         status: external.status,
         executedAt: new Date(),
         source: 'FuturesService',
+        // 계정 정보 추가
+        accountId,
+        userId,
         metadata: {
           leverage,
           positionSide: side,

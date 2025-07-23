@@ -1,7 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsNumber, IsString, Min } from 'class-validator';
+import { AccountInfoDto } from '../../../common/dto/AccountInfoDto';
 
-export class MarketSellRequest {
+export class MarketSellRequest extends AccountInfoDto {
   @ApiProperty({
     example: 'BTCUSDT',
     description: '주문할 코인 심볼',

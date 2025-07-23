@@ -31,8 +31,16 @@ export enum TransactionPurpose {
 @Index('idx_btc_spot_trade', ['relatedSpotTradeId'])
 @Index('idx_btc_futures_trade', ['relatedFuturesTradeId'])
 export class BitcoinTransaction {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  // 계정 정보 (어떤 계정의 거래인지)
+  @Column({ length: 100, nullable: true })
+  @Index('idx_btc_account')
+  accountId: string | null; // 계정 식별자 (API KEY 기반 또는 사용자 ID)
+
+  @Column({ length: 100, nullable: true })
+  userId: string | null; // 사용자 ID (있는 경우)
 
   // 비트코인 트랜잭션 기본 정보
   @Column({ length: 64, unique: true })
@@ -87,14 +95,18 @@ export class BitcoinTransaction {
   @Column({ type: 'boolean', default: false })
   isOutgoing: boolean; // 출금 여부
 
-  // 연관 거래 정보
-  @Column({ type: 'uuid', nullable: true })
+  // 연관 거래 정보 (어떤 거래에서 발생한 트랜잭션인지)
+  @Column({ type: 'int', nullable: true })
   @Index('idx_btc_spot_trade_id')
-  relatedSpotTradeId: string; // 연관된 현물 거래 ID
+  relatedSpotTradeId: number; // 연관된 현물 거래 ID
 
-  @Column({ type: 'uuid', nullable: true })
+  @Column({ type: 'int', nullable: true })
   @Index('idx_btc_futures_trade_id')
-  relatedFuturesTradeId: string; // 연관된 선물 거래 ID
+  relatedFuturesTradeId: number; // 연관된 선물 거래 ID
+
+  @Column({ length: 20, nullable: true })
+  @Index('idx_btc_trade_type')
+  tradeType: string; // 거래 타입 (SPOT/FUTURES)
 
   @Column({ length: 50, nullable: true })
   relatedExchange: string; // 연관된 거래소 (binance, coinbase 등)
@@ -207,11 +219,26 @@ export class BitcoinTransaction {
   }
 
   // 거래 내역과 연결
-  linkToSpotTrade(spotTradeId: string): void {
+  linkToSpotTrade(spotTradeId: number, accountId?: string): void {
     this.relatedSpotTradeId = spotTradeId;
+    this.tradeType = 'SPOT';
+    if (accountId) this.accountId = accountId;
   }
 
-  linkToFuturesTrade(futuresTradeId: string): void {
+  linkToFuturesTrade(futuresTradeId: number, accountId?: string): void {
     this.relatedFuturesTradeId = futuresTradeId;
+    this.tradeType = 'FUTURES';
+    if (accountId) this.accountId = accountId;
+  }
+
+  // 어떤 거래와 연결되어 있는지 확인
+  getRelatedTradeId(): number | null {
+    return this.relatedSpotTradeId || this.relatedFuturesTradeId || null;
+  }
+
+  getTradeType(): string | null {
+    if (this.relatedSpotTradeId) return 'SPOT';
+    if (this.relatedFuturesTradeId) return 'FUTURES';
+    return null;
   }
 }

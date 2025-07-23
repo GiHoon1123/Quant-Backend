@@ -24,6 +24,10 @@ export class FuturesTradeRecordRepository {
   async saveFromEvent(event: TradeExecutedEvent): Promise<FuturesTradeRecord> {
     const record = new FuturesTradeRecord();
 
+    // 계정 정보 (새로 추가)
+    record.accountId = event.accountId || null;
+    record.userId = event.userId || null;
+
     // 기본 거래 정보
     record.symbol = event.symbol;
     record.orderId = event.orderId;
@@ -102,7 +106,7 @@ export class FuturesTradeRecordRepository {
   /**
    * ID로 거래 내역 조회
    */
-  async findById(id: string): Promise<FuturesTradeRecord | null> {
+  async findById(id: number): Promise<FuturesTradeRecord | null> {
     return this.repository.findOne({ where: { id } });
   }
 

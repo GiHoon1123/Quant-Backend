@@ -28,6 +28,8 @@ export class OrderController {
     const result = await this.orderService.placeMarketBuyOrder(
       dto.symbol,
       dto.usdtAmount,
+      dto.accountId,
+      dto.userId,
     );
     return CommonResponse.success({
       status: 200,

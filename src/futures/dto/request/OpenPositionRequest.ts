@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsNotEmpty, IsNumber, IsString, Min } from 'class-validator';
+import { AccountInfoDto } from '../../../common/dto/AccountInfoDto';
 
 /**
  * 선물 포지션 타입 열거형
@@ -17,7 +18,7 @@ export enum PositionSide {
  * 사용자가 선물 포지션을 진입할 때 필요한 정보들을 정의합니다.
  * 시장가 주문으로 즉시 포지션을 진입합니다.
  */
-export class OpenPositionRequest {
+export class OpenPositionRequest extends AccountInfoDto {
   @ApiProperty({
     example: 'BTCUSDT',
     description: '선물 거래 심볼 (예: BTCUSDT, ETHUSDT)',

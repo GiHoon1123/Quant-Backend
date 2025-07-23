@@ -18,8 +18,16 @@ import {
 @Index('idx_spot_source_executed', ['source', 'executedAt'])
 @Index('idx_spot_orderid', ['orderId'])
 export class SpotTradeRecord {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  // 계정 정보 (어떤 계정의 거래인지)
+  @Column({ length: 100, nullable: true })
+  @Index('idx_spot_account')
+  accountId: string | null; // 계정 식별자 (API KEY 기반 또는 사용자 ID)
+
+  @Column({ length: 100, nullable: true })
+  userId: string | null; // 사용자 ID (있는 경우)
 
   // 거래 기본 정보
   @Column({ length: 20 })

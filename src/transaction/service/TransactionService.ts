@@ -71,6 +71,9 @@ export class TransactionService {
         status: event.status ?? '',
         executedAt: event.executedAt ?? new Date(),
         source: 'TransactionService',
+        // 계정 정보 포함
+        accountId: event.accountId,
+        userId: event.userId,
         metadata: event.metadata ?? {},
         timestamp: new Date(),
       };
@@ -220,6 +223,10 @@ export class TransactionService {
 
       // 더미 트랜잭션 데이터 생성
       const transaction: Partial<BitcoinTransaction> = {
+        // 계정 정보 추가
+        accountId: event.accountId || null,
+        userId: event.userId || null,
+        
         txid: dummyTxid,
         blockHeight: 800000 + Math.floor(Math.random() * 1000),
         blockHash: `000000000000000000${Math.random().toString(36).substring(2, 10)}`,

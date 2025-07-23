@@ -23,6 +23,10 @@ export class SpotTradeRecordRepository {
   async saveFromEvent(event: TradeExecutedEvent): Promise<SpotTradeRecord> {
     const record = new SpotTradeRecord();
 
+    // 계정 정보 (새로 추가)
+    record.accountId = event.accountId || null;
+    record.userId = event.userId || null;
+
     // 기본 거래 정보
     record.symbol = event.symbol;
     record.orderId = event.orderId;
@@ -57,7 +61,7 @@ export class SpotTradeRecordRepository {
   /**
    * ID로 거래 내역 조회
    */
-  async findById(id: string): Promise<SpotTradeRecord | null> {
+  async findById(id: number): Promise<SpotTradeRecord | null> {
     return this.repository.findOne({ where: { id } });
   }
 

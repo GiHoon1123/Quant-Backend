@@ -156,7 +156,7 @@ export class BitcoinTransactionRepository {
    * 거래 내역과 연결된 트랜잭션 조회
    */
   async findByRelatedTradeId(
-    tradeId: string,
+    tradeId: number,
     tradeType: 'SPOT' | 'FUTURES',
   ): Promise<BitcoinTransaction[]> {
     const whereCondition =
@@ -302,7 +302,7 @@ export class BitcoinTransactionRepository {
   /**
    * 트랜잭션과 거래 내역 연결
    */
-  async linkToSpotTrade(txid: string, spotTradeId: string): Promise<void> {
+  async linkToSpotTrade(txid: string, spotTradeId: number): Promise<void> {
     await this.repository.update({ txid }, { relatedSpotTradeId: spotTradeId });
   }
 
@@ -311,7 +311,7 @@ export class BitcoinTransactionRepository {
    */
   async linkToFuturesTrade(
     txid: string,
-    futuresTradeId: string,
+    futuresTradeId: number,
   ): Promise<void> {
     await this.repository.update(
       { txid },

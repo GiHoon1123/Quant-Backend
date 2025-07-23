@@ -88,5 +88,8 @@ export interface TradeExecutedEvent extends BaseEventDto {
   status: string;
   executedAt: Date;
   source: string;
+  // 계정 정보 (새로 추가)
+  accountId?: string; // 계정 식별자 (API KEY 기반 또는 사용자 ID)
+  userId?: string; // 사용자 ID (있는 경우)
   metadata?: Record<string, any>;
 }

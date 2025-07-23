@@ -1,5 +1,5 @@
 export class TransactionResponse {
-  id: string;
+  id: number;
   txid: string;
   amount: number;
   status: string;

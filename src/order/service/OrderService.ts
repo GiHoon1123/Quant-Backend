@@ -92,11 +92,15 @@ export class OrderService {
    *
    * @param symbol 매수할 심볼 (예: BTCUSDT, ETHUSDT)
    * @param usdtAmount 매수에 사용할 USDT 금액
+   * @param accountId 계정 식별자 (선택적)
+   * @param userId 사용자 ID (선택적)
    * @returns 매수 주문 체결 결과
    */
   async placeMarketBuyOrder(
     symbol: string,
     usdtAmount: number,
+    accountId?: string,
+    userId?: string,
   ): Promise<MarketBuyOrderResponse> {
     // 🔍 1단계: 입력값 유효성 검사
     this.assertPositive(usdtAmount, '매수 금액은 0보다 커야 합니다.');
@@ -172,6 +176,9 @@ export class OrderService {
         status: response.status,
         executedAt: new Date(),
         source: 'API',
+        // 계정 정보 추가
+        accountId,
+        userId,
         metadata: {
           rawResponse: raw,
           fills: response.fills,
@@ -195,6 +202,9 @@ export class OrderService {
         status: tradeEvent.status,
         executedAt: tradeEvent.executedAt,
         source: tradeEvent.source,
+        // 계정 정보 추가
+        accountId: tradeEvent.accountId,
+        userId: tradeEvent.userId,
         metadata: tradeEvent.metadata,
         timestamp: new Date(),
       };
