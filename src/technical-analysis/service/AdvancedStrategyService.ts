@@ -472,8 +472,8 @@ export class AdvancedStrategyService {
       priceFeatures: candles.slice(-20).map((c) => c.close),
       volumeFeatures: candles.slice(-20).map((c) => c.volume),
       technicalIndicators: {
-        rsi: this.indicatorService.calculateRSI(candles, 14),
-        macd: this.indicatorService.calculateMACD(candles),
+        rsi: this.indicatorService.calculateRSI(candles, 14), // period 14, 과매수 70, 과매도 30 (기본값)
+        macd: this.indicatorService.calculateMACD(candles, 12, 26, 9), // fast 12, slow 26, signal 9 (기본값)
       },
     };
 
