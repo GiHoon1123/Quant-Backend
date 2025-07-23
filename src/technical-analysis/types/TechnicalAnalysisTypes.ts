@@ -1,3 +1,8 @@
+// VWAP 결과 타입
+export interface VWAPResult {
+  timestamp: number;
+  value: number;
+}
 /**
  * 캔들(OHLCV) 데이터 타입
  *

@@ -472,8 +472,18 @@ export class AdvancedStrategyService {
       priceFeatures: candles.slice(-20).map((c) => c.close),
       volumeFeatures: candles.slice(-20).map((c) => c.volume),
       technicalIndicators: {
-        rsi: this.indicatorService.calculateRSI(candles, 14), // period 14, 과매수 70, 과매도 30 (기본값)
-        macd: this.indicatorService.calculateMACD(candles, 12, 26, 9), // fast 12, slow 26, signal 9 (기본값)
+        rsi: this.indicatorService.calculateRSI(candles, 14),
+        macd: this.indicatorService.calculateMACD(candles, 12, 26, 9),
+        sma5: this.indicatorService.calculateSMA(candles, 5),
+        sma10: this.indicatorService.calculateSMA(candles, 10),
+        sma21: this.indicatorService.calculateSMA(candles, 21),
+        sma50: this.indicatorService.calculateSMA(candles, 50),
+        sma100: this.indicatorService.calculateSMA(candles, 100),
+        sma200: this.indicatorService.calculateSMA(candles, 200),
+        ema9: this.indicatorService.calculateEMA(candles, 9),
+        ema21: this.indicatorService.calculateEMA(candles, 21),
+        ema50: this.indicatorService.calculateEMA(candles, 50),
+        vwap: this.indicatorService.calculateVWAP ? this.indicatorService.calculateVWAP(candles) : null,
       },
     };
 

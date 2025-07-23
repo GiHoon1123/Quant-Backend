@@ -5,6 +5,7 @@ import {
   MACDResult,
   MovingAverageResult,
   RSIResult,
+  VWAPResult,
   VolumeAnalysisResult,
 } from '../types/TechnicalAnalysisTypes';
 
@@ -29,6 +30,29 @@ import {
  */
 @Injectable()
 export class TechnicalIndicatorService {
+  /**
+   * VWAP (Volume Weighted Average Price) 계산
+   * @param candles 캔들 데이터 배열
+   * @returns VWAP 값 (배열: 각 캔들별 VWAP)
+   *
+   * VWAP = (누적 거래대금) / (누적 거래량)
+   * 거래대금 = (고가+저가+종가)/3 * 거래량
+   */
+  calculateVWAP(candles: CandleData[]): VWAPResult[] {
+    if (!candles || candles.length === 0) return [];
+    let cumulativeVolume = 0;
+    let cumulativeAmount = 0;
+    const results: VWAPResult[] = [];
+    for (const candle of candles) {
+      const typicalPrice = (candle.high + candle.low + candle.close) / 3;
+      const amount = typicalPrice * candle.volume;
+      cumulativeVolume += candle.volume;
+      cumulativeAmount += amount;
+      const vwap = cumulativeVolume === 0 ? 0 : cumulativeAmount / cumulativeVolume;
+      results.push({ timestamp: candle.closeTime, value: vwap });
+    }
+    return results;
+  }
   /**
    * 단순 이동평균선(SMA) 계산
    *
@@ -507,5 +531,62 @@ export class TechnicalIndicatorService {
 
     console.log(`✅ 다중 ${type} 계산 완료: ${results.size}개 기간`);
     return results;
+  }
+
+  /**
+   * 임계값(평균선) 돌파/이탈 시그널 감지
+   *
+   * @param candles 캔들 데이터 배열
+   * @param maResults 이동평균 결과 배열 (SMA, EMA, VWAP 등)
+   * @param type 기준선 타입 ('SMA' | 'EMA' | 'VWAP')
+   * @returns 각 시점별 돌파/이탈 시그널 배열
+   *
+   * - 상향 돌파: 이전 close < 평균선, 현재 close > 평균선
+   * - 하향 이탈: 이전 close > 평균선, 현재 close < 평균선
+   */
+  detectThresholdSignals(
+    candles: CandleData[],
+    maResults: { timestamp: number; value: number }[],
+    type: 'SMA' | 'EMA' | 'VWAP',
+  ): Array<{
+    timestamp: number;
+    price: number;
+    average: number;
+    type: string;
+    signal: 'UP_BREAK' | 'DOWN_BREAK' | null;
+  }> {
+    const signals: Array<{
+      timestamp: number;
+      price: number;
+      average: number;
+      type: string;
+      signal: 'UP_BREAK' | 'DOWN_BREAK' | null;
+    }> = [];
+
+    for (let i = 1; i < maResults.length; i++) {
+      const prevPrice = candles[i - 1 + (candles.length - maResults.length)].close;
+      const currPrice = candles[i + (candles.length - maResults.length)].close;
+      const prevAvg = maResults[i - 1].value;
+      const currAvg = maResults[i].value;
+      let signal: 'UP_BREAK' | 'DOWN_BREAK' | null = null;
+
+      // 상향 돌파: 이전 close < 평균선, 현재 close > 평균선
+      if (prevPrice < prevAvg && currPrice > currAvg) {
+        signal = 'UP_BREAK';
+      }
+      // 하향 이탈: 이전 close > 평균선, 현재 close < 평균선
+      else if (prevPrice > prevAvg && currPrice < currAvg) {
+        signal = 'DOWN_BREAK';
+      }
+
+      signals.push({
+        timestamp: maResults[i].timestamp,
+        price: currPrice,
+        average: currAvg,
+        type,
+        signal,
+      });
+    }
+    return signals;
   }
 }
