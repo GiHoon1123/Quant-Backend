@@ -591,4 +591,249 @@ export class TechnicalIndicatorService {
     }
     return signals;
   }
+
+  /**
+   * 15분 종합 기술적 분석 리포트 생성
+   *
+   * @param candles 캔들 데이터 배열
+   * @param usdToKrwRate USD -> KRW 환율 (예: 1330)
+   * @returns 텔레그램 전송용 종합 리포트 메시지
+   *
+   * 📊 포함 내용:
+   * - 현재가 정보 (USD/KRW)
+   * - 모든 이동평균선 상태
+   * - RSI, MACD, 볼린저밴드 현황
+   * - 거래량 분석 및 OBV
+   * - 종합 전략 제안
+   */
+  generateComprehensiveReport(
+    candles: CandleData[],
+    usdToKrwRate: number = 1330,
+  ): string {
+    if (!candles || candles.length === 0) {
+      return '❌ 데이터가 부족하여 분석할 수 없습니다.';
+    }
+
+    try {
+      const currentCandle = candles[candles.length - 1];
+      const currentPrice = currentCandle.close;
+      const prevPrice =
+        candles.length > 1 ? candles[candles.length - 2].close : currentPrice;
+      const priceChange = currentPrice - prevPrice;
+      const priceChangePercent = (priceChange / prevPrice) * 100;
+      const krwPrice = currentPrice * usdToKrwRate;
+
+      // 현재 시간
+      const now = new Date();
+      const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+      let report = `🔔 [비트코인 15분 종합 리포트] (${timeStr} 기준)\n\n`;
+
+      // 💰 가격 정보
+      report += `💰 가격 정보\n`;
+      report += `- 현재가: $${currentPrice.toLocaleString()} (₩${krwPrice.toLocaleString()})\n`;
+      report += `- 15분 전 대비: ${priceChangePercent >= 0 ? '+' : ''}${priceChangePercent.toFixed(2)}% (${priceChange >= 0 ? '+' : ''}$${priceChange.toFixed(2)})\n`;
+      report += `- 고가: $${currentCandle.high.toLocaleString()} / 저가: $${currentCandle.low.toLocaleString()}\n\n`;
+
+      // 📈 이동평균선
+      const smaResults = this.calculateMultipleMovingAverages(
+        candles,
+        [5, 20, 50, 200],
+        'SMA',
+      );
+      const emaResults = this.calculateMultipleMovingAverages(
+        candles,
+        [12, 26],
+        'EMA',
+      );
+      const vwapResults = this.calculateVWAP(candles);
+
+      report += `📈 이동평균선 (현재가와의 차이, 추세)\n`;
+
+      // SMA 결과들
+      [5, 20, 50, 200].forEach((period) => {
+        const smaData = smaResults.get(period);
+        if (smaData && smaData.length > 0) {
+          const currentSMA = smaData[smaData.length - 1].value;
+          const diff = ((currentPrice - currentSMA) / currentSMA) * 100;
+          const trend = currentPrice > currentSMA ? '상승 추세' : '하락 추세';
+          const role =
+            period === 5
+              ? '단기 지지/저항'
+              : period === 20
+                ? '중기 추세'
+                : period === 50
+                  ? '장기 추세'
+                  : '초장기 추세';
+          report += `- SMA${period}: $${currentSMA.toFixed(2)} (${diff >= 0 ? '+' : ''}${diff.toFixed(2)}%) [${role}]\n`;
+        }
+      });
+
+      // EMA 결과들
+      [12, 26].forEach((period) => {
+        const emaData = emaResults.get(period);
+        if (emaData && emaData.length > 0) {
+          const currentEMA = emaData[emaData.length - 1].value;
+          const diff = ((currentPrice - currentEMA) / currentEMA) * 100;
+          const role = period === 12 ? '단기 저항/지지' : '중기 저항/지지';
+          report += `- EMA${period}: $${currentEMA.toFixed(2)} (${diff >= 0 ? '+' : ''}${diff.toFixed(2)}%) [${role}]\n`;
+        }
+      });
+
+      // VWAP
+      if (vwapResults.length > 0) {
+        const currentVWAP = vwapResults[vwapResults.length - 1].value;
+        const vwapDiff = ((currentPrice - currentVWAP) / currentVWAP) * 100;
+        report += `- VWAP: $${currentVWAP.toFixed(2)} (${vwapDiff >= 0 ? '+' : ''}${vwapDiff.toFixed(2)}%) [시장 평균가]\n\n`;
+      }
+
+      // 📊 모멘텀/오실레이터
+      const rsiResults = this.calculateRSI(candles);
+      const macdResults = this.calculateMACD(candles);
+
+      report += `📊 모멘텀/오실레이터\n`;
+
+      if (rsiResults.length > 0) {
+        const currentRSI = rsiResults[rsiResults.length - 1];
+        const rsiStatus = currentRSI.isOverbought
+          ? '과매수'
+          : currentRSI.isOversold
+            ? '과매도'
+            : '중립';
+        const rsiToTarget =
+          currentRSI.value >= 50
+            ? 70 - currentRSI.value
+            : currentRSI.value - 30;
+        report += `- RSI(14): ${currentRSI.value.toFixed(1)} (${rsiStatus}`;
+        if (currentRSI.value >= 60) {
+          report += `, 과매수까지 ${(70 - currentRSI.value).toFixed(1)} 남음`;
+        } else if (currentRSI.value <= 40) {
+          report += `, 과매도까지 ${(currentRSI.value - 30).toFixed(1)} 남음`;
+        }
+        report += `)\n`;
+      }
+
+      if (macdResults.length > 0) {
+        const currentMACD = macdResults[macdResults.length - 1];
+        const crossStatus = currentMACD.isGoldenCross
+          ? '골든크로스'
+          : '데드크로스';
+        const momentum =
+          currentMACD.histogram > 0 ? '상승 모멘텀' : '하락 모멘텀';
+        report += `- MACD: ${currentMACD.macdLine.toFixed(1)} / Signal: ${currentMACD.signalLine.toFixed(1)} / Histogram: ${currentMACD.histogram.toFixed(1)}\n`;
+        report += `  → ${crossStatus} 유지 (${momentum})\n\n`;
+      }
+
+      // 📉 변동성/밴드
+      const bollingerResults = this.calculateBollingerBands(candles);
+
+      if (bollingerResults.length > 0) {
+        const currentBB = bollingerResults[bollingerResults.length - 1];
+        const upperDiff =
+          ((currentBB.upper - currentPrice) / currentPrice) * 100;
+        const lowerDiff =
+          ((currentPrice - currentBB.lower) / currentPrice) * 100;
+        const bandPosition = currentBB.percentB * 100;
+
+        report += `📉 변동성/밴드\n`;
+        report += `- 볼린저밴드 상단: $${currentBB.upper.toFixed(2)} (+${upperDiff.toFixed(2)}%)\n`;
+        report += `- 중심선: $${currentBB.middle.toFixed(2)}\n`;
+        report += `- 하단: $${currentBB.lower.toFixed(2)} (-${lowerDiff.toFixed(2)}%)\n`;
+        report += `- 현재가 밴드 위치: ${bandPosition.toFixed(0)}% `;
+
+        if (bandPosition >= 80) {
+          report += `(상단 근접, 과매수 신호)\n`;
+        } else if (bandPosition <= 20) {
+          report += `(하단 근접, 과매도 신호)\n`;
+        } else {
+          report += `(중간 구간)\n`;
+        }
+
+        report += `- 밴드폭: ${(currentBB.bandwidth * 100).toFixed(1)}%\n\n`;
+      }
+
+      // 📊 거래량/OBV
+      const volumeResults = this.calculateVolumeAnalysis(candles);
+
+      if (volumeResults.length > 0) {
+        const currentVolume = volumeResults[volumeResults.length - 1];
+        const volumeStatus = currentVolume.isVolumeSurge ? '급증' : '보통';
+
+        report += `📊 거래량/OBV\n`;
+        report += `- 현재 거래량: ${currentVolume.currentVolume.toFixed(0)} BTC (평균 대비 ${(currentVolume.volumeRatio * 100).toFixed(0)}%)\n`;
+        report += `- 거래량 상태: ${volumeStatus} ${currentVolume.isVolumeSurge ? '🔥' : ''}\n`;
+        report += `- OBV: ${currentVolume.obv > 0 ? '+' : ''}${currentVolume.obv.toFixed(0)} (${currentVolume.obv > 0 ? '상승' : '하락'} 지속)\n\n`;
+      }
+
+      // 📌 신호 요약 및 전략 제안
+      report += `📌 신호 요약\n`;
+
+      // RSI 기반 단기 판단
+      const rsiSignal =
+        rsiResults.length > 0
+          ? rsiResults[rsiResults.length - 1].isOverbought
+            ? '과매수 경계'
+            : rsiResults[rsiResults.length - 1].isOversold
+              ? '과매도 반등'
+              : '중립'
+          : '데이터 부족';
+
+      // MACD 기반 중기 판단
+      const macdSignal =
+        macdResults.length > 0
+          ? macdResults[macdResults.length - 1].isGoldenCross
+            ? '상승 모멘텀'
+            : '하락 모멘텀'
+          : '데이터 부족';
+
+      // SMA200 기반 장기 판단
+      const sma200Data = smaResults.get(200);
+      const longTermSignal =
+        sma200Data && sma200Data.length > 0
+          ? currentPrice > sma200Data[sma200Data.length - 1].value
+            ? '장기 강세'
+            : '장기 약세'
+          : '데이터 부족';
+
+      report += `- 단기: ${rsiSignal}\n`;
+      report += `- 중기: ${macdSignal}\n`;
+      report += `- 장기: ${longTermSignal}\n\n`;
+
+      report += `💡 전략 제안\n`;
+
+      // 종합 전략 제안
+      if (rsiResults.length > 0 && macdResults.length > 0) {
+        const rsi = rsiResults[rsiResults.length - 1];
+        const macd = macdResults[macdResults.length - 1];
+
+        if (rsi.isOverbought && macd.isGoldenCross) {
+          report += `- 단기 매수는 신중 (RSI 과매수), 추세는 여전히 강세\n`;
+          report += `- 부분 익절 고려, 지지선 관찰 후 재진입\n`;
+        } else if (rsi.isOversold && macd.isDeadCross) {
+          report += `- 단기 반등 가능성 (RSI 과매도), 하지만 추세는 약세\n`;
+          report += `- 작은 포지션으로 단타 고려, 손절 준비\n`;
+        } else if (macd.isGoldenCross && !rsi.isOverbought) {
+          report += `- 매수 진입 타이밍 양호 (추세 상승 + RSI 여유)\n`;
+          report += `- 점진적 매수 전략 권장\n`;
+        } else {
+          report += `- 관망 구간, 명확한 신호 대기\n`;
+          report += `- 변동성 관리 및 리스크 컨트롤 우선\n`;
+        }
+      }
+
+      // 거래량 기반 추가 조언
+      if (
+        volumeResults.length > 0 &&
+        volumeResults[volumeResults.length - 1].isVolumeSurge
+      ) {
+        report += `- 거래량 급증 구간, 돌파/이탈 시 강한 모멘텀 예상\n`;
+      }
+
+      console.log(`✅ 종합 리포트 생성 완료`);
+      return report;
+    } catch (error) {
+      console.error('❌ 종합 리포트 생성 중 오류:', error);
+      return '❌ 종합 리포트 생성 중 오류가 발생했습니다.';
+    }
+  }
 }

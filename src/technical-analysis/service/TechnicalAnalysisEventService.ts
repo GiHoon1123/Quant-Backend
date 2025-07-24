@@ -97,12 +97,10 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
         `🔍 [TechnicalAnalysis] 새 캔들 감지 - 분석 시작: ${symbol} ${timeframe}`,
       );
 
-      // 📊 1. 개별 전략 임계값 돌파 체크 및 개별 알림
-      await this.checkIndividualStrategySignals(
-        symbol,
-        timeframe as TimeFrame,
-        candleData,
-      );
+      // 📊 1. 15분봉 종합 리포트 생성 및 전송 (기존 개별 전략 알림 대체)
+      if (timeframe === '15m') {
+        await this.generateAndSendComprehensiveReport(symbol, candleData);
+      }
 
       // 📊 2. 종합 기술적 분석 실행
       const analysisResult = await this.performComprehensiveAnalysis(
@@ -153,459 +151,8 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
   }
 
   /**
-   * 🎯 개별 전략 신호 체크 및 알림
-   *
-   * 각 전략의 임계값 돌파를 감지하고 개별 알림을 발송합니다.
-   *
-   * @param symbol 심볼
-   * @param timeframe 시간봉
-   * @param candleData 캔들 데이터
+   * � 이동평균선 돌파 신호 체크
    */
-  private async checkIndividualStrategySignals(
-    symbol: string,
-    timeframe: TimeFrame,
-    candleData: any,
-  ): Promise<void> {
-    try {
-      console.log(`🎯 [IndividualSignals] 개별 전략 신호 체크 시작: ${symbol}`);
-
-      // 필요한 캔들 데이터 조회
-      const candles = await this.getCandleData(symbol, 200);
-      if (candles.length < 50) {
-        console.log(
-          `⚠️ [IndividualSignals] 충분한 캔들 데이터 없음: ${symbol} (${candles.length}개)`,
-        );
-        return;
-      }
-
-      const currentPrice = candleData.close;
-
-      // 1. RSI 임계값 체크
-      console.log(`🔍 [IndividualSignals] RSI 체크 시작: ${symbol}`);
-      await this.checkRSISignals(symbol, timeframe, candles, currentPrice);
-
-      // 2. 이동평균선 돌파 체크
-      console.log(`🔍 [IndividualSignals] MA 돌파 체크 시작: ${symbol}`);
-      await this.checkMABreakoutSignals(
-        symbol,
-        timeframe,
-        candles,
-        currentPrice,
-      );
-
-      // 3. MACD 신호 체크
-      console.log(`🔍 [IndividualSignals] MACD 신호 체크 시작: ${symbol}`);
-      await this.checkMACDSignals(symbol, timeframe, candles, currentPrice);
-
-      // 4. 볼린저 밴드 신호 체크
-      console.log(`🔍 [IndividualSignals] 볼린저 밴드 체크 시작: ${symbol}`);
-      await this.checkBollingerSignals(
-        symbol,
-        timeframe,
-        candles,
-        currentPrice,
-      );
-
-      // 5. 거래량 급증 체크
-      console.log(`🔍 [IndividualSignals] 거래량 신호 체크 시작: ${symbol}`);
-      await this.checkVolumeSignals(symbol, timeframe, candles);
-
-      console.log(`✅ [IndividualSignals] 개별 전략 신호 체크 완료: ${symbol}`);
-    } catch (error) {
-      console.error(
-        `❌ [IndividualSignals] 개별 신호 체크 실패: ${symbol}`,
-        error,
-      );
-    }
-  }
-
-  /**
-   * 📈 RSI 임계값 신호 체크
-   */
-  private async checkRSISignals(
-    symbol: string,
-    timeframe: TimeFrame,
-    candles: any[],
-    currentPrice: number,
-  ): Promise<void> {
-    try {
-      console.log(
-        `📈 [RSICheck] RSI 분석 시작: ${symbol}, 캔들 개수: ${candles.length}`,
-      );
-
-      const rsiData = this.technicalIndicatorService.calculateRSI(candles, 14);
-      console.log(`📈 [RSICheck] RSI 데이터 길이: ${rsiData.length}`);
-      if (rsiData.length < 2) {
-        console.log(`⚠️ [RSICheck] RSI 데이터 부족: ${symbol}`);
-        return;
-      }
-
-      const currentRSI = rsiData[rsiData.length - 1].value;
-      const previousRSI = rsiData[rsiData.length - 2].value;
-      console.log(
-        `📈 [RSICheck] 현재 RSI: ${currentRSI}, 이전 RSI: ${previousRSI}`,
-      );
-
-      // [임계값 대폭 완화] RSI 과매수 진입 (60 돌파)
-      if (currentRSI > 60 && previousRSI <= 60) {
-        console.log(
-          `🔴 [RSICheck] RSI 과매수 신호 발생! ${previousRSI} → ${currentRSI}`,
-        );
-        this.emitIndividualSignal('rsi_overbought', {
-          symbol,
-          timeframe,
-          signalType: 'overbought',
-          currentRSI,
-          confidence: 75,
-          currentPrice,
-        });
-      } else {
-        console.log(
-          `📈 [RSICheck] RSI 과매수 조건 미충족: ${currentRSI} <= 60 OR ${previousRSI} > 60`,
-        );
-      }
-
-      // [임계값 대폭 완화] RSI 과매도 진입 (40 이탈)
-      if (currentRSI < 40 && previousRSI >= 40) {
-        console.log(
-          `🟢 [RSICheck] RSI 과매도 신호 발생! ${previousRSI} → ${currentRSI}`,
-        );
-        this.emitIndividualSignal('rsi_oversold', {
-          symbol,
-          timeframe,
-          signalType: 'oversold',
-          currentRSI,
-          confidence: 75,
-          currentPrice,
-        });
-      } else {
-        console.log(
-          `📈 [RSICheck] RSI 과매도 조건 미충족: ${currentRSI} >= 40 OR ${previousRSI} < 40`,
-        );
-      }
-
-      // [임계값 대폭 완화] RSI 40 상향 돌파 (상승 모멘텀)
-      if (currentRSI > 40 && previousRSI <= 40) {
-        console.log(
-          `🔵 [RSICheck] RSI 상승 모멘텀 신호 발생! ${previousRSI} → ${currentRSI}`,
-        );
-        this.emitIndividualSignal('rsi_bullish_50', {
-          symbol,
-          timeframe,
-          signalType: 'bullish_50',
-          currentRSI,
-          confidence: 60,
-          currentPrice,
-        });
-      } else {
-        console.log(
-          `📈 [RSICheck] RSI 상승 모멘텀 조건 미충족: ${currentRSI} <= 40 OR ${previousRSI} > 40`,
-        );
-      }
-
-      // [임계값 대폭 완화] RSI 60 하향 이탈 (하락 모멘텀)
-      if (currentRSI < 60 && previousRSI >= 60) {
-        console.log(
-          `🟠 [RSICheck] RSI 하락 모멘텀 신호 발생! ${previousRSI} → ${currentRSI}`,
-        );
-        this.emitIndividualSignal('rsi_bearish_50', {
-          symbol,
-          timeframe,
-          signalType: 'bearish_50',
-          currentRSI,
-          confidence: 60,
-          currentPrice,
-        });
-      }
-    } catch (error) {
-      console.error(`❌ [RSI Signals] RSI 신호 체크 실패: ${symbol}`, error);
-    }
-  }
-
-  /**
-   * 📊 이동평균선 돌파 신호 체크
-   */
-  private async checkMABreakoutSignals(
-    symbol: string,
-    timeframe: TimeFrame,
-    candles: any[],
-    currentPrice: number,
-  ): Promise<void> {
-    try {
-      // [임계값 대폭 완화] MA5, MA10 체크로 신호 빈도 극대화
-      const maPeriods = [5, 10];
-
-      for (const period of maPeriods) {
-        const maData = this.technicalIndicatorService.calculateSMA(
-          candles,
-          period,
-        );
-        if (maData.length < 2) continue;
-
-        const currentMA = maData[maData.length - 1].value;
-        const previousMA = maData[maData.length - 2].value;
-        const previousPrice = candles[candles.length - 2]?.close;
-
-        if (!previousPrice) continue;
-
-        // 상향 돌파
-        if (currentPrice > currentMA && previousPrice <= previousMA) {
-          this.emitIndividualSignal('ma_breakout_up', {
-            symbol,
-            timeframe,
-            maPeriod: period,
-            currentPrice,
-            maValue: currentMA,
-            signalType: 'breakout_up',
-            confidence: period === 20 ? 65 : 70, // MA50이 더 신뢰도 높음
-          });
-        }
-
-        // 하향 이탈
-        if (currentPrice < currentMA && previousPrice >= previousMA) {
-          this.emitIndividualSignal('ma_breakout_down', {
-            symbol,
-            timeframe,
-            maPeriod: period,
-            currentPrice,
-            maValue: currentMA,
-            signalType: 'breakout_down',
-            confidence: period === 20 ? 65 : 70,
-          });
-        }
-      }
-    } catch (error) {
-      console.error(`❌ [MA Signals] MA 돌파 신호 체크 실패: ${symbol}`, error);
-    }
-  }
-
-  /**
-   * 📊 MACD 신호 체크
-   */
-  private async checkMACDSignals(
-    symbol: string,
-    timeframe: TimeFrame,
-    candles: any[],
-    currentPrice: number,
-  ): Promise<void> {
-    try {
-      const macdData = this.technicalIndicatorService.calculateMACD(
-        candles,
-        12,
-        26,
-        9,
-      );
-      if (macdData.length < 2) return;
-
-      const current = macdData[macdData.length - 1];
-      const previous = macdData[macdData.length - 2];
-
-      // [극단적 임계값 완화] 골든크로스 (MACD 라인이 시그널 라인 상향 돌파, histogram 0.001 이상)
-      if (
-        current.macdLine > current.signalLine &&
-        previous.macdLine <= previous.signalLine &&
-        Math.abs(current.histogram) > 0.001
-      ) {
-        this.emitIndividualSignal('macd_golden_cross', {
-          symbol,
-          timeframe,
-          macdLine: current.macdLine,
-          signalLine: current.signalLine,
-          histogram: current.histogram,
-          signalType: 'golden_cross',
-          confidence: 70,
-        });
-      }
-
-      // [극단적 임계값 완화] 데드크로스 (MACD 라인이 시그널 라인 하향 이탈, histogram 0.001 이상)
-      if (
-        current.macdLine < current.signalLine &&
-        previous.macdLine >= previous.signalLine &&
-        Math.abs(current.histogram) > 0.001
-      ) {
-        this.emitIndividualSignal('macd_dead_cross', {
-          symbol,
-          timeframe,
-          macdLine: current.macdLine,
-          signalLine: current.signalLine,
-          histogram: current.histogram,
-          signalType: 'dead_cross',
-          confidence: 70,
-        });
-      }
-    } catch (error) {
-      console.error(`❌ [MACD Signals] MACD 신호 체크 실패: ${symbol}`, error);
-    }
-  }
-
-  /**
-   * 📊 볼린저 밴드 신호 체크
-   */
-  private async checkBollingerSignals(
-    symbol: string,
-    timeframe: TimeFrame,
-    candles: any[],
-    currentPrice: number,
-  ): Promise<void> {
-    try {
-      const bollingerData =
-        this.technicalIndicatorService.calculateBollingerBands(candles, 20, 2);
-      if (bollingerData.length < 2) return;
-
-      const current = bollingerData[bollingerData.length - 1];
-      const previous = bollingerData[bollingerData.length - 2];
-      const previousPrice = candles[candles.length - 2]?.close;
-
-      if (!previousPrice) return;
-
-      // [임계값 대폭 완화] 상단 밴드 근접(98%) 터치/돌파
-      if (
-        currentPrice >= current.upper * 0.98 &&
-        previousPrice < previous.upper * 0.98
-      ) {
-        const signalType =
-          currentPrice > current.upper ? 'break_upper' : 'touch_upper';
-        this.emitIndividualSignal('bollinger_upper', {
-          symbol,
-          timeframe,
-          currentPrice,
-          upperBand: current.upper,
-          lowerBand: current.lower,
-          middleBand: current.middle,
-          signalType,
-          confidence: signalType === 'break_upper' ? 75 : 65,
-        });
-      }
-
-      // [임계값 대폭 완화] 하단 밴드 근접(102%) 터치/이탈
-      if (
-        currentPrice <= current.lower * 1.02 &&
-        previousPrice > previous.lower * 1.02
-      ) {
-        const signalType =
-          currentPrice < current.lower ? 'break_lower' : 'touch_lower';
-        this.emitIndividualSignal('bollinger_lower', {
-          symbol,
-          timeframe,
-          currentPrice,
-          upperBand: current.upper,
-          lowerBand: current.lower,
-          middleBand: current.middle,
-          signalType,
-          confidence: signalType === 'break_lower' ? 75 : 65,
-        });
-      }
-    } catch (error) {
-      console.error(
-        `❌ [Bollinger Signals] 볼린저 신호 체크 실패: ${symbol}`,
-        error,
-      );
-    }
-  }
-
-  /**
-   * 📊 거래량 신호 체크
-   */
-  private async checkVolumeSignals(
-    symbol: string,
-    timeframe: TimeFrame,
-    candles: any[],
-  ): Promise<void> {
-    try {
-      console.log(
-        `📊 [VolumeCheck] 거래량 분석 시작: ${symbol}, 캔들 개수: ${candles.length}`,
-      );
-
-      const volumeData = this.technicalIndicatorService.calculateVolumeAnalysis(
-        candles,
-        20,
-      );
-
-      console.log(
-        `📊 [VolumeCheck] 거래량 분석 데이터 길이: ${volumeData.length}`,
-      );
-      if (volumeData.length < 1) {
-        console.log(`⚠️ [VolumeCheck] 거래량 분석 데이터 부족: ${symbol}`);
-        return;
-      }
-
-      const current = volumeData[volumeData.length - 1];
-      console.log(
-        `📊 [VolumeCheck] 현재 거래량 비율: ${current.volumeRatio}, 현재: ${current.currentVolume}, 평균: ${current.volumeMA}`,
-      );
-
-      // [극단적 임계값 완화] 거래량 급증 (평균 대비 1.01배 이상) - 거의 항상 트리거
-      if (current.volumeRatio >= 1.01) {
-        console.log(
-          `🚀 [VolumeCheck] 거래량 급증 신호 발생! 비율: ${current.volumeRatio}`,
-        );
-        this.emitIndividualSignal('volume_surge', {
-          symbol,
-          timeframe,
-          currentVolume: current.currentVolume,
-          avgVolume: current.volumeMA,
-          volumeRatio: current.volumeRatio,
-          signalType: 'volume_surge',
-          confidence: Math.min(85, 50 + (current.volumeRatio - 1.01) * 10), // 거래량 비율에 따라 신뢰도 조정
-        });
-      } else {
-        console.log(
-          `📊 [VolumeCheck] 거래량 급증 조건 미충족: ${current.volumeRatio} < 1.1`,
-        );
-      }
-
-      // [극단적 임계값 완화] 거래량 감소 (평균 대비 0.99배 이하) - 거의 항상 트리거
-      if (current.volumeRatio <= 0.99) {
-        console.log(
-          `📉 [VolumeCheck] 거래량 감소 신호 발생! 비율: ${current.volumeRatio}`,
-        );
-        this.emitIndividualSignal('volume_dry_up', {
-          symbol,
-          timeframe,
-          currentVolume: current.currentVolume,
-          avgVolume: current.volumeMA,
-          volumeRatio: current.volumeRatio,
-          signalType: 'volume_dry_up',
-          confidence: Math.max(40, 80 - (0.99 - current.volumeRatio) * 20), // 거래량 비율에 따라 신뢰도 조정
-        });
-      } else {
-        console.log(
-          `📊 [VolumeCheck] 거래량 감소 조건 미충족: ${current.volumeRatio} > 0.99`,
-        );
-      }
-    } catch (error) {
-      console.error(
-        `❌ [Volume Signals] 거래량 신호 체크 실패: ${symbol}`,
-        error,
-      );
-    }
-  }
-
-  /**
-   * 📡 개별 신호 이벤트 발송
-   */
-  private emitIndividualSignal(signalType: string, data: any): void {
-    try {
-      const event = {
-        type: 'individual_signal',
-        signalType,
-        timestamp: new Date(),
-        ...data,
-      };
-
-      // 개별 신호 이벤트 발송 (notification 도메인에서 수신)
-      this.eventEmitter.emit('individual.signal', event);
-
-      console.log(
-        `📡 [IndividualSignal] ${signalType} 신호 발송: ${data.symbol} (신뢰도: ${data.confidence}%)`,
-      );
-    } catch (error) {
-      console.error(
-        `❌ [IndividualSignal] 개별 신호 발송 실패: ${signalType}`,
-        error,
-      );
-    }
-  }
 
   /**
    * 📊 캔들 데이터 조회 헬퍼
@@ -1091,7 +638,81 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
   }
 
   /**
-   * 📤 이벤트 발송기 노출 (notification 도메인에서 이벤트 수신용)
+   * � 15분봉 종합 리포트 생성 및 전송
+   *
+   * 기존의 개별 임계값 돌파 알림 대신, 모든 지표의 현재 상태를 종합한
+   * 리포트를 생성하여 텔레그램으로 전송합니다.
+   *
+   * @param symbol 심볼 (예: BTCUSDT)
+   * @param candleData 최신 캔들 데이터
+   */
+  private async generateAndSendComprehensiveReport(
+    symbol: string,
+    candleData: any,
+  ): Promise<void> {
+    try {
+      console.log(`📊 [ComprehensiveReport] 종합 리포트 생성 시작: ${symbol}`);
+
+      // 필요한 캔들 데이터 조회 (200개 캔들로 충분한 지표 계산)
+      const candles = await this.getCandleData(symbol, 200);
+      if (candles.length < 50) {
+        console.log(
+          `⚠️ [ComprehensiveReport] 충분한 캔들 데이터 없음: ${symbol} (${candles.length}개)`,
+        );
+        return;
+      }
+
+      // USD-KRW 환율 (실제로는 환율 API에서 가져와야 하지만, 임시로 고정값 사용)
+      const usdToKrwRate = 1330; // 추후 환율 API 연동 필요
+
+      // 종합 리포트 생성
+      const comprehensiveReport =
+        this.technicalIndicatorService.generateComprehensiveReport(
+          candles,
+          usdToKrwRate,
+        );
+
+      // 알림 요청 이벤트 발송 (notification 도메인에서 텔레그램 전송)
+      this.eventEmitter.emit(MARKET_DATA_EVENTS.NOTIFICATION_REQUEST, {
+        type: 'TELEGRAM' as const,
+        symbol,
+        priority: 'MEDIUM' as const,
+        content: {
+          title: `🔔 ${symbol} 15분 종합 분석`,
+          message: comprehensiveReport,
+          data: {
+            currentPrice: candleData.close,
+            high: candleData.high,
+            low: candleData.low,
+            volume: candleData.volume,
+          },
+        },
+        requestedAt: new Date(),
+      });
+
+      console.log(`✅ [ComprehensiveReport] 종합 리포트 전송 완료: ${symbol}`);
+    } catch (error) {
+      console.error(
+        `❌ [ComprehensiveReport] 종합 리포트 생성 실패: ${symbol}`,
+        error,
+      );
+
+      // 에러 발생 시 간단한 알림 전송
+      this.eventEmitter.emit(MARKET_DATA_EVENTS.NOTIFICATION_REQUEST, {
+        type: 'TELEGRAM' as const,
+        symbol,
+        priority: 'LOW' as const,
+        content: {
+          title: `❌ ${symbol} 분석 오류`,
+          message: `${symbol} 종합 분석 리포트 생성 중 오류가 발생했습니다.`,
+        },
+        requestedAt: new Date(),
+      });
+    }
+  }
+
+  /**
+   * �📤 이벤트 발송기 노출 (notification 도메인에서 이벤트 수신용)
    */
   getEventEmitter(): EventEmitter {
     return this.eventEmitter;
