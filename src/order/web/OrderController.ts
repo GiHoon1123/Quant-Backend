@@ -7,8 +7,8 @@ import { MarketBuyRequest } from '../dto/request/MarketBuyRequest';
 import { MarketSellRequest } from '../dto/request/MarketSellRequest';
 import { OrderService } from '../service/OrderService';
 
-@ApiTags('주문')
-@Controller('order')
+@ApiTags('💰 Trading - Orders')
+@Controller('api/v1/trading/orders')
 export class OrderController {
   constructor(private readonly orderService: OrderService) {}
 

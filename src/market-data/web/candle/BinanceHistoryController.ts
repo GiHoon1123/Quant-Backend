@@ -20,8 +20,8 @@ import { BinanceHistoryDataService } from '../../service/candle/BinanceHistoryDa
  * - 데이터 통계 조회
  * - 수집 진행 상황 모니터링
  */
-@Controller('candles/15m/history')
-@ApiTags('히스토리컬 데이터 수집')
+@Controller('api/v1/market/history/15m')
+@ApiTags('📈 Market - Historical Data')
 export class BinanceHistoryController {
   constructor(private readonly historyDataService: BinanceHistoryDataService) {}
 

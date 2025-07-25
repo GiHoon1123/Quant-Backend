@@ -1,127 +1,39 @@
 import { Body, Controller, Post } from '@nestjs/common';
-import {
-  ApiOperation,
-  ApiProperty,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
-import { IsEnum, IsNumber, IsOptional } from 'class-validator';
-import { TradingConfigService } from '../config/TradingConfig';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { TradingConfigService } from '../../common/config/TradingConfig';
 import {
   CalculatedStopLossTakeProfit,
   StopLossConfig,
   StopLossTakeProfitType,
   TakeProfitConfig,
-} from '../types/StopLossTakeProfit';
-import { StopLossTakeProfitCalculator } from '../utils/StopLossTakeProfitCalculator';
+} from '../../common/types/StopLossTakeProfit';
+import { StopLossTakeProfitCalculator } from '../../common/utils/StopLossTakeProfitCalculator';
 
 /**
- * 현물 계산 요청 DTO
- */
-class SpotCalculationRequest {
-  @ApiProperty({
-    example: 50000,
-    description: '진입가 (USDT 기준)',
-  })
-  @IsNumber()
-  entryPrice: number;
-
-  @ApiProperty({
-    example: { type: 'PERCENT', value: 0.05 },
-    description: '손절 설정',
-  })
-  stopLoss: StopLossConfig;
-
-  @ApiProperty({
-    example: { type: 'PERCENT', value: 0.1 },
-    description: '익절 설정',
-  })
-  takeProfit: TakeProfitConfig;
-}
-
-/**
- * 선물 계산 요청 DTO
- */
-class FuturesCalculationRequest {
-  @ApiProperty({
-    example: 50000,
-    description: '진입가 (USDT 기준)',
-  })
-  @IsNumber()
-  entryPrice: number;
-
-  @ApiProperty({
-    example: 'LONG',
-    enum: ['LONG', 'SHORT'],
-    description: '포지션 방향',
-  })
-  @IsEnum(['LONG', 'SHORT'])
-  positionSide: 'LONG' | 'SHORT';
-
-  @ApiProperty({
-    example: { type: 'PERCENT', value: 0.02 },
-    description: '손절 설정',
-  })
-  stopLoss: StopLossConfig;
-
-  @ApiProperty({
-    example: { type: 'PERCENT', value: 0.04 },
-    description: '익절 설정',
-  })
-  takeProfit: TakeProfitConfig;
-}
-
-/**
- * 자동매매 계산 요청 DTO
- */
-class AutoTradingCalculationRequest {
-  @ApiProperty({
-    example: 50000,
-    description: '진입가 (USDT 기준)',
-  })
-  @IsNumber()
-  entryPrice: number;
-
-  @ApiProperty({
-    example: 'SPOT',
-    enum: ['SPOT', 'FUTURES'],
-    description: '거래 타입',
-  })
-  @IsEnum(['SPOT', 'FUTURES'])
-  tradingType: 'SPOT' | 'FUTURES';
-
-  @ApiProperty({
-    example: 'LONG',
-    enum: ['LONG', 'SHORT'],
-    description: '포지션 방향 (선물 거래 시 필수)',
-    required: false,
-  })
-  @IsOptional()
-  @IsEnum(['LONG', 'SHORT'])
-  positionSide?: 'LONG' | 'SHORT';
-}
-
-/**
- * 손절/익절 기능 테스트용 컨트롤러
+ * 통합 테스트 컨트롤러
  *
- * @description 손절/익절 계산 로직과 환경변수 설정을 테스트하기 위한 API들을 제공합니다.
- * 실제 거래는 하지 않고 계산 결과만 반환합니다.
+ * @description 개발/테스트 환경에서 사용하는 모든 테스트 API를 통합 관리합니다.
+ * - 손절/익절 계산 테스트
+ * - 환경변수 설정 테스트
+ * - 자동매매 기본값 테스트
+ * - 시스템 헬스체크
  */
-@ApiTags('손절/익절 테스트')
-@Controller('api/test/stop-loss-take-profit')
-export class StopLossTakeProfitTestController {
+@ApiTags('🧪 Integrated Tests')
+@Controller('api/v1/test')
+export class IntegratedTestController {
   constructor(
     private readonly calculator: StopLossTakeProfitCalculator,
     private readonly tradingConfig: TradingConfigService,
   ) {}
 
+  // ==========================================
+  // 📊 손절/익절 계산 테스트
+  // ==========================================
+
   /**
    * 현물 거래 손절/익절 계산 테스트
-   *
-   * @description 현물 거래에서 손절/익절 가격을 계산하는 로직을 테스트합니다.
-   * 실제 주문은 하지 않고 계산 결과만 반환합니다.
    */
-  @Post('spot/calculate')
+  @Post('spot/stop-loss-take-profit')
   @ApiOperation({
     summary: '현물 손절/익절 계산 테스트',
     description: '현물 거래에서 진입가 기준으로 손절/익절 가격을 계산합니다.',
@@ -187,11 +99,8 @@ export class StopLossTakeProfitTestController {
 
   /**
    * 선물 거래 손절/익절 계산 테스트
-   *
-   * @description 선물 거래에서 포지션 방향에 따른 손절/익절 가격을 계산하는 로직을 테스트합니다.
-   * 실제 포지션 진입은 하지 않고 계산 결과만 반환합니다.
    */
-  @Post('futures/calculate')
+  @Post('futures/stop-loss-take-profit')
   @ApiOperation({
     summary: '선물 손절/익절 계산 테스트',
     description:
@@ -259,11 +168,12 @@ export class StopLossTakeProfitTestController {
     };
   }
 
+  // ==========================================
+  // ⚙️ 환경변수 설정 테스트
+  // ==========================================
+
   /**
    * 환경변수 기본값 조회 테스트
-   *
-   * @description 자동매매/전략에서 사용할 기본 손절/익절 비율을 조회합니다.
-   * 환경변수 설정이 올바른지 확인할 수 있습니다.
    */
   @Post('config/defaults')
   @ApiOperation({
@@ -295,8 +205,6 @@ export class StopLossTakeProfitTestController {
 
   /**
    * 자동매매용 기본값 적용 테스트
-   *
-   * @description 자동매매/전략에서 환경변수 기본값을 사용하여 손절/익절을 계산하는 로직을 테스트합니다.
    */
   @Post('auto-trading/calculate')
   @ApiOperation({
@@ -365,5 +273,59 @@ export class StopLossTakeProfitTestController {
       stopLossPrice: result.stopLossPrice,
       takeProfitPrice: result.takeProfitPrice,
     };
+  }
+
+  // ==========================================
+  // 🏥 헬스체크 및 시스템 상태
+  // ==========================================
+
+  /**
+   * 시스템 헬스체크
+   */
+  @Post('health')
+  @ApiOperation({
+    summary: '시스템 헬스체크',
+    description: '손절/익절 관련 서비스들의 상태를 확인합니다.',
+  })
+  async healthCheck() {
+    try {
+      // 환경변수 로드 테스트
+      const spotConfig = this.tradingConfig.getSpotDefaultConfig();
+      const futuresConfig = this.tradingConfig.getFuturesDefaultConfig();
+
+      // 계산기 테스트
+      const testResult = this.calculator.calculateSpotStopLossTakeProfit(
+        50000,
+        { type: StopLossTakeProfitType.PERCENT, value: 0.05 },
+        { type: StopLossTakeProfitType.PERCENT, value: 0.1 },
+      );
+
+      return {
+        success: true,
+        message: '모든 서비스가 정상 작동 중입니다.',
+        services: {
+          tradingConfig: {
+            status: 'healthy',
+            spot: spotConfig,
+            futures: futuresConfig,
+          },
+          calculator: {
+            status: 'healthy',
+            testResult: {
+              stopLossPrice: testResult.stopLossPrice,
+              takeProfitPrice: testResult.takeProfitPrice,
+            },
+          },
+        },
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: '서비스 상태 확인 중 오류가 발생했습니다.',
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      };
+    }
   }
 }

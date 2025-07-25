@@ -15,7 +15,7 @@ import { TestService } from '../service/TestService';
  * 2. 기술적 분석 실행 → analysis.completed 이벤트
  * 3. 알림 발송 (텔레그램)
  */
-@Controller('test')
+@Controller('api/v1/test/legacy')
 @ApiTags('🧪 테스트')
 export class TestController {
   constructor(private readonly testService: TestService) {}

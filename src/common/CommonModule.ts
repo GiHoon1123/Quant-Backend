@@ -2,7 +2,6 @@ import { Global, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TradingConfigService } from './config/TradingConfig';
 import { StopLossTakeProfitCalculator } from './utils/StopLossTakeProfitCalculator';
-import { StopLossTakeProfitTestController } from './web/StopLossTakeProfitTestController';
 
 /**
  * 공통 모듈
@@ -13,9 +12,7 @@ import { StopLossTakeProfitTestController } from './web/StopLossTakeProfitTestCo
 @Global()
 @Module({
   imports: [ConfigModule],
-  controllers: [
-    StopLossTakeProfitTestController, // 손절/익절 테스트용 API
-  ],
+  controllers: [],
   providers: [
     /**
      * 거래 설정 서비스

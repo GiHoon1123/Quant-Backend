@@ -3,6 +3,7 @@ import { MarketDataModule } from '../market-data/MarketDataModule';
 import { NotificationModule } from '../notification/NotificationModule';
 import { TechnicalAnalysisModule } from '../technical-analysis/TechnicalAnalysisModule';
 import { TestService } from './service/TestService';
+import { IntegratedTestController } from './web/IntegratedTestController';
 import { TestController } from './web/TestController';
 
 /**
@@ -22,7 +23,10 @@ import { TestController } from './web/TestController';
  */
 @Module({
   imports: [MarketDataModule, TechnicalAnalysisModule, NotificationModule],
-  controllers: [TestController],
+  controllers: [
+    TestController, // 기존 레거시 테스트
+    IntegratedTestController, // 통합 테스트 (손절/익절 등)
+  ],
   providers: [TestService],
   exports: [TestService],
 })

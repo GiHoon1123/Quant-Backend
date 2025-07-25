@@ -30,8 +30,8 @@ import { FuturesService } from '../service/FuturesService';
  *
  * 📚 API 문서: /api-docs 에서 상세한 API 문서를 확인할 수 있습니다
  */
-@ApiTags('선물거래 🚀')
-@Controller('futures')
+@ApiTags('🚀 Trading - Positions')
+@Controller('api/v1/trading/positions')
 export class FuturesController {
   constructor(private readonly futuresService: FuturesService) {}
 

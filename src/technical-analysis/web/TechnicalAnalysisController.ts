@@ -57,7 +57,7 @@ import { TimeFrame } from '../types/TechnicalAnalysisTypes';
  * - 백테스팅 및 연구용 데이터 제공
  */
 @ApiTags('기술적 분석')
-@Controller('technical-analysis')
+@Controller('api/v1/analysis/technical')
 export class TechnicalAnalysisController {
   constructor(
     private readonly technicalAnalysisService: TechnicalAnalysisService,

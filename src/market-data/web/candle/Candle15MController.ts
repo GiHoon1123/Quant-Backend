@@ -21,8 +21,8 @@ import { Candle15MService } from '../../service/candle/Candle15MService';
  * - 통계 정보 제공
  * - 서비스 상태 모니터링
  */
-@Controller('api/candle15m')
-@ApiTags('15분봉 캔들')
+@Controller('api/v1/market/candles/15m')
+@ApiTags('📊 Market - Candles (15m)')
 export class Candle15MController {
   constructor(
     private readonly candle15MService: Candle15MService,

@@ -3,8 +3,8 @@ import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CandleData } from '../../market-data/infra/persistence/entity/Candle15MEntity';
 import { Candle15MService } from '../../market-data/service/candle/Candle15MService';
 
-@ApiTags('테스트')
-@Controller('test/candle15m')
+@ApiTags('🧪 Test - Candles')
+@Controller('api/v1/test/candles/15m')
 export class TestCandleController {
   constructor(private readonly candle15MService: Candle15MService) {}
 
