@@ -4,6 +4,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BinanceModule } from './common/binance/BinanceModule';
+import { CommonModule } from './common/CommonModule';
 import { typeOrmConfig } from './common/config/DatabaseConfig';
 import { FuturesModule } from './futures/FuturesModule';
 import { MarketDataModule } from './market-data/MarketDataModule';
@@ -49,6 +50,7 @@ import { TechnicalAnalysisEventService } from './technical-analysis/service/Tech
     ScheduleModule.forRoot(),
 
     // 🏗️ 도메인 모듈들
+    CommonModule, // 공통 유틸리티 모듈 (글로벌)
     BinanceModule, // 바이낸스 공통 모듈 (글로벌)
     MarketDataModule, // 📊 데이터 수집/저장
     TechnicalAnalysisModule, // 🔍 기술적 분석

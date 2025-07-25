@@ -657,33 +657,140 @@ export class TelegramClient {
       return '🔴';
     };
 
-    // 신호별 상세 의미 해설
-    let signalMeaning = '';
-    if (result.signal === 'BUY') {
-      signalMeaning =
-        '💡 <b>매수 신호</b>: 상승 모멘텀이 감지되어 매수 타이밍입니다. 기술적 지표들이 상승 추세를 지지하고 있습니다.';
-    } else if (result.signal === 'SELL') {
-      signalMeaning =
-        '⚠️ <b>매도 신호</b>: 하락 위험이 감지되어 매도를 고려해야 합니다. 기술적 지표들이 조정 가능성을 시사하고 있습니다.';
+    // 현재가를 숫자로 변환
+    const currentPrice = parseFloat(safeToFixed(result.price));
+    const priceKRW = Math.round(currentPrice * 1330); // 대략적인 원화 환산 (1달러 = 1330원)
+
+    // 15분 변화율 계산 (이전 가격이 있다면)
+    const prevPrice = result.indicators.prevPrice || currentPrice;
+    const priceChange = currentPrice - prevPrice;
+    const priceChangePercent = (priceChange / prevPrice) * 100;
+    const changeEmoji = priceChange >= 0 ? '⬆️' : '⬇️';
+    const changeSign = priceChange >= 0 ? '+' : '';
+
+    // 이동평균선 현재가 대비 계산
+    const sma5 = parseFloat(safeToFixed(result.indicators.SMA5));
+    const sma20 = parseFloat(safeToFixed(result.indicators.SMA20));
+    const sma50 =
+      parseFloat(safeToFixed(result.indicators.SMA50)) || currentPrice;
+    const sma200 =
+      parseFloat(safeToFixed(result.indicators.SMA200)) || currentPrice;
+    const ema12 =
+      parseFloat(safeToFixed(result.indicators.EMA12)) || currentPrice;
+    const ema26 =
+      parseFloat(safeToFixed(result.indicators.EMA26)) || currentPrice;
+    const vwap =
+      parseFloat(safeToFixed(result.indicators.VWAP)) || currentPrice;
+
+    // 현재가 대비 퍼센트 계산
+    const calcPercent = (value: number) => {
+      if (isNaN(value) || value === 0) return 'N/A';
+      const percent = ((value - currentPrice) / currentPrice) * 100;
+      const emoji = percent >= 0 ? '⬆️' : '⬇️';
+      return `${changeSign}${percent.toFixed(2)}% ${emoji}`;
+    };
+
+    // RSI 분석
+    const rsi = parseFloat(safeToFixed(result.indicators.RSI)) || 50;
+    let rsiStatus = '';
+    let rsiWarning = '';
+    if (rsi >= 70) {
+      rsiStatus = '⚠️ 과매수 근접';
+      rsiWarning = `, 70까지 ${(70 - rsi).toFixed(1)}`;
+    } else if (rsi <= 30) {
+      rsiStatus = '🟢 과매도 구간';
+      rsiWarning = `, 30까지 ${(rsi - 30).toFixed(1)}`;
+    } else if (rsi >= 60) {
+      rsiStatus = '📈 강세 구간';
+    } else if (rsi <= 40) {
+      rsiStatus = '📉 약세 구간';
     } else {
-      signalMeaning =
-        '📊 <b>중립 신호</b>: 현재 명확한 방향성이 없는 상태입니다. 추가적인 신호를 기다리거나 관망하는 것이 좋습니다.';
+      rsiStatus = '📊 중립 구간';
     }
 
+    // MACD 분석
+    const macdLine = parseFloat(safeToFixed(result.indicators.MACD)) || 0;
+    const macdSignal =
+      parseFloat(safeToFixed(result.indicators.MACDSignal)) || 0;
+    const macdHist = parseFloat(safeToFixed(result.indicators.MACDHist)) || 0;
+    const macdTrend =
+      macdLine > macdSignal
+        ? '📈 골든크로스 유지 (강세)'
+        : '📉 데드크로스 (약세)';
+
+    // 볼린저 밴드 분석
+    const bbUpper =
+      parseFloat(safeToFixed(result.indicators.BBUpper)) || currentPrice * 1.02;
+    const bbMiddle =
+      parseFloat(safeToFixed(result.indicators.BBMiddle)) || currentPrice;
+    const bbLower =
+      parseFloat(safeToFixed(result.indicators.BBLower)) || currentPrice * 0.98;
+    const bbPosition = ((currentPrice - bbLower) / (bbUpper - bbLower)) * 100;
+    let bbStatus = '';
+    if (bbPosition >= 80) {
+      bbStatus = '상단 근접';
+    } else if (bbPosition <= 20) {
+      bbStatus = '하단 근접';
+    } else {
+      bbStatus = '중간 위치';
+    }
+
+    // 거래량 분석
+    const currentVolume =
+      parseFloat(safeToFixed(result.indicators.Volume)) || 0;
+    const avgVolume = parseFloat(safeToFixed(result.indicators.AvgVolume)) || 1;
+    const volumeRatio = currentVolume / avgVolume;
+    const volumeEmoji =
+      volumeRatio >= 2 ? '🔥' : volumeRatio >= 1.5 ? '📈' : '📊';
+    const obv = parseFloat(safeToFixed(result.indicators.OBV)) || 0;
+    const obvTrend = obv > 0 ? '상승 지속' : '하락 지속';
+
+    // 종합 판단
+    let shortTerm = '중립';
+    let mediumTerm = '중립';
+    let longTerm = '중립';
+
+    if (rsi >= 70) shortTerm = '중립 (RSI 과매수 주의)';
+    else if (result.signal === 'BUY') shortTerm = '강세';
+    else if (result.signal === 'SELL') shortTerm = '약세';
+
+    if (macdLine > macdSignal) mediumTerm = '강세 (MACD 골든크로스)';
+    else mediumTerm = '약세 (MACD 데드크로스)';
+
+    if (currentPrice > sma200) longTerm = '상승 (200일선 상회)';
+    else longTerm = '하락 (200일선 하회)';
+
     const message =
-      `${emoji} <b>${name}(${symbol}) 15분봉 종합 분석 결과</b>\n\n` +
-      `📊 시간대: 15분봉\n` +
-      `💵 현재가: ${formatPrice(result.price)}\n` +
-      `${signalColor} 시그널: <b>${signalText}</b> ${getConfidenceEmoji(confidence)} (신뢰도: ${confidence}%)\n\n` +
-      `📈 <b>이동평균선 분석</b>:\n` +
-      `• SMA5 (단기): ${formatPrice(result.indicators.SMA5)}\n` +
-      `• SMA10 (중기): ${formatPrice(result.indicators.SMA10)}\n` +
-      `• SMA20 (장기): ${formatPrice(result.indicators.SMA20)}\n\n` +
-      `📊 <b>거래량 분석</b>:\n` +
-      `• 현재 거래량: ${formatVolume(result.indicators.Volume)}\n` +
-      `• 평균 거래량: ${formatVolume(result.indicators.AvgVolume)}\n` +
-      `• 거래량 비율: <b>${safeToFixed(result.indicators.VolumeRatio)}배</b>\n\n` +
-      `${signalMeaning}\n\n` +
+      `🔔 <b>${name} 15분 분석 리포트</b> (${result.timestamp.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })})\n\n` +
+      `💰 <b>가격 정보</b>\n` +
+      `BTC/USD: $${formatPrice(result.price)}\n` +
+      `원화: ₩${priceKRW.toLocaleString()}\n` +
+      `15분 변화: ${changeSign}${priceChangePercent.toFixed(2)}% (${changeSign}$${Math.abs(priceChange).toFixed(2)}) ${changeEmoji}\n\n` +
+      `📈 <b>이동평균선 (현재가 대비)</b>\n` +
+      `• SMA5: $${formatPrice(sma5)} (${calcPercent(sma5)})\n` +
+      `• SMA20: $${formatPrice(sma20)} (${calcPercent(sma20)})\n` +
+      `• SMA50: $${formatPrice(sma50)} (${calcPercent(sma50)})\n` +
+      `• SMA200: $${formatPrice(sma200)} (${calcPercent(sma200)})\n` +
+      `• EMA12: $${formatPrice(ema12)} (${calcPercent(ema12)})\n` +
+      `• EMA26: $${formatPrice(ema26)} (${calcPercent(ema26)})\n` +
+      `• VWAP: $${formatPrice(vwap)} (${calcPercent(vwap)})\n\n` +
+      `📊 <b>기술 지표</b>\n` +
+      `• RSI(14): ${rsi.toFixed(1)} (${rsiStatus}${rsiWarning})\n` +
+      `• MACD: ${changeSign}${macdLine.toFixed(1)} / Signal: ${changeSign}${macdSignal.toFixed(1)} / Hist: ${changeSign}${macdHist.toFixed(1)}\n` +
+      `→ ${macdTrend}\n\n` +
+      `🎯 <b>볼린저 밴드</b>\n` +
+      `• 상단: $${formatPrice(bbUpper)} (${calcPercent(bbUpper)})\n` +
+      `• 중심: $${formatPrice(bbMiddle)} (${calcPercent(bbMiddle)})\n` +
+      `• 하단: $${formatPrice(bbLower)} (${calcPercent(bbLower)})\n` +
+      `• 현재 위치: ${bbPosition.toFixed(0)}% (${bbStatus})\n\n` +
+      `📊 <b>거래량 분석</b>\n` +
+      `• 현재: ${formatVolume(currentVolume)} BTC\n` +
+      `• 평균 대비: +${((volumeRatio - 1) * 100).toFixed(0)}% ${volumeEmoji}\n` +
+      `• OBV: ${changeSign}${Math.abs(obv).toLocaleString()} (${obvTrend})\n\n` +
+      `💡 <b>종합 판단</b>\n` +
+      `단기: ${shortTerm}\n` +
+      `중기: ${mediumTerm}\n` +
+      `장기: ${longTerm}\n\n` +
       `🕒 분석 시점: ${this.formatTimeWithKST(result.timestamp)}`;
 
     await this.sendBasic(symbol, message);
