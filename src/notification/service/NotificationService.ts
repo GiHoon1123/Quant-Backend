@@ -822,6 +822,7 @@ export class NotificationService implements OnModuleInit {
           Volume: analysisData.indicators?.Volume || 'N/A',
           AvgVolume: analysisData.indicators?.AvgVolume || 'N/A',
           VolumeRatio: analysisData.indicators?.VolumeRatio || 'N/A',
+          exchangeRate: analysisData.indicators?.exchangeRate, // 환율 정보 추가
         },
         price: analysisData.currentPrice || analysisData.price || 0,
         timestamp: data.analyzedAt || new Date(),

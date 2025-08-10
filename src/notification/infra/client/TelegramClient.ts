@@ -659,7 +659,12 @@ export class TelegramClient {
 
     // 현재가를 숫자로 변환
     const currentPrice = parseFloat(safeToFixed(result.price));
-    const priceKRW = Math.round(currentPrice * 1330); // 대략적인 원화 환산 (1달러 = 1330원)
+    // 환율 정보 확인
+    const exchangeRate = result.indicators.exchangeRate;
+    const hasExchangeRate = exchangeRate && exchangeRate > 0;
+    const priceKRW = hasExchangeRate
+      ? Math.round(currentPrice * exchangeRate)
+      : 0;
 
     // 15분 변화율 계산 (이전 가격이 있다면)
     const prevPrice = result.indicators.prevPrice || currentPrice;
@@ -686,8 +691,9 @@ export class TelegramClient {
     const calcPercent = (value: number) => {
       if (isNaN(value) || value === 0) return 'N/A';
       const percent = ((value - currentPrice) / currentPrice) * 100;
+      const sign = percent >= 0 ? '+' : '';
       const emoji = percent >= 0 ? '⬆️' : '⬇️';
-      return `${changeSign}${percent.toFixed(2)}% ${emoji}`;
+      return `${sign}${percent.toFixed(2)}% ${emoji}`;
     };
 
     // RSI 분석
@@ -763,8 +769,12 @@ export class TelegramClient {
     const message =
       `🔔 <b>${name} 15분 분석 리포트</b> (${result.timestamp.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })})\n\n` +
       `💰 <b>가격 정보</b>\n` +
-      `BTC/USD: $${formatPrice(result.price)}\n` +
-      `원화: ₩${priceKRW.toLocaleString()}\n` +
+      `BTC/USD: ${formatPrice(result.price)}\n` +
+      `${
+        hasExchangeRate
+          ? `원화: ₩${priceKRW.toLocaleString()} (환율: $1 = ₩${exchangeRate.toLocaleString()})\n`
+          : `원화: 환율 조회 불가로 표시할 수 없습니다\n`
+      }` +
       `15분 변화: ${changeSign}${priceChangePercent.toFixed(2)}% (${changeSign}$${Math.abs(priceChange).toFixed(2)}) ${changeEmoji}\n\n` +
       `📈 <b>이동평균선 (현재가 대비)</b>\n` +
       `• SMA5: $${formatPrice(sma5)} (${calcPercent(sma5)})\n` +

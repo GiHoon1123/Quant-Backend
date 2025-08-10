@@ -122,6 +122,15 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
         timeframe as TimeFrame,
       );
 
+      // USD-KRW 환율 가져오기 (실시간 API 사용)
+      let usdToKrwRate: number | undefined = undefined;
+      try {
+        usdToKrwRate = await this.exchangeRateService.getUSDKRWRate();
+      } catch (error) {
+        console.warn(`⚠️ [환율] 실시간 환율 로드 실패: ${error.message}`);
+        // 환율 조회 실패 시 undefined 유지 (원화 표시 생략)
+      }
+
       // 🔔 5. 분석 완료 이벤트 발송 (notification 도메인에서 수신)
       await this.emitAnalysisCompletedEvent(
         symbol,
@@ -132,6 +141,7 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
           practicalStrategies: practicalResults,
         },
         candleData,
+        usdToKrwRate,
       );
 
       console.log(
@@ -282,6 +292,7 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
     timeframe: string,
     analysisResult: any,
     candleData: any,
+    usdToKrwRate?: number,
   ): Promise<void> {
     try {
       // TechnicalAnalysisCompletedEvent 타입에 맞는 기본 이벤트
@@ -292,15 +303,17 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
           signal: analysisResult.overallSignal || 'HOLD',
           confidence:
             analysisResult.overallConfidence || analysisResult.confidence || 50,
-          indicators: analysisResult.indicators || {
-            SMA5: 'N/A',
-            SMA10: 'N/A',
-            SMA20: 'N/A',
-            RSI: 'N/A',
-            MACD: 'N/A',
-            Volume: 'N/A',
-            AvgVolume: 'N/A',
-            VolumeRatio: 'N/A',
+          indicators: {
+            ...analysisResult.indicators,
+            SMA5: analysisResult.indicators?.SMA5 || 'N/A',
+            SMA10: analysisResult.indicators?.SMA10 || 'N/A',
+            SMA20: analysisResult.indicators?.SMA20 || 'N/A',
+            RSI: analysisResult.indicators?.RSI || 'N/A',
+            MACD: analysisResult.indicators?.MACD || 'N/A',
+            Volume: analysisResult.indicators?.Volume || 'N/A',
+            AvgVolume: analysisResult.indicators?.AvgVolume || 'N/A',
+            VolumeRatio: analysisResult.indicators?.VolumeRatio || 'N/A',
+            exchangeRate: usdToKrwRate, // 환율 정보 추가
           },
           strategies: this.extractStrategyResults(analysisResult),
         },
