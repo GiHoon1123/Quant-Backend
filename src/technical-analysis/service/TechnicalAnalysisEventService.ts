@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { EventEmitter } from 'events';
+import { ExchangeRateService } from '../../common/service/ExchangeRateService';
 import { Candle15MRepository } from '../../market-data/infra/persistence/repository/Candle15MRepository';
 import {
   CandleSavedEvent,
@@ -41,6 +42,7 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
     private readonly advancedStrategyService: AdvancedStrategyService,
     private readonly practicalStrategyService: PracticalStrategyService,
     private readonly riskManagementService: RiskManagementService,
+    private readonly exchangeRateService: ExchangeRateService,
   ) {
     this.eventEmitter = new EventEmitter();
     console.log(
@@ -149,10 +151,6 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
       });
     }
   }
-
-  /**
-   * � 이동평균선 돌파 신호 체크
-   */
 
   /**
    * 📊 캔들 데이터 조회 헬퍼
@@ -638,7 +636,7 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
   }
 
   /**
-   * � 15분봉 종합 리포트 생성 및 전송
+   * 📊 15분봉 종합 리포트 생성 및 전송
    *
    * 기존의 개별 임계값 돌파 알림 대신, 모든 지표의 현재 상태를 종합한
    * 리포트를 생성하여 텔레그램으로 전송합니다.
@@ -662,14 +660,26 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
         return;
       }
 
-      // USD-KRW 환율 (실제로는 환율 API에서 가져와야 하지만, 임시로 고정값 사용)
-      const usdToKrwRate = 1330; // 추후 환율 API 연동 필요
+      // USD-KRW 환율 가져오기 (실시간 API 사용)
+      let usdToKrwRate: number | null = null;
+      try {
+        const rate = await this.exchangeRateService.getUSDKRWRate();
+        usdToKrwRate = rate;
+        console.log(
+          `💱 [환율] 실시간 API에서 로드: $1 = ₩${usdToKrwRate.toLocaleString()}`,
+        );
+      } catch (error) {
+        console.warn(
+          `⚠️ [환율] 실시간 환율 로드 실패, 원화 표시 생략: ${error.message}`,
+        );
+        // 환율 조회 실패 시 null 유지 (원화 표시 생략)
+      }
 
       // 종합 리포트 생성
       const comprehensiveReport =
         this.technicalIndicatorService.generateComprehensiveReport(
           candles,
-          usdToKrwRate,
+          usdToKrwRate || undefined,
         );
 
       // 알림 요청 이벤트 발송 (notification 도메인에서 텔레그램 전송)
@@ -685,6 +695,7 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
             high: candleData.high,
             low: candleData.low,
             volume: candleData.volume,
+            exchangeRate: usdToKrwRate,
           },
         },
         requestedAt: new Date(),
@@ -693,26 +704,13 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
       console.log(`✅ [ComprehensiveReport] 종합 리포트 전송 완료: ${symbol}`);
     } catch (error) {
       console.error(
-        `❌ [ComprehensiveReport] 종합 리포트 생성 실패: ${symbol}`,
-        error,
+        `❌ [ComprehensiveReport] 종합 리포트 생성 실패: ${error.message}`,
       );
-
-      // 에러 발생 시 간단한 알림 전송
-      this.eventEmitter.emit(MARKET_DATA_EVENTS.NOTIFICATION_REQUEST, {
-        type: 'TELEGRAM' as const,
-        symbol,
-        priority: 'LOW' as const,
-        content: {
-          title: `❌ ${symbol} 분석 오류`,
-          message: `${symbol} 종합 분석 리포트 생성 중 오류가 발생했습니다.`,
-        },
-        requestedAt: new Date(),
-      });
     }
   }
 
   /**
-   * �📤 이벤트 발송기 노출 (notification 도메인에서 이벤트 수신용)
+   * 📤 이벤트 발송기 노출 (notification 도메인에서 이벤트 수신용)
    */
   getEventEmitter(): EventEmitter {
     return this.eventEmitter;

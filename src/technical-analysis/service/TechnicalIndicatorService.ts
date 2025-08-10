@@ -608,7 +608,7 @@ export class TechnicalIndicatorService {
    */
   generateComprehensiveReport(
     candles: CandleData[],
-    usdToKrwRate: number = 1330,
+    usdToKrwRate?: number,
   ): string {
     if (!candles || candles.length === 0) {
       return '❌ 데이터가 부족하여 분석할 수 없습니다.';
@@ -621,19 +621,56 @@ export class TechnicalIndicatorService {
         candles.length > 1 ? candles[candles.length - 2].close : currentPrice;
       const priceChange = currentPrice - prevPrice;
       const priceChangePercent = (priceChange / prevPrice) * 100;
-      const krwPrice = currentPrice * usdToKrwRate;
 
-      // 현재 시간
+      // 현재 시간 (KST 기준)
       const now = new Date();
-      const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+      const kstTime = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+      const timeStr = `${kstTime.getHours().toString().padStart(2, '0')}:${kstTime.getMinutes().toString().padStart(2, '0')}`;
+      const ampm = kstTime.getHours() < 12 ? '오전' : '오후';
+      const displayHour =
+        kstTime.getHours() > 12 ? kstTime.getHours() - 12 : kstTime.getHours();
+      const displayTimeStr = `${ampm} ${displayHour.toString().padStart(2, '0')}:${kstTime.getMinutes().toString().padStart(2, '0')}`;
 
-      let report = `🔔 [비트코인 15분 종합 리포트] (${timeStr} 기준)\n\n`;
+      // 심볼별 카테고리 매핑
+      const symbolCategoryMap: Record<string, string> = {
+        BTCUSDT: '비트코인 (메이저코인)',
+        ETHUSDT: '이더리움 (메이저코인)',
+        ADAUSDT: '에이다 (알트코인)',
+        SOLUSDT: '솔라나 (알트코인)',
+        DOGEUSDT: '도지코인 (밈코인)',
+        XRPUSDT: '리플 (결제코인)',
+        DOTUSDT: '폴카닷 (플랫폼코인)',
+        AVAXUSDT: '아발란체 (플랫폼코인)',
+        MATICUSDT: '폴리곤 (레이어2)',
+        LINKUSDT: '체인링크 (오라클)',
+      };
+
+      const symbol = 'BTCUSDT'; // 현재는 BTCUSDT만 처리
+      const category = symbolCategoryMap[symbol] || '암호화폐';
+
+      let report = `📌 [${symbol}] ${category}\n\n`;
+      report += `🔔 ${category.split(' ')[0]} 15분 분석 리포트 (${displayTimeStr})\n\n`;
 
       // 💰 가격 정보
       report += `💰 가격 정보\n`;
-      report += `- 현재가: $${currentPrice.toLocaleString()} (₩${krwPrice.toLocaleString()})\n`;
-      report += `- 15분 전 대비: ${priceChangePercent >= 0 ? '+' : ''}${priceChangePercent.toFixed(2)}% (${priceChange >= 0 ? '+' : ''}$${priceChange.toFixed(2)})\n`;
-      report += `- 고가: $${currentCandle.high.toLocaleString()} / 저가: $${currentCandle.low.toLocaleString()}\n\n`;
+      report += `${symbol.split('USDT')[0]}/USD: $${currentPrice.toLocaleString()}\n`;
+
+      // 환율 정보 표시 (환율이 있으면 원화 표시, 없으면 생략)
+      if (usdToKrwRate && usdToKrwRate > 0) {
+        const krwPrice = currentPrice * usdToKrwRate;
+        report += `원화: ₩${krwPrice.toLocaleString()} (환율: $1 = ₩${usdToKrwRate.toLocaleString()})\n`;
+      } else {
+        report += `원화: 환율 조회 불가로 표시할 수 없습니다\n`;
+      }
+
+      // 가격 변화 표시 개선
+      const changeSign = priceChange >= 0 ? '+' : '';
+      const changeEmoji = priceChange >= 0 ? '⬆️' : '⬇️';
+      const changeText =
+        priceChange === 0
+          ? '0.00% ($0.00)'
+          : `${changeSign}${priceChangePercent.toFixed(2)}% (${changeSign}$${Math.abs(priceChange).toFixed(2)})`;
+      report += `15분 변화: ${changeText} ${changeEmoji}\n\n`;
 
       // 📈 이동평균선
       const smaResults = this.calculateMultipleMovingAverages(
@@ -648,7 +685,7 @@ export class TechnicalIndicatorService {
       );
       const vwapResults = this.calculateVWAP(candles);
 
-      report += `📈 이동평균선 (현재가와의 차이, 추세)\n`;
+      report += `📈 이동평균선 (현재가 대비)\n`;
 
       // SMA 결과들
       [5, 20, 50, 200].forEach((period) => {
@@ -656,16 +693,9 @@ export class TechnicalIndicatorService {
         if (smaData && smaData.length > 0) {
           const currentSMA = smaData[smaData.length - 1].value;
           const diff = ((currentPrice - currentSMA) / currentSMA) * 100;
-          const trend = currentPrice > currentSMA ? '상승 추세' : '하락 추세';
-          const role =
-            period === 5
-              ? '단기 지지/저항'
-              : period === 20
-                ? '중기 추세'
-                : period === 50
-                  ? '장기 추세'
-                  : '초장기 추세';
-          report += `- SMA${period}: $${currentSMA.toFixed(2)} (${diff >= 0 ? '+' : ''}${diff.toFixed(2)}%) [${role}]\n`;
+          const diffSign = diff >= 0 ? '+' : '';
+          const trendEmoji = currentPrice > currentSMA ? '⬆️' : '⬇️';
+          report += `• SMA${period}: $${currentSMA.toLocaleString()} (${diffSign}${diff.toFixed(2)}% ${trendEmoji})\n`;
         }
       });
 
@@ -675,8 +705,9 @@ export class TechnicalIndicatorService {
         if (emaData && emaData.length > 0) {
           const currentEMA = emaData[emaData.length - 1].value;
           const diff = ((currentPrice - currentEMA) / currentEMA) * 100;
-          const trendEmoji = currentPrice > currentEMA ? '🟢' : '🔴';
-          report += `• EMA${period}: $${currentEMA.toLocaleString()} (${diff > 0 ? '+' : ''}${diff.toFixed(2)}% ${trendEmoji})\n`;
+          const diffSign = diff >= 0 ? '+' : '';
+          const trendEmoji = currentPrice > currentEMA ? '⬆️' : '⬇️';
+          report += `• EMA${period}: $${currentEMA.toLocaleString()} (${diffSign}${diff.toFixed(2)}% ${trendEmoji})\n`;
         }
       });
 
@@ -684,8 +715,9 @@ export class TechnicalIndicatorService {
       if (vwapResults.length > 0) {
         const currentVWAP = vwapResults[vwapResults.length - 1].value;
         const vwapDiff = ((currentPrice - currentVWAP) / currentVWAP) * 100;
-        const trendEmoji = currentPrice > currentVWAP ? '🟢' : '🔴';
-        report += `• VWAP: $${currentVWAP.toLocaleString()} (${vwapDiff > 0 ? '+' : ''}${vwapDiff.toFixed(2)}% ${trendEmoji})\n\n`;
+        const diffSign = vwapDiff >= 0 ? '+' : '';
+        const trendEmoji = currentPrice > currentVWAP ? '⬆️' : '⬇️';
+        report += `• VWAP: $${currentVWAP.toLocaleString()} (${diffSign}${vwapDiff.toFixed(2)}% ${trendEmoji})\n\n`;
       }
 
       // 📊 모멘텀/오실레이터
@@ -697,37 +729,28 @@ export class TechnicalIndicatorService {
       if (rsiResults.length > 0) {
         const currentRSI = rsiResults[rsiResults.length - 1];
         let rsiStatus = '중립';
-        let rsiEmoji = '⚪';
+        let rsiWarning = '';
 
         if (currentRSI.isOverbought) {
-          rsiStatus = '과매수';
-          rsiEmoji = '🔴';
+          rsiStatus = '⚠️ 과매수 근접';
+          rsiWarning = `, 70까지 ${(70 - currentRSI.value).toFixed(1)}`;
         } else if (currentRSI.isOversold) {
-          rsiStatus = '과매도';
-          rsiEmoji = '🟢';
+          rsiStatus = '⚠️ 과매도 근접';
+          rsiWarning = `, 30까지 ${(currentRSI.value - 30).toFixed(1)}`;
         }
 
-        report += `• RSI(14): ${currentRSI.value.toFixed(1)} ${rsiEmoji} (${rsiStatus})`;
-
-        if (currentRSI.value >= 60) {
-          report += ` - 과매수까지 ${(70 - currentRSI.value).toFixed(1)} 남음`;
-        } else if (currentRSI.value <= 40) {
-          report += ` - 과매도까지 ${(currentRSI.value - 30).toFixed(1)} 남음`;
-        }
-        report += `\n`;
+        report += `• RSI(14): ${currentRSI.value.toFixed(1)} (${rsiStatus}${rsiWarning})\n`;
       }
 
       if (macdResults.length > 0) {
         const currentMACD = macdResults[macdResults.length - 1];
         const crossStatus = currentMACD.isGoldenCross
-          ? '골든크로스'
-          : '데드크로스';
-        const crossEmoji = currentMACD.isGoldenCross ? '🟢' : '🔴';
-        const momentum =
-          currentMACD.histogram > 0 ? '상승 모멘텀' : '하락 모멘텀';
+          ? '골든크로스 (강세)'
+          : '데드크로스 (약세)';
+        const crossEmoji = currentMACD.isGoldenCross ? '📈' : '📉';
 
         report += `• MACD: ${currentMACD.macdLine.toFixed(1)} / Signal: ${currentMACD.signalLine.toFixed(1)} / Hist: ${currentMACD.histogram.toFixed(1)}\n`;
-        report += `  → ${crossEmoji} ${crossStatus} (${momentum})\n\n`;
+        report += `→ ${crossEmoji} ${crossStatus}\n\n`;
       }
 
       // 📉 변동성/밴드
@@ -742,20 +765,10 @@ export class TechnicalIndicatorService {
         const bandPosition = currentBB.percentB * 100;
 
         report += `🎯 볼린저 밴드\n`;
-        report += `• 상단: $${currentBB.upper.toLocaleString()} (+${upperDiff.toFixed(2)}%)\n`;
-        report += `• 중심: $${currentBB.middle.toLocaleString()}\n`;
-        report += `• 하단: $${currentBB.lower.toLocaleString()} (-${lowerDiff.toFixed(2)}%)\n`;
-        report += `• 현재 위치: ${bandPosition.toFixed(0)}% `;
-
-        if (bandPosition >= 80) {
-          report += `(상단 근접, 과매수 신호)\n`;
-        } else if (bandPosition <= 20) {
-          report += `(하단 근접, 과매도 신호)\n`;
-        } else {
-          report += `(중간 위치)\n`;
-        }
-
-        report += `• 밴드폭: ${(currentBB.bandwidth * 100).toFixed(1)}%\n\n`;
+        report += `• 상단: $${currentBB.upper.toLocaleString()} (+${upperDiff.toFixed(2)}% ⬆️)\n`;
+        report += `• 중심: $${currentBB.middle.toLocaleString()} (+0.00% ⬆️)\n`;
+        report += `• 하단: $${currentBB.lower.toLocaleString()} (-${lowerDiff.toFixed(2)}% ⬇️)\n`;
+        report += `• 현재 위치: ${bandPosition.toFixed(0)}% (중간 위치)\n\n`;
       }
 
       // 📊 거래량/OBV
@@ -763,12 +776,13 @@ export class TechnicalIndicatorService {
 
       if (volumeResults.length > 0) {
         const currentVolume = volumeResults[volumeResults.length - 1];
-        const volumeStatus = currentVolume.isVolumeSurge ? '급증' : '보통';
-        const volumeEmoji = currentVolume.isVolumeSurge ? '🔥' : '📊';
+        const volumeRatio = currentVolume.volumeRatio * 100;
+        const volumeSign = volumeRatio >= 100 ? '+' : '';
+        const volumeEmoji = currentVolume.isVolumeSurge ? '📊' : '📊';
 
         report += `📊 거래량 분석\n`;
         report += `• 현재: ${currentVolume.currentVolume.toFixed(2)} BTC\n`;
-        report += `• 평균 대비: ${(currentVolume.volumeRatio * 100).toFixed(0)}% ${volumeEmoji}\n`;
+        report += `• 평균 대비: ${volumeSign}${volumeRatio.toFixed(0)}% ${volumeEmoji}\n`;
         report += `• OBV: ${currentVolume.obv > 0 ? '+' : ''}${currentVolume.obv.toFixed(0)} (${currentVolume.obv > 0 ? '상승' : '하락'} 지속)\n\n`;
       }
 
@@ -802,11 +816,11 @@ export class TechnicalIndicatorService {
             : '하락 (200일선 하회)'
           : '데이터 부족';
 
-      report += `• 단기: ${rsiSignal}\n`;
-      report += `• 중기: ${macdSignal}\n`;
-      report += `• 장기: ${longTermSignal}\n\n`;
+      report += `단기: ${rsiSignal}\n`;
+      report += `중기: ${macdSignal}\n`;
+      report += `장기: ${longTermSignal}\n\n`;
 
-      report += `🕒 분석 시점: ${now.toISOString().replace('T', ' ').substring(0, 19)} UTC (${new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19)} KST)`;
+      report += `🕒 분석 시점: ${now.toISOString().replace('T', ' ').substring(0, 19)} UTC (${kstTime.toISOString().replace('T', ' ').substring(0, 19)} KST)`;
 
       console.log(`✅ 종합 리포트 생성 완료`);
       return report;
