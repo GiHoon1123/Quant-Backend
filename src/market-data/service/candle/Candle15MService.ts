@@ -482,19 +482,6 @@ export class Candle15MService implements OnModuleInit, OnModuleDestroy {
         // 4-2. 캔들 완성 이벤트 발생 (추가 분석용, 기술적 분석 트리거는 하지 않음)
         // 중복 알림 방지를 위해 candle.saved 이벤트만 기술적 분석을 트리거하도록 수정
         this.emitCandleCompletedEvent(symbol, candleData);
-      } else {
-        // 진행 중인 캔들 (실시간 업데이트)
-        // 30초마다 한 번씩만 로깅 (로그 스팸 방지)
-        const now = Date.now();
-        const lastLogKey = `${symbol}_lastLog`;
-        const lastLogTime = (this as any)[lastLogKey] || 0;
-
-        if (now - lastLogTime > 30000) {
-          this.logger.log(
-            `📊 [${symbol}] 15분봉 업데이트: $${candleData.close.toFixed(2)} (거래량: ${candleData.volume.toFixed(2)})`,
-          );
-          (this as any)[lastLogKey] = now;
-        }
       }
     } catch (error) {
       this.logger.error(`❌ [${symbol}] 캔들 처리 실패:`, error.message);
