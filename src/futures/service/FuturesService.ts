@@ -3,6 +3,7 @@ import {
   Injectable,
   InternalServerErrorException,
   Logger,
+  OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -10,6 +11,7 @@ import {
   PositionClosedEvent,
   PositionOpenedEvent,
 } from 'src/common/dto/event/PositionEvent';
+import { TradingSignalEvent } from 'src/common/dto/event/TradingSignalEvent';
 import { v4 as uuidv4 } from 'uuid';
 import futuresConfig from '../../config/FuturesConfig';
 import { ExternalFuturesOrderResponse } from '../dto/external/ExternalFuturesOrderResponse';
@@ -40,7 +42,7 @@ import { BinanceFuturesPositionClient } from '../infra/client/BinanceFuturesPosi
  * - 위험 관리 기능
  */
 @Injectable()
-export class FuturesService {
+export class FuturesService implements OnModuleInit {
   private readonly logger = new Logger(FuturesService.name);
   private readonly MIN_ORDER_NOTIONAL: number;
   private readonly DEFAULT_RISK_THRESHOLD: number;
@@ -60,6 +62,22 @@ export class FuturesService {
       'futures.defaultRiskThreshold',
       config.defaultRiskThreshold,
     );
+  }
+
+  /**
+   * 모듈 초기화 시 이벤트 리스너 등록
+   */
+  onModuleInit(): void {
+    this.eventEmitter.on('trading.signal', (event: TradingSignalEvent) => {
+      try {
+        this.handleTradingSignal(event);
+      } catch (error) {
+        this.logger.error(
+          `trading.signal 처리 중 오류: ${error?.message || error}`,
+        );
+      }
+    });
+    this.logger.log('FuturesService 이벤트 리스너 등록 완료');
   }
 
   /**
@@ -1114,6 +1132,123 @@ export class FuturesService {
       throw new BadRequestException(
         `포지션 전체 청산에 실패했습니다: ${error.message}`,
       );
+    }
+  }
+
+  /**
+   * 자동 매매 신호 처리
+   *
+   * AutoTradingService에서 발생한 trading.signal 이벤트를 받아서
+   * 실제 포지션 진입을 수행합니다.
+   *
+   * 🔄 처리 과정:
+   * 1. 신호 유효성 검증
+   * 2. 기존 포지션 확인
+   * 3. 포지션 진입/청산 실행
+   * 4. 이벤트 발생
+   *
+   * @param event 자동 매매 신호 이벤트
+   */
+  private async handleTradingSignal(event: TradingSignalEvent): Promise<void> {
+    const {
+      symbol,
+      signal,
+      confidence,
+      strategy,
+      entryPrice,
+      stopLoss,
+      takeProfit,
+      quantity,
+      source,
+    } = event;
+
+    this.logger.log(
+      `📊 [${symbol}] 자동 매매 신호 수신: ${signal} (신뢰도: ${confidence}%, 전략: ${strategy})`,
+    );
+
+    try {
+      // 신호 유효성 검증
+      if (confidence < 80) {
+        this.logger.warn(
+          `⚠️ [${symbol}] 신뢰도 부족으로 신호 무시: ${confidence}% < 80%`,
+        );
+        return;
+      }
+
+      // 기존 포지션 확인
+      const currentPosition = await this.getCurrentPosition(symbol);
+
+      if (signal === 'LONG') {
+        if (currentPosition) {
+          this.logger.warn(
+            `⚠️ [${symbol}] 이미 포지션 보유 중: ${currentPosition.side}`,
+          );
+          return;
+        }
+
+        // 롱 포지션 진입
+        await this.openPosition(
+          symbol,
+          PositionSide.LONG,
+          quantity,
+          1,
+          undefined,
+          undefined,
+        );
+        this.logger.log(
+          `🚀 [${symbol}] 롱 포지션 진입 완료: 수량=${quantity}, 진입가=${entryPrice}`,
+        );
+      } else if (signal === 'SHORT') {
+        if (currentPosition) {
+          this.logger.warn(
+            `⚠️ [${symbol}] 이미 포지션 보유 중: ${currentPosition.side}`,
+          );
+          return;
+        }
+
+        // 숏 포지션 진입
+        await this.openPosition(
+          symbol,
+          PositionSide.SHORT,
+          quantity,
+          1,
+          undefined,
+          undefined,
+        );
+        this.logger.log(
+          `📉 [${symbol}] 숏 포지션 진입 완료: 수량=${quantity}, 진입가=${entryPrice}`,
+        );
+      } else if (signal === 'CLOSE') {
+        if (!currentPosition) {
+          this.logger.warn(`⚠️ [${symbol}] 청산할 포지션이 없음`);
+          return;
+        }
+
+        // 포지션 청산
+        await this.closeAllPosition(symbol, '자동 매매 청산 신호');
+        this.logger.log(`🔄 [${symbol}] 포지션 청산 완료`);
+      }
+    } catch (error) {
+      this.logger.error(
+        `❌ [${symbol}] 자동 매매 신호 처리 실패: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * 활성 포지션 조회 (AutoTradingService용)
+   *
+   * @param symbol 심볼
+   * @returns 활성 포지션 목록
+   */
+  async getActivePositions(symbol: string): Promise<any[]> {
+    try {
+      return await this.positionClient.getActivePositions(symbol);
+    } catch (error) {
+      this.logger.error(
+        `❌ [${symbol}] 활성 포지션 조회 실패: ${error.message}`,
+      );
+      return [];
     }
   }
 }

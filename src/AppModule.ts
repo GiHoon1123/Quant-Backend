@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AutoTradingModule } from './auto-trading/AutoTradingModule';
 import { BinanceModule } from './common/binance/BinanceModule';
 import { CommonModule } from './common/CommonModule';
 import { typeOrmConfig } from './common/config/DatabaseConfig';
@@ -54,6 +55,7 @@ import { TechnicalAnalysisEventService } from './technical-analysis/service/Tech
     BinanceModule, // 바이낸스 공통 모듈 (글로벌)
     MarketDataModule, // 📊 데이터 수집/저장
     TechnicalAnalysisModule, // 🔍 기술적 분석
+    AutoTradingModule, // 🤖 자동 매매
     NotificationModule, // 📢 알림 발송
     TestModule, // 🧪 테스트 모듈
     OrderModule,
