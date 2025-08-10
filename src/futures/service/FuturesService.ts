@@ -326,7 +326,12 @@ export class FuturesService {
       return result;
     } catch (error) {
       this.logger.error(`❌ 레버리지 설정 실패: ${symbol} ${leverage}x`, error);
-      if (error.message?.includes('leverage not modified')) {
+      // Binance가 레버리지가 이미 설정된 경우 에러 메시지로 "No need to change leverage"를 반환할 수 있다.
+      // 또한 일부 문구는 "leverage not modified" 형태로도 노출될 수 있으므로 두 경우 모두 허용한다.
+      if (
+        error.message?.includes('leverage not modified') ||
+        error.message?.includes('No need to change leverage')
+      ) {
         this.logger.log(`ℹ️ 레버리지 이미 설정됨: ${symbol} ${leverage}x`);
         return { symbol, leverage, status: 'already_set' };
       }

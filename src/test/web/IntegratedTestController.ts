@@ -1,6 +1,11 @@
 import { Body, Controller, Post } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { TradingConfigService } from '../../common/config/TradingConfig';
+import {
+  PositionClosedEvent,
+  PositionOpenedEvent,
+} from '../../common/dto/event/PositionEvent';
 import {
   CalculatedStopLossTakeProfit,
   StopLossConfig,
@@ -24,6 +29,12 @@ export class IntegratedTestController {
   constructor(
     private readonly calculator: StopLossTakeProfitCalculator,
     private readonly tradingConfig: TradingConfigService,
+    /**
+     * 이벤트 발송기
+     *
+     * 선물 포지션 오픈/클로즈 테스트 이벤트를 발송하여 동적 구독이 정상 동작하는지 확인하기 위해 사용한다.
+     */
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   // ==========================================
@@ -95,6 +106,87 @@ export class IntegratedTestController {
         },
       },
     };
+  }
+
+  // ==========================================
+  // 모니터링 구독/해제 테스트 (동적 구독 트리거)
+  // ==========================================
+
+  /**
+   * 선물 포지션 오픈 이벤트 강제 발송
+   *
+   * 설명: PositionMonitoringService가 futures.position.opened 이벤트를 수신하면
+   * 해당 심볼에 대해 거래 틱(@trade), 1분(@kline_1m), 5분(@kline_5m) 스트림을 동적으로 구독한다.
+   * 이 엔드포인트는 해당 동작을 수동으로 유도하기 위한 테스트 용도이다.
+   */
+  @Post('monitoring/open')
+  @ApiOperation({
+    summary: '선물 포지션 오픈 이벤트 발송',
+    description:
+      'PositionMonitoringService 동적 구독 검증용. 요청된 심볼에 대해 futures.position.opened 이벤트를 발송한다.',
+  })
+  @ApiResponse({ status: 200, description: '이벤트 발송 성공' })
+  async triggerFuturesPositionOpened(
+    @Body()
+    body: {
+      symbol: string;
+      side?: 'LONG' | 'SHORT';
+      quantity?: number;
+      leverage?: number;
+      notional?: number;
+    },
+  ) {
+    const event: PositionOpenedEvent = {
+      eventId: `test_${Date.now()}`,
+      timestamp: new Date(),
+      symbol: body.symbol,
+      service: 'IntegratedTestController',
+      side: (body.side as any) || 'LONG',
+      quantity: body.quantity ?? 0,
+      leverage: body.leverage ?? 1,
+      notional: body.notional ?? 0,
+      source: 'IntegratedTestController',
+      metadata: { test: true },
+    } as any;
+
+    this.eventEmitter.emit('futures.position.opened', event);
+    return { success: true, emitted: 'futures.position.opened', event };
+  }
+
+  /**
+   * 선물 포지션 클로즈 이벤트 강제 발송
+   *
+   * 설명: PositionMonitoringService가 futures.position.closed 이벤트를 수신하면
+   * 해당 심볼의 참조 카운트를 감소시키고, 0이 되는 경우 모든 스트림 구독을 해제한다.
+   */
+  @Post('monitoring/close')
+  @ApiOperation({
+    summary: '선물 포지션 클로즈 이벤트 발송',
+    description:
+      'PositionMonitoringService 동적 구독 해제 검증용. 요청된 심볼에 대해 futures.position.closed 이벤트를 발송한다.',
+  })
+  @ApiResponse({ status: 200, description: '이벤트 발송 성공' })
+  async triggerFuturesPositionClosed(
+    @Body()
+    body: {
+      symbol: string;
+      side?: 'LONG' | 'SHORT';
+      quantity?: number;
+    },
+  ) {
+    const event: PositionClosedEvent = {
+      eventId: `test_${Date.now()}`,
+      timestamp: new Date(),
+      symbol: body.symbol,
+      service: 'IntegratedTestController',
+      side: (body.side as any) || 'LONG',
+      quantity: body.quantity ?? 0,
+      source: 'IntegratedTestController',
+      metadata: { test: true },
+    } as any;
+
+    this.eventEmitter.emit('futures.position.closed', event);
+    return { success: true, emitted: 'futures.position.closed', event };
   }
 
   /**

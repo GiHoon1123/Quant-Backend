@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { BinanceFuturesClient } from './infra/client/BinanceFuturesClient';
 import { BinanceFuturesPositionClient } from './infra/client/BinanceFuturesPositionClient';
 import { FuturesService } from './service/FuturesService';
+import { PositionMonitoringService } from './service/PositionMonitoringService';
 import { FuturesController } from './web/FuturesController';
 
 /**
@@ -22,6 +23,7 @@ import { FuturesController } from './web/FuturesController';
     FuturesService,
     BinanceFuturesClient,
     BinanceFuturesPositionClient,
+    PositionMonitoringService,
   ],
   exports: [FuturesService],
 })
