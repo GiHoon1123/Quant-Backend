@@ -7,6 +7,7 @@ import {
 } from '@nestjs/swagger';
 import { CommonResponse } from 'src/common/response/CommonResponse';
 import { AddToPositionRequest } from '../dto/request/AddToPositionRequest';
+import { CloseAllPositionRequest } from '../dto/request/CloseAllPositionRequest';
 import { ClosePositionRequest } from '../dto/request/ClosePositionRequest';
 import { OpenPositionRequest } from '../dto/request/OpenPositionRequest';
 import { ReducePositionRequest } from '../dto/request/ReducePositionRequest';
@@ -782,6 +783,96 @@ export class FuturesController {
     return CommonResponse.success({
       status: 200,
       message: `${dto.symbol} 포지션에서 ${dto.reduceQuantity} 수량이 청산되었습니다.`,
+      data: result,
+    });
+  }
+
+  /**
+   * 선물 포지션 전체 청산 API
+   *
+   * 🚀 기능: 특정 심볼의 모든 포지션을 자동으로 전체 청산
+   *
+   * 💡 핵심 특징:
+   * - 포지션 수량을 자동으로 조회하여 전체 청산
+   * - 사용자가 수량을 신경 쓸 필요 없음
+   * - 실수 방지를 위한 안전한 청산 방식
+   *
+   * ⚡ 처리 과정:
+   * 1. 현재 포지션 정보 자동 조회
+   * 2. 포지션 존재 여부 확인
+   * 3. 포지션 수량 자동 추출
+   * 4. 전체 청산 실행
+   * 5. 상세한 결과 반환
+   *
+   * ⚠️ 주의사항:
+   * - 시장가로 즉시 청산되므로 슬리피지 발생 가능
+   * - 여러 포지션(LONG/SHORT 동시 보유)이 있는 경우 개별 청산 필요
+   * - 포지션이 없는 경우 에러 반환
+   *
+   * 🛡️ 위험 경고: 선물거래는 원금 손실 위험이 있습니다.
+   */
+  @Post('/position/close-all')
+  @ApiOperation({
+    summary: '선물 포지션 전체 청산 (자동 수량 조회)',
+    description: `
+      🎯 특정 심볼의 모든 포지션을 자동으로 전체 청산합니다.
+      
+      **핵심 장점:**
+      ✅ 포지션 수량 자동 조회
+      ✅ 실수 방지 (과도한 청산 방지)
+      ✅ 간편한 사용성
+      ✅ 안전한 전체 청산
+      
+      **처리 과정:**
+      1. 현재 포지션 정보 조회
+      2. 포지션 존재 여부 확인
+      3. 포지션 수량 자동 추출
+      4. 전체 청산 실행
+      5. 상세한 결과 반환
+      
+      **응답 정보:**
+      - 원래 포지션 정보 (방향, 수량)
+      - 청산 결과 (실제 청산 수량, 평균가, 총액)
+      - 주문 상태 및 시간
+      
+      **주의사항:**
+      ⚠️ 시장가 즉시 청산 (슬리피지 발생 가능)
+      ⚠️ 여러 포지션 보유 시 개별 청산 필요
+      ⚠️ 포지션 없을 시 에러 반환
+      
+      **위험 경고:** 선물거래는 원금 손실 위험이 있습니다.
+    `,
+  })
+  @ApiOkResponse({
+    description: '포지션 전체 청산 성공',
+    schema: {
+      example: {
+        status: 200,
+        message: 'BTCUSDT 포지션 전체 청산이 완료되었습니다.',
+        data: {
+          symbol: 'BTCUSDT',
+          originalSide: 'LONG',
+          originalQuantity: 0.001,
+          closedQuantity: 0.001,
+          avgPrice: 120000.0,
+          totalAmount: 120.0,
+          orderId: 123456789,
+          status: 'FILLED',
+          timestamp: '2024-01-01T00:00:00.000Z',
+          memo: '사용자 정의 메모',
+        },
+      },
+    },
+  })
+  async closeAllPosition(@Body() dto: CloseAllPositionRequest) {
+    const result = await this.futuresService.closeAllPosition(
+      dto.symbol,
+      dto.memo,
+    );
+
+    return CommonResponse.success({
+      status: 200,
+      message: `${dto.symbol} 포지션 전체 청산이 완료되었습니다.`,
       data: result,
     });
   }

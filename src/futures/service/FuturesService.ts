@@ -1024,4 +1024,96 @@ export class FuturesService {
       throw new InternalServerErrorException(`포지션 부분 청산 실패`);
     }
   }
+
+  /**
+   * 선물 포지션 전체 청산
+   *
+   * 특정 심볼의 모든 포지션을 자동으로 전체 청산합니다.
+   * 현재 보유 중인 포지션 수량을 자동으로 조회하여 안전하게 전체 청산을 수행합니다.
+   *
+   * 🔄 처리 과정:
+   * 1. 현재 포지션 정보 조회
+   * 2. 포지션 존재 여부 확인
+   * 3. 포지션 수량 자동 추출
+   * 4. 전체 청산 실행
+   * 5. 이벤트 발생 및 결과 반환
+   *
+   * 💡 장점:
+   * - 수량을 신경 쓸 필요 없음
+   * - 실수 방지 (과도한 청산 방지)
+   * - 간편한 사용성
+   *
+   * ⚠️ 주의사항:
+   * - 시장가로 즉시 청산되므로 슬리피지 발생 가능
+   * - 여러 포지션(LONG/SHORT 동시 보유)이 있는 경우 개별 청산 필요
+   *
+   * @param symbol 청산할 포지션의 심볼
+   * @param memo 청산 작업에 대한 메모 (선택사항)
+   * @returns 전체 청산 결과
+   */
+  async closeAllPosition(symbol: string, memo?: string): Promise<any> {
+    this.logger.log(`🔄 ${symbol} 포지션 전체 청산 시작`);
+
+    // 1. 현재 포지션 정보 조회
+    const activePositions =
+      await this.positionClient.getActivePositions(symbol);
+
+    if (activePositions.length === 0) {
+      throw new BadRequestException(`${symbol}에 청산할 포지션이 없습니다.`);
+    }
+
+    // 2. 포지션이 여러 개인 경우 (LONG과 SHORT 동시 보유) 확인
+    if (activePositions.length > 1) {
+      const positionDetails = activePositions
+        .map((pos) => {
+          const amt = parseFloat(pos.positionAmt);
+          return `${amt > 0 ? 'LONG' : 'SHORT'} ${Math.abs(amt)}`;
+        })
+        .join(', ');
+
+      throw new BadRequestException(
+        `${symbol}에 여러 포지션이 있습니다: ${positionDetails}. 개별적으로 청산해주세요.`,
+      );
+    }
+
+    // 3. 포지션 정보 추출
+    const position = activePositions[0];
+    const positionAmt = parseFloat(position.positionAmt);
+    const positionSide = positionAmt > 0 ? 'LONG' : 'SHORT';
+    const positionQuantity = Math.abs(positionAmt);
+
+    this.logger.log(
+      `📊 ${symbol} 포지션 정보: ${positionSide} ${positionQuantity}`,
+    );
+
+    // 4. 전체 청산 실행 (기존 closePosition 메서드 활용)
+    try {
+      const result = await this.closePosition(symbol, positionQuantity);
+
+      // 5. 전체 청산 전용 응답 데이터 구성
+      const closeAllResponse = {
+        symbol,
+        originalSide: positionSide,
+        originalQuantity: positionQuantity,
+        closedQuantity: positionQuantity,
+        avgPrice: parseFloat(String(result.avgPrice || '0')),
+        totalAmount: parseFloat(String(result.totalAmount || '0')),
+        orderId: result.orderId,
+        status: result.status,
+        timestamp: result.timestamp,
+        memo,
+      };
+
+      this.logger.log(
+        `✅ ${symbol} 포지션 전체 청산 완료: ${positionSide} ${positionQuantity}`,
+      );
+
+      return closeAllResponse;
+    } catch (error) {
+      this.logger.error(`❌ ${symbol} 포지션 전체 청산 실패:`, error);
+      throw new BadRequestException(
+        `포지션 전체 청산에 실패했습니다: ${error.message}`,
+      );
+    }
+  }
 }
