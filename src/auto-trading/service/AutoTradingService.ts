@@ -90,7 +90,9 @@ export class AutoTradingService implements OnModuleInit {
   private async handleAnalysisCompleted(event: any): Promise<void> {
     const { symbol, analysisResult, timeframe, analyzedAt } = event;
 
-    this.logger.log(`📊 [${symbol}] 자동 매매 분석 시작`);
+    this.logger.log(
+      `🎯🎯🎯 [AUTO-TRADING] ${symbol} 자동 매매 분석 시작 🎯🎯🎯`,
+    );
 
     try {
       // 현재 포지션 상태 확인
@@ -127,7 +129,7 @@ export class AutoTradingService implements OnModuleInit {
     // 신뢰도 검증
     if (overallConfidence < this.AUTO_TRADING_CONFIG.MIN_CONFIDENCE) {
       this.logger.log(
-        `⚠️ [${symbol}] 신뢰도 부족으로 진입 보류: ${overallConfidence}% < ${this.AUTO_TRADING_CONFIG.MIN_CONFIDENCE}%`,
+        `🚫🚫🚫 [AUTO-TRADING] ${symbol} 신뢰도 부족으로 진입 보류: ${overallConfidence}% < ${this.AUTO_TRADING_CONFIG.MIN_CONFIDENCE}% 🚫🚫🚫`,
       );
       return;
     }
@@ -135,33 +137,41 @@ export class AutoTradingService implements OnModuleInit {
     // STRONG_BUY 신호: 롱 진입 검토
     if (overallSignal === 'STRONG_BUY') {
       this.logger.log(
-        `🔍 [${symbol}] STRONG_BUY 신호 감지 - 롱 진입 조건 검사 시작`,
+        `🔥🔥🔥 [AUTO-TRADING] ${symbol} STRONG_BUY 신호 감지 - 롱 진입 조건 검사 시작 🔥🔥🔥`,
       );
       const canEnterLong = this.checkLongEntryConditions(analysisResult);
       if (canEnterLong) {
-        this.logger.log(`✅ [${symbol}] 롱 진입 조건 만족 - 진입 실행`);
+        this.logger.log(
+          `🚀🚀🚀 [AUTO-TRADING] ${symbol} 롱 진입 조건 만족 - 진입 실행 🚀🚀🚀`,
+        );
         await this.executeLongEntry(symbol, analysisResult);
       } else {
-        this.logger.log(`❌ [${symbol}] 롱 진입 조건 불만족 - 진입 보류`);
+        this.logger.log(
+          `❌❌❌ [AUTO-TRADING] ${symbol} 롱 진입 조건 불만족 - 진입 보류 ❌❌❌`,
+        );
       }
     }
     // STRONG_SELL 신호: 숏 진입 검토
     else if (overallSignal === 'STRONG_SELL') {
       this.logger.log(
-        `🔍 [${symbol}] STRONG_SELL 신호 감지 - 숏 진입 조건 검사 시작`,
+        `💥💥💥 [AUTO-TRADING] ${symbol} STRONG_SELL 신호 감지 - 숏 진입 조건 검사 시작 💥💥💥`,
       );
       const canEnterShort = this.checkShortEntryConditions(analysisResult);
       if (canEnterShort) {
-        this.logger.log(`✅ [${symbol}] 숏 진입 조건 만족 - 진입 실행`);
+        this.logger.log(
+          `⚡⚡⚡ [AUTO-TRADING] ${symbol} 숏 진입 조건 만족 - 진입 실행 ⚡⚡⚡`,
+        );
         await this.executeShortEntry(symbol, analysisResult);
       } else {
-        this.logger.log(`❌ [${symbol}] 숏 진입 조건 불만족 - 진입 보류`);
+        this.logger.log(
+          `❌❌❌ [AUTO-TRADING] ${symbol} 숏 진입 조건 불만족 - 진입 보류 ❌❌❌`,
+        );
       }
     }
     // 기타 신호
     else {
       this.logger.log(
-        `ℹ️ [${symbol}] ${overallSignal} 신호 - 진입 조건 미충족`,
+        `💤💤💤 [AUTO-TRADING] ${symbol} ${overallSignal} 신호 - 진입 조건 미충족 💤💤💤`,
       );
     }
   }
@@ -461,17 +471,25 @@ export class AutoTradingService implements OnModuleInit {
     };
 
     this.eventEmitter.emit('trading.signal', signalEvent);
-    this.logger.log(`🚀 [${symbol}] 롱 진입 신호 발생:`);
-    this.logger.log(`  • 진입 가격: $${currentPrice.toFixed(2)}`);
-    this.logger.log(`  • 진입 수량: ${quantity.toFixed(4)} BTC`);
-    this.logger.log(`  • 진입 금액: $${(currentPrice * quantity).toFixed(2)}`);
+    this.logger.log(`🚀🚀🚀 [AUTO-TRADING] ${symbol} 롱 진입 신호 발생 🚀🚀🚀`);
     this.logger.log(
-      `  • 손절가: $${stopLoss.toFixed(2)} (${futuresConfig.stopLossPercent * 100}%)`,
+      `💰💰💰 [AUTO-TRADING] ${symbol} 진입 가격: $${currentPrice.toFixed(2)} 💰💰💰`,
     );
     this.logger.log(
-      `  • 익절가: $${takeProfit.toFixed(2)} (${futuresConfig.takeProfitPercent * 100}%)`,
+      `📊📊📊 [AUTO-TRADING] ${symbol} 진입 수량: ${quantity.toFixed(4)} BTC 📊📊📊`,
     );
-    this.logger.log(`  • 신뢰도: ${overallConfidence}%`);
+    this.logger.log(
+      `💵💵💵 [AUTO-TRADING] ${symbol} 진입 금액: $${(currentPrice * quantity).toFixed(2)} 💵💵💵`,
+    );
+    this.logger.log(
+      `🛑🛑🛑 [AUTO-TRADING] ${symbol} 손절가: $${stopLoss.toFixed(2)} (${futuresConfig.stopLossPercent * 100}%) 🛑🛑🛑`,
+    );
+    this.logger.log(
+      `🎯🎯🎯 [AUTO-TRADING] ${symbol} 익절가: $${takeProfit.toFixed(2)} (${futuresConfig.takeProfitPercent * 100}%) 🎯🎯🎯`,
+    );
+    this.logger.log(
+      `🎲🎲🎲 [AUTO-TRADING] ${symbol} 신뢰도: ${overallConfidence}% 🎲🎲🎲`,
+    );
   }
 
   /**
@@ -514,17 +532,25 @@ export class AutoTradingService implements OnModuleInit {
     };
 
     this.eventEmitter.emit('trading.signal', signalEvent);
-    this.logger.log(`📉 [${symbol}] 숏 진입 신호 발생:`);
-    this.logger.log(`  • 진입 가격: $${currentPrice.toFixed(2)}`);
-    this.logger.log(`  • 진입 수량: ${quantity.toFixed(4)} BTC`);
-    this.logger.log(`  • 진입 금액: $${(currentPrice * quantity).toFixed(2)}`);
+    this.logger.log(`⚡⚡⚡ [AUTO-TRADING] ${symbol} 숏 진입 신호 발생 ⚡⚡⚡`);
     this.logger.log(
-      `  • 손절가: $${stopLoss.toFixed(2)} (${futuresConfig.stopLossPercent * 100}%)`,
+      `💰💰💰 [AUTO-TRADING] ${symbol} 진입 가격: $${currentPrice.toFixed(2)} 💰💰💰`,
     );
     this.logger.log(
-      `  • 익절가: $${takeProfit.toFixed(2)} (${futuresConfig.takeProfitPercent * 100}%)`,
+      `📊📊📊 [AUTO-TRADING] ${symbol} 진입 수량: ${quantity.toFixed(4)} BTC 📊📊📊`,
     );
-    this.logger.log(`  • 신뢰도: ${overallConfidence}%`);
+    this.logger.log(
+      `💵💵💵 [AUTO-TRADING] ${symbol} 진입 금액: $${(currentPrice * quantity).toFixed(2)} 💵💵💵`,
+    );
+    this.logger.log(
+      `🛑🛑🛑 [AUTO-TRADING] ${symbol} 손절가: $${stopLoss.toFixed(2)} (${futuresConfig.stopLossPercent * 100}%) 🛑🛑🛑`,
+    );
+    this.logger.log(
+      `🎯🎯🎯 [AUTO-TRADING] ${symbol} 익절가: $${takeProfit.toFixed(2)} (${futuresConfig.takeProfitPercent * 100}%) 🎯🎯🎯`,
+    );
+    this.logger.log(
+      `🎲🎲🎲 [AUTO-TRADING] ${symbol} 신뢰도: ${overallConfidence}% 🎲🎲🎲`,
+    );
   }
 
   /**
