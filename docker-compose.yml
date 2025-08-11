@@ -1,0 +1,85 @@
+# 🚀 Quant Backend 전체 프로젝트 실행 계획
+# 이 파일은 우리 앱과 데이터베이스를 함께 실행하는 방법을 정의합니다
+
+version: '3.8' # Docker Compose 버전
+
+services: # 실행할 서비스들 (컨테이너들)
+  # 📊 PostgreSQL 데이터베이스 서비스 (외부 컨테이너 사용)
+  # postgres:
+  #   image: postgres:15 # Docker Hub에서 가져온 공식 PostgreSQL 이미지
+  #   container_name: quant-backend-postgres # 컨테이너 이름
+  #   environment: # 환경 변수 설정
+  #     POSTGRES_DB: quant_backend # 데이터베이스 이름
+  #     POSTGRES_USER: ${DATABASE_USERNAME:-default} # 사용자명 (환경변수에서 가져오거나 기본값)
+  #     POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-default} # 비밀번호 (환경변수에서 가져오거나 기본값)
+  #   ports:
+  #     - '5432:5432' # 포트 매핑 (호스트:컨테이너) - 외부에서 접근 가능
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data # 데이터 영구 저장 (컨테이너가 삭제되어도 데이터 유지)
+  #   networks:
+  #     - quant-network # 네트워크 연결
+  #   restart: unless-stopped # 컨테이너가 죽으면 자동 재시작
+  #   healthcheck: # 헬스체크 (컨테이너가 제대로 실행되는지 확인)
+  #     test: ['CMD-SHELL', 'pg_isready -U ${DATABASE_USERNAME:-default}']
+  #     interval: 30s # 30초마다 확인
+  #     timeout: 10s # 10초 안에 응답이 없으면 실패
+  #     retries: 3 # 3번 실패하면 컨테이너 재시작
+
+  # 🎯 메인 애플리케이션 서비스 (우리가 만든 NestJS 앱)
+  app:
+    build: # 이미지 빌드 설정
+      context: . # 현재 폴더에서 빌드
+      dockerfile: Dockerfile # 위에서 만든 Dockerfile 사용
+    container_name: quant-backend-app # 컨테이너 이름
+    ports:
+      - '3000:3000' # 포트 매핑 (호스트:컨테이너) - 웹 브라우저에서 접근 가능
+    environment: # 환경 변수 설정
+      # Node.js 환경
+      NODE_ENV: production
+
+      # 데이터베이스 연결 정보 (외부 PostgreSQL 컨테이너 사용)
+      DATABASE_HOST: host.docker.internal
+      DATABASE_PORT: ${DATABASE_PORT:-5432}
+      DATABASE_NAME: ${DATABASE_NAME:-quant_engine}
+      DATABASE_USERNAME: ${DATABASE_USERNAME:-root}
+      DATABASE_PASSWORD:
+        ${DATABASE_PASSWORD:-1234}
+
+        # Binance API 설정 (환경변수에서 가져옴)
+      BINANCE_API_KEY: ${BINANCE_API_KEY}
+      BINANCE_SECRET_KEY: ${BINANCE_API_SECRET}
+
+      # Telegram 설정 (환경변수에서 가져옴)
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+
+      # 손절/익절 설정 (환경변수에서 가져옴)
+      SPOT_DEFAULT_STOP_LOSS_PERCENT: ${SPOT_DEFAULT_STOP_LOSS_PERCENT:-0.03}
+      SPOT_DEFAULT_TAKE_PROFIT_PERCENT: ${SPOT_DEFAULT_TAKE_PROFIT_PERCENT:-0.06}
+      FUTURES_DEFAULT_STOP_LOSS_PERCENT: ${FUTURES_DEFAULT_STOP_LOSS_PERCENT:-0.02}
+      FUTURES_DEFAULT_TAKE_PROFIT_PERCENT: ${FUTURES_DEFAULT_TAKE_PROFIT_PERCENT:-0.04}
+
+      # 기타 설정
+      PORT: 3000
+    # depends_on: # 의존성 설정 (외부 postgres 컨테이너 사용으로 주석 처리)
+    #   postgres:
+    #     condition: service_healthy
+    networks:
+      - quant-network # 네트워크 연결
+    restart: unless-stopped # 컨테이너가 죽으면 자동 재시작
+    healthcheck: # 헬스체크 (앱이 제대로 실행되는지 확인)
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health'] # /health 엔드포인트 호출
+      interval: 30s # 30초마다 확인
+      timeout: 10s # 10초 안에 응답이 없으면 실패
+      retries: 3 # 3번 실패하면 컨테이너 재시작
+      start_period: 60s # 시작 후 60초는 헬스체크 건너뛰기 (앱 시작 시간 고려)
+
+# 💾 볼륨 설정 (데이터 영구 저장)
+volumes: {}
+  # postgres_data: # PostgreSQL 데이터 저장용 볼륨 (외부 컨테이너 사용으로 주석 처리)
+  #   driver: local # 로컬 디스크에 저장
+
+# 🌐 네트워크 설정 (컨테이너들 간 통신)
+networks:
+  quant-network: # 우리 프로젝트 전용 네트워크
+    driver: bridge # 브리지 네트워크 (컨테이너들 간 통신 가능)

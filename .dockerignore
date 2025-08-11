@@ -1,0 +1,53 @@
+# 🚫 Docker 빌드 시 제외할 파일들
+# 이 파일들은 Docker 이미지에 포함되지 않습니다 (빌드 속도 향상, 이미지 크기 감소)
+
+# 📁 Node.js 관련
+node_modules/          # 의존성 폴더 (컨테이너에서 다시 설치)
+npm-debug.log*         # npm 디버그 로그
+yarn-debug.log*        # yarn 디버그 로그
+yarn-error.log*        # yarn 에러 로그
+
+# 📁 개발 도구
+.git/                  # Git 저장소 정보
+.gitignore             # Git 무시 파일
+.env*                  # 환경 변수 파일 (보안상 제외)
+.env.local
+.env.development
+.env.test
+.env.production
+
+# 📁 IDE/에디터 설정
+.vscode/               # VS Code 설정
+.idea/                 # IntelliJ 설정
+*.swp                  # Vim 임시 파일
+*.swo                  # Vim 임시 파일
+*~
+
+# 📁 운영체제
+.DS_Store              # macOS 시스템 파일
+Thumbs.db              # Windows 썸네일 파일
+
+# 📁 로그 파일
+logs/                  # 로그 폴더
+*.log                  # 로그 파일들
+
+# 📁 테스트 관련
+coverage/              # 테스트 커버리지
+.nyc_output/           # NYC 커버리지
+test/                  # 테스트 폴더 (프로덕션에서는 불필요)
+
+# 📁 문서
+README.md              # README 파일
+docs/                  # 문서 폴더
+*.md                   # 마크다운 파일들
+
+# 📁 배포 관련
+deploy.sh              # 배포 스크립트
+docker-compose.yml     # Docker Compose 파일
+Dockerfile             # Dockerfile 자체
+.dockerignore          # 이 파일 자체
+
+# 📁 임시 파일
+tmp/                   # 임시 폴더
+temp/                  # 임시 폴더
+*.tmp                  # 임시 파일들
