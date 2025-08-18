@@ -692,9 +692,12 @@ export class TechnicalIndicatorService {
         const smaData = smaResults.get(period);
         if (smaData && smaData.length > 0) {
           const currentSMA = smaData[smaData.length - 1].value;
-          const diff = ((currentPrice - currentSMA) / currentSMA) * 100;
+          const prevSMA = smaData[smaData.length - 2]?.value;
+
+          // 이전 값 대비 변화율 계산
+          const diff = prevSMA ? ((currentSMA - prevSMA) / prevSMA) * 100 : 0;
           const diffSign = diff >= 0 ? '+' : '';
-          const trendEmoji = currentPrice > currentSMA ? '⬆️' : '⬇️';
+          const trendEmoji = diff >= 0 ? '⬆️' : '⬇️';
           report += `• SMA${period}: $${currentSMA.toLocaleString()} (${diffSign}${diff.toFixed(2)}% ${trendEmoji})\n`;
         }
       });
@@ -704,9 +707,12 @@ export class TechnicalIndicatorService {
         const emaData = emaResults.get(period);
         if (emaData && emaData.length > 0) {
           const currentEMA = emaData[emaData.length - 1].value;
-          const diff = ((currentPrice - currentEMA) / currentEMA) * 100;
+          const prevEMA = emaData[emaData.length - 2]?.value;
+
+          // 이전 값 대비 변화율 계산
+          const diff = prevEMA ? ((currentEMA - prevEMA) / prevEMA) * 100 : 0;
           const diffSign = diff >= 0 ? '+' : '';
-          const trendEmoji = currentPrice > currentEMA ? '⬆️' : '⬇️';
+          const trendEmoji = diff >= 0 ? '⬆️' : '⬇️';
           report += `• EMA${period}: $${currentEMA.toLocaleString()} (${diffSign}${diff.toFixed(2)}% ${trendEmoji})\n`;
         }
       });
@@ -714,9 +720,14 @@ export class TechnicalIndicatorService {
       // VWAP
       if (vwapResults.length > 0) {
         const currentVWAP = vwapResults[vwapResults.length - 1].value;
-        const vwapDiff = ((currentPrice - currentVWAP) / currentVWAP) * 100;
+        const prevVWAP = vwapResults[vwapResults.length - 2]?.value;
+
+        // 이전 값 대비 변화율 계산
+        const vwapDiff = prevVWAP
+          ? ((currentVWAP - prevVWAP) / prevVWAP) * 100
+          : 0;
         const diffSign = vwapDiff >= 0 ? '+' : '';
-        const trendEmoji = currentPrice > currentVWAP ? '⬆️' : '⬇️';
+        const trendEmoji = vwapDiff >= 0 ? '⬆️' : '⬇️';
         report += `• VWAP: $${currentVWAP.toLocaleString()} (${diffSign}${vwapDiff.toFixed(2)}% ${trendEmoji})\n\n`;
       }
 
