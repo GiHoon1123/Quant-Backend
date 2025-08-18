@@ -336,56 +336,427 @@ export class AdvancedStrategyService {
   }
 
   /**
-   * 🎯 AI 예측 전략
-   * 머신러닝 모델을 활용한 가격 예측
+   * 📈 이동평균 크로스오버 전략 (표준 기법)
+   *
+   * 📖 개념: 빠른 이동평균선이 느린 이동평균선을 상향/하향 돌파할 때 발생하는 신호
+   *
+   * 🧮 계산 방법:
+   * 1. SMA20과 SMA50 계산
+   * 2. 이전 캔들에서 현재 캔들로의 크로스오버 감지
+   * 3. 거래량 확인으로 신호 강화
+   *
+   * 💡 핵심 아이디어:
+   * - 골든크로스: SMA20 > SMA50 (상승 신호)
+   * - 데드크로스: SMA20 < SMA50 (하락 신호)
+   * - 거래량 증가 시 신호 강화
    */
-  async executeAIPredictionStrategy(
+  async executeMovingAverageCrossoverStrategy(
     symbol: string,
     timeframe: TimeFrame,
   ): Promise<StrategyResult> {
     const candles = await this.candleRepository.findLatestCandles(
       symbol,
       'FUTURES',
-      500,
+      100,
     );
 
-    // 특성 추출
-    const features = this.extractMLFeatures(candles);
+    // 이동평균선 계산
+    const sma20 = this.indicatorService.calculateSMA(candles, 20);
+    const sma50 = this.indicatorService.calculateSMA(candles, 50);
 
-    // AI 모델 예측 (실제로는 외부 ML 서비스 호출)
-    const prediction = await this.predictWithAI(features);
+    // 현재 및 이전 값
+    const currentSMA20 = sma20[sma20.length - 1]?.value;
+    const currentSMA50 = sma50[sma50.length - 1]?.value;
+    const prevSMA20 = sma20[sma20.length - 2]?.value;
+    const prevSMA50 = sma50[sma50.length - 2]?.value;
+
+    // 거래량 확인
+    const currentVolume = candles[candles.length - 1].volume;
+    const avgVolume =
+      candles.slice(-20).reduce((sum, c) => sum + c.volume, 0) / 20;
+    const volumeRatio = currentVolume / avgVolume;
 
     let signal = SignalType.NEUTRAL;
-
     const conditions: string[] = [];
 
-    if (prediction.direction === 'up') {
-      signal = SignalType.BUY;
-      conditions.push(`AI 모델 상승 예측`);
-    } else if (prediction.direction === 'down') {
-      signal = SignalType.SELL;
-      conditions.push(`AI 모델 하락 예측`);
+    // 🟢 골든크로스 감지: 이전에는 SMA20 < SMA50, 현재는 SMA20 > SMA50
+    if (prevSMA20 < prevSMA50 && currentSMA20 > currentSMA50) {
+      signal = SignalType.STRONG_BUY;
+      conditions.push('골든크로스 발생 - SMA20이 SMA50 상향 돌파');
+
+      if (volumeRatio > 1.5) {
+        conditions.push(
+          `거래량 급증 확인 - 평균 대비 ${volumeRatio.toFixed(1)}배`,
+        );
+        signal = SignalType.STRONG_BUY; // 거래량으로 신호 강화
+      } else {
+        conditions.push(`거래량 정상 - 평균 대비 ${volumeRatio.toFixed(1)}배`);
+      }
+    }
+    // 🔴 데드크로스 감지: 이전에는 SMA20 > SMA50, 현재는 SMA20 < SMA50
+    else if (prevSMA20 > prevSMA50 && currentSMA20 < currentSMA50) {
+      signal = SignalType.STRONG_SELL;
+      conditions.push('데드크로스 발생 - SMA20이 SMA50 하향 돌파');
+
+      if (volumeRatio > 1.5) {
+        conditions.push(
+          `거래량 급증 확인 - 평균 대비 ${volumeRatio.toFixed(1)}배`,
+        );
+        signal = SignalType.STRONG_SELL; // 거래량으로 신호 강화
+      } else {
+        conditions.push(`거래량 정상 - 평균 대비 ${volumeRatio.toFixed(1)}배`);
+      }
+    }
+    // 📊 트렌드 확인: 크로스오버는 없지만 트렌드 방향 확인
+    else {
+      if (currentSMA20 > currentSMA50) {
+        signal = SignalType.WEAK_BUY;
+        conditions.push('상승 트렌드 유지 - SMA20 > SMA50');
+      } else {
+        signal = SignalType.WEAK_SELL;
+        conditions.push('하락 트렌드 유지 - SMA20 < SMA50');
+      }
     }
 
     return {
-      strategy: StrategyType.AI_PREDICTION,
+      strategy: StrategyType.MA_CROSSOVER,
       symbol,
       timeframe,
       signal,
-
       timestamp: Date.now(),
       details: {
         indicators: {
-          predictedDirection:
-            prediction.direction === 'bullish'
-              ? 1
-              : prediction.direction === 'bearish'
-                ? -1
-                : 0,
-          modelVersion: parseFloat(prediction.modelVersion) || 1.0,
+          sma20: currentSMA20,
+          sma50: currentSMA50,
+          crossoverStrength:
+            (Math.abs(currentSMA20 - currentSMA50) / currentSMA50) * 100,
+          volumeRatio,
         },
         conditions,
-        notes: 'AI 머신러닝 예측',
+        notes: '이동평균 크로스오버 전략 - 표준 20/50 크로스오버',
+      },
+    };
+  }
+
+  /**
+   * 🎯 볼린저 밴드 반전 전략 (표준 기법)
+   *
+   * 📖 개념: 가격이 볼린저 밴드 상단/하단에 터치한 후 반전될 때 발생하는 신호
+   *
+   * 🧮 계산 방법:
+   * 1. 볼린저 밴드 계산 (20일, 2 표준편차)
+   * 2. RSI 계산 (14일)
+   * 3. 상단 터치 + RSI 과매수 = 하락 반전 신호
+   * 4. 하단 터치 + RSI 과매도 = 상승 반전 신호
+   *
+   * 💡 핵심 아이디어:
+   * - 상단 터치 + RSI > 70 = 과매수 → 매도 신호
+   * - 하단 터치 + RSI < 30 = 과매도 → 매수 신호
+   * - 밴드폭 확인으로 변동성 측정
+   */
+  async executeBollingerBandsReversalStrategy(
+    symbol: string,
+    timeframe: TimeFrame,
+  ): Promise<StrategyResult> {
+    const candles = await this.candleRepository.findLatestCandles(
+      symbol,
+      'FUTURES',
+      50,
+    );
+
+    // 볼린저 밴드 및 RSI 계산
+    const bb = this.indicatorService.calculateBollingerBands(candles, 20, 2);
+    const rsi = this.indicatorService.calculateRSI(candles, 14);
+
+    const currentBB = bb[bb.length - 1];
+    const currentRSI = rsi[rsi.length - 1];
+    const currentPrice = candles[candles.length - 1].close;
+
+    let signal = SignalType.NEUTRAL;
+    const conditions: string[] = [];
+
+    // 🔴 상단 터치 + 과매수 = 하락 반전 신호
+    if (currentPrice >= currentBB.upper && currentRSI.value > 70) {
+      signal = SignalType.STRONG_SELL;
+      conditions.push('볼린저 밴드 상단 터치');
+      conditions.push(`RSI 과매수 확인: ${currentRSI.value.toFixed(1)}`);
+      conditions.push('하락 반전 신호 - 과매수 구간에서 매도');
+    }
+    // 🟢 하단 터치 + 과매도 = 상승 반전 신호
+    else if (currentPrice <= currentBB.lower && currentRSI.value < 30) {
+      signal = SignalType.STRONG_BUY;
+      conditions.push('볼린저 밴드 하단 터치');
+      conditions.push(`RSI 과매도 확인: ${currentRSI.value.toFixed(1)}`);
+      conditions.push('상승 반전 신호 - 과매도 구간에서 매수');
+    }
+    // 📊 밴드 중간 위치에서의 신호
+    else {
+      const bandPosition = currentBB.percentB; // 0~1 사이 값
+
+      if (bandPosition > 0.8) {
+        signal = SignalType.WEAK_SELL;
+        conditions.push('밴드 상단 근접 - 매도 고려');
+      } else if (bandPosition < 0.2) {
+        signal = SignalType.WEAK_BUY;
+        conditions.push('밴드 하단 근접 - 매수 고려');
+      } else {
+        conditions.push('밴드 중간 위치 - 중립');
+      }
+    }
+
+    return {
+      strategy: StrategyType.BOLLINGER_REVERSAL,
+      symbol,
+      timeframe,
+      signal,
+      timestamp: Date.now(),
+      details: {
+        indicators: {
+          upper: currentBB.upper,
+          middle: currentBB.middle,
+          lower: currentBB.lower,
+          percentB: currentBB.percentB,
+          rsi: currentRSI.value,
+          bandwidth: currentBB.bandwidth,
+        },
+        conditions,
+        notes: '볼린저 밴드 반전 전략 - 표준 20/2 설정',
+      },
+    };
+  }
+
+  /**
+   * 📊 MACD 크로스오버 전략 (표준 기법)
+   *
+   * 📖 개념: MACD 라인이 시그널 라인을 상향/하향 돌파할 때 발생하는 신호
+   *
+   * 🧮 계산 방법:
+   * 1. MACD 계산 (12, 26, 9)
+   * 2. 이전 캔들에서 현재 캔들로의 크로스오버 감지
+   * 3. 히스토그램 변화 확인
+   * 4. 0선 위치 확인으로 신호 강화
+   *
+   * 💡 핵심 아이디어:
+   * - 골든크로스: MACD > Signal (상승 신호)
+   * - 데드크로스: MACD < Signal (하락 신호)
+   * - 0선 위에서 골든크로스 = 강한 상승 신호
+   * - 히스토그램 증가 = 모멘텀 강화
+   */
+  async executeMACDCrossoverStrategy(
+    symbol: string,
+    timeframe: TimeFrame,
+  ): Promise<StrategyResult> {
+    const candles = await this.candleRepository.findLatestCandles(
+      symbol,
+      'FUTURES',
+      100,
+    );
+
+    // MACD 계산
+    const macd = this.indicatorService.calculateMACD(candles, 12, 26, 9);
+
+    const current = macd[macd.length - 1];
+    const previous = macd[macd.length - 2];
+
+    let signal = SignalType.NEUTRAL;
+    const conditions: string[] = [];
+
+    // 🟢 골든크로스 감지: 이전에는 MACD < Signal, 현재는 MACD > Signal
+    if (
+      previous.macdLine < previous.signalLine &&
+      current.macdLine > current.signalLine
+    ) {
+      signal = SignalType.STRONG_BUY;
+      conditions.push('MACD 골든크로스 발생');
+
+      // 0선 위에서 골든크로스 = 강한 신호
+      if (current.macdLine > 0) {
+        conditions.push('0선 위에서 골든크로스 - 강한 상승 신호');
+        signal = SignalType.STRONG_BUY;
+      } else {
+        conditions.push('0선 아래에서 골든크로스 - 약한 상승 신호');
+        signal = SignalType.BUY;
+      }
+
+      // 히스토그램 증가 확인
+      if (current.histogram > previous.histogram) {
+        conditions.push('히스토그램 증가 - 모멘텀 강화');
+      }
+    }
+    // 🔴 데드크로스 감지: 이전에는 MACD > Signal, 현재는 MACD < Signal
+    else if (
+      previous.macdLine > previous.signalLine &&
+      current.macdLine < current.signalLine
+    ) {
+      signal = SignalType.STRONG_SELL;
+      conditions.push('MACD 데드크로스 발생');
+
+      // 0선 아래에서 데드크로스 = 강한 신호
+      if (current.macdLine < 0) {
+        conditions.push('0선 아래에서 데드크로스 - 강한 하락 신호');
+        signal = SignalType.STRONG_SELL;
+      } else {
+        conditions.push('0선 위에서 데드크로스 - 약한 하락 신호');
+        signal = SignalType.SELL;
+      }
+
+      // 히스토그램 감소 확인
+      if (current.histogram < previous.histogram) {
+        conditions.push('히스토그램 감소 - 모멘텀 약화');
+      }
+    }
+    // 📊 트렌드 확인: 크로스오버는 없지만 MACD 위치 확인
+    else {
+      if (current.isGoldenCross) {
+        signal = SignalType.WEAK_BUY;
+        conditions.push('MACD 상승 트렌드 유지');
+      } else {
+        signal = SignalType.WEAK_SELL;
+        conditions.push('MACD 하락 트렌드 유지');
+      }
+    }
+
+    return {
+      strategy: StrategyType.MACD_CROSSOVER,
+      symbol,
+      timeframe,
+      signal,
+      timestamp: Date.now(),
+      details: {
+        indicators: {
+          macdLine: current.macdLine,
+          signalLine: current.signalLine,
+          histogram: current.histogram,
+          isGoldenCross: current.isGoldenCross ? 1 : 0,
+          isDeadCross: current.isDeadCross ? 1 : 0,
+        },
+        conditions,
+        notes: 'MACD 크로스오버 전략 - 표준 12/26/9 설정',
+      },
+    };
+  }
+
+  /**
+   * 🎯 Pivot Reversal Strategy (표준 기법)
+   *
+   * 📖 개념: 피벗 포인트 레벨에서 가격이 반전될 때 발생하는 신호
+   *
+   * 🧮 계산 방법:
+   * 1. 피벗 포인트 계산 (PP, R1, R2, R3, S1, S2, S3)
+   * 2. 현재 가격이 피벗 레벨 근처에서 반전 감지
+   * 3. RSI 확인으로 과매수/과매도 구간 판단
+   * 4. 거래량 확인으로 신호 강화
+   *
+   * 💡 핵심 아이디어:
+   * - 지지선 터치 + RSI 과매도 = 매수 신호
+   * - 저항선 터치 + RSI 과매수 = 매도 신호
+   * - 거래량 증가 시 신호 강화
+   */
+  async executePivotReversalStrategy(
+    symbol: string,
+    timeframe: TimeFrame,
+  ): Promise<StrategyResult> {
+    const candles = await this.candleRepository.findLatestCandles(
+      symbol,
+      'FUTURES',
+      50,
+    );
+
+    // 피벗 포인트 계산 (전일 데이터 기준)
+    const previousCandle = candles[candles.length - 2];
+    const pp =
+      (previousCandle.high + previousCandle.low + previousCandle.close) / 3;
+
+    const r1 = 2 * pp - previousCandle.low;
+    const r2 = pp + (previousCandle.high - previousCandle.low);
+    const r3 = previousCandle.high + 2 * (pp - previousCandle.low);
+
+    const s1 = 2 * pp - previousCandle.high;
+    const s2 = pp - (previousCandle.high - previousCandle.low);
+    const s3 = previousCandle.low - 2 * (previousCandle.high - pp);
+
+    // RSI 계산
+    const rsi = this.indicatorService.calculateRSI(candles, 14);
+    const currentRSI = rsi[rsi.length - 1];
+
+    // 현재 가격
+    const currentPrice = candles[candles.length - 1].close;
+    const currentVolume = candles[candles.length - 1].volume;
+    const avgVolume =
+      candles.slice(-20).reduce((sum, c) => sum + c.volume, 0) / 20;
+    const volumeRatio = currentVolume / avgVolume;
+
+    let signal = SignalType.NEUTRAL;
+    const conditions: string[] = [];
+
+    // 🟢 지지선 터치 + 과매도 = 매수 신호
+    if (
+      (currentPrice <= s1 * 1.005 || currentPrice <= s2 * 1.005) &&
+      currentRSI.value < 30
+    ) {
+      signal = SignalType.STRONG_BUY;
+      conditions.push('피벗 지지선 터치');
+      conditions.push(`RSI 과매도 확인: ${currentRSI.value.toFixed(1)}`);
+
+      if (volumeRatio > 1.5) {
+        conditions.push(`거래량 급증 - 평균 대비 ${volumeRatio.toFixed(1)}배`);
+        signal = SignalType.STRONG_BUY;
+      } else {
+        conditions.push(`거래량 정상 - 평균 대비 ${volumeRatio.toFixed(1)}배`);
+        signal = SignalType.BUY;
+      }
+    }
+    // 🔴 저항선 터치 + 과매수 = 매도 신호
+    else if (
+      (currentPrice >= r1 * 0.995 || currentPrice >= r2 * 0.995) &&
+      currentRSI.value > 70
+    ) {
+      signal = SignalType.STRONG_SELL;
+      conditions.push('피벗 저항선 터치');
+      conditions.push(`RSI 과매수 확인: ${currentRSI.value.toFixed(1)}`);
+
+      if (volumeRatio > 1.5) {
+        conditions.push(`거래량 급증 - 평균 대비 ${volumeRatio.toFixed(1)}배`);
+        signal = SignalType.STRONG_SELL;
+      } else {
+        conditions.push(`거래량 정상 - 평균 대비 ${volumeRatio.toFixed(1)}배`);
+        signal = SignalType.SELL;
+      }
+    }
+    // 📊 중간 레벨에서의 신호
+    else {
+      if (currentPrice > pp && currentPrice < r1) {
+        signal = SignalType.WEAK_BUY;
+        conditions.push('피벗 중간 레벨 - 상승 모멘텀');
+      } else if (currentPrice < pp && currentPrice > s1) {
+        signal = SignalType.WEAK_SELL;
+        conditions.push('피벗 중간 레벨 - 하락 모멘텀');
+      } else {
+        conditions.push('피벗 중립 구간');
+      }
+    }
+
+    return {
+      strategy: StrategyType.PIVOT_REVERSAL,
+      symbol,
+      timeframe,
+      signal,
+      timestamp: Date.now(),
+      details: {
+        indicators: {
+          pivotPoint: pp,
+          resistance1: r1,
+          resistance2: r2,
+          resistance3: r3,
+          support1: s1,
+          support2: s2,
+          support3: s3,
+          currentPrice,
+          rsi: currentRSI.value,
+          volumeRatio,
+        },
+        conditions,
+        notes: '피벗 반전 전략 - 표준 피벗 포인트 계산',
       },
     };
   }
@@ -446,42 +817,6 @@ export class AdvancedStrategyService {
       waveCompletion: 0.6,
       correctionComplete: false,
       trendDirection: 'up',
-    };
-  }
-
-  private extractMLFeatures(candles: CandleData[]) {
-    // ML 특성 추출
-    const features = {
-      priceFeatures: candles.slice(-20).map((c) => c.close),
-      volumeFeatures: candles.slice(-20).map((c) => c.volume),
-      technicalIndicators: {
-        rsi: this.indicatorService.calculateRSI(candles, 14),
-        macd: this.indicatorService.calculateMACD(candles, 12, 26, 9),
-        sma5: this.indicatorService.calculateSMA(candles, 5),
-        sma10: this.indicatorService.calculateSMA(candles, 10),
-        sma21: this.indicatorService.calculateSMA(candles, 21),
-        sma50: this.indicatorService.calculateSMA(candles, 50),
-        sma100: this.indicatorService.calculateSMA(candles, 100),
-        sma200: this.indicatorService.calculateSMA(candles, 200),
-        ema9: this.indicatorService.calculateEMA(candles, 9),
-        ema21: this.indicatorService.calculateEMA(candles, 21),
-        ema50: this.indicatorService.calculateEMA(candles, 50),
-        vwap: this.indicatorService.calculateVWAP
-          ? this.indicatorService.calculateVWAP(candles)
-          : null,
-      },
-    };
-
-    return features;
-  }
-
-  private async predictWithAI(features: any) {
-    // 실제로는 외부 ML API 호출
-    // 여기서는 모의 예측 결과 반환
-    return {
-      direction: 'up',
-
-      modelVersion: 'v1.0',
     };
   }
 }

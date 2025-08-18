@@ -1684,7 +1684,7 @@ export class TelegramClient {
       MULTI_TIMEFRAME_TREND: { emoji: '📊', name: '다중 시간봉 트렌드' },
       PATTERN_RECOGNITION: { emoji: '🔍', name: '패턴 인식' },
       ELLIOTT_WAVE: { emoji: '🌊', name: '엘리어트 파동' },
-      AI_PREDICTION: { emoji: '🤖', name: 'AI 예측' },
+      PIVOT_REVERSAL: { emoji: '🎯', name: '피벗 반전' },
       DAY_TRADING_STRATEGY: { emoji: '📊', name: '데이 트레이딩' },
       SWING_TRADING: { emoji: '🌊', name: '스윙 트레이딩' },
       POSITION_TRADING: { emoji: '🏛️', name: '포지션 트레이딩' },

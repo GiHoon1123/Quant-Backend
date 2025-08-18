@@ -16,6 +16,7 @@ export enum StrategyType {
   GOLDEN_CROSS_5_20 = 'GOLDEN_CROSS_5_20', // 5일선이 20일선 상향 돌파
   GOLDEN_CROSS_20_60 = 'GOLDEN_CROSS_20_60', // 20일선이 60일선 상향 돌파
   GOLDEN_CROSS_50_200 = 'GOLDEN_CROSS_50_200', // 50일선이 200일선 상향 돌파
+  MA_CROSSOVER = 'MA_CROSSOVER', // 표준 이동평균 크로스오버 (20/50)
 
   // RSI 기반 전략
   RSI_OVERSOLD_BOUNCE = 'RSI_OVERSOLD_BOUNCE', // RSI 30 이하에서 반등
@@ -26,11 +27,14 @@ export enum StrategyType {
   MACD_GOLDEN_CROSS = 'MACD_GOLDEN_CROSS', // MACD 골든크로스
   MACD_ZERO_CROSS = 'MACD_ZERO_CROSS', // MACD 0선 돌파
   MACD_HISTOGRAM_TURN = 'MACD_HISTOGRAM_TURN', // MACD 히스토그램 전환
+  MACD_CROSSOVER = 'MACD_CROSSOVER', // MACD 크로스오버 전략
 
   // 볼린저 밴드 전략
   BOLLINGER_UPPER_BREAK = 'BOLLINGER_UPPER_BREAK', // 볼린저 상단 돌파
   BOLLINGER_LOWER_BOUNCE = 'BOLLINGER_LOWER_BOUNCE', // 볼린저 하단 반등
   BOLLINGER_SQUEEZE = 'BOLLINGER_SQUEEZE', // 볼린저 밴드 스퀴즈
+  BOLLINGER_REVERSAL = 'BOLLINGER_REVERSAL', // 볼린저 밴드 반전 전략
+  PIVOT_REVERSAL = 'PIVOT_REVERSAL', // 피벗 반전 전략
 
   // 거래량 기반 전략
   VOLUME_SURGE_UP = 'VOLUME_SURGE_UP', // 거래량 급증 + 상승
@@ -47,7 +51,6 @@ export enum StrategyType {
   MULTI_TIMEFRAME_TREND = 'MULTI_TIMEFRAME_TREND', // 다중 시간봉 트렌드
   PATTERN_RECOGNITION = 'PATTERN_RECOGNITION', // 패턴 인식
   ELLIOTT_WAVE = 'ELLIOTT_WAVE', // 엘리어트 파동
-  AI_PREDICTION = 'AI_PREDICTION', // AI 예측
 
   // 실전 전략들
   DAY_TRADING_STRATEGY = 'DAY_TRADING_STRATEGY', // 데이 트레이딩 전략
