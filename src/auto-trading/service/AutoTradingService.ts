@@ -30,23 +30,23 @@ import { FuturesService } from '../../futures/service/FuturesService';
 export class AutoTradingService implements OnModuleInit {
   private readonly logger = new Logger(AutoTradingService.name);
 
-  // 자동 매매 설정 (환경변수에서 동적 로드)
+  // 자동 매매 설정 (표준 기법 기반으로 변경)
   private readonly AUTO_TRADING_CONFIG = {
-    // 진입 조건
-    MIN_VOLUME_RATIO: 1.2, // 최소 거래량 비율
-    MIN_RSI_FOR_LONG: 40, // 롱 진입 최소 RSI
-    MAX_RSI_FOR_LONG: 70, // 롱 진입 최대 RSI
-    MIN_RSI_FOR_SHORT: 70, // 숏 진입 최소 RSI
+    // 진입 조건 (표준 기법 적용)
+    MIN_VOLUME_RATIO: 2.0, // 표준 거래량 급증 기준 (기존: 1.2)
+    MIN_RSI_FOR_LONG: 30, // 표준 RSI 과매도 기준 (기존: 40)
+    MAX_RSI_FOR_LONG: 70, // 표준 RSI 과매수 기준 (유지)
+    MIN_RSI_FOR_SHORT: 70, // 표준 RSI 과매수 기준 (유지)
 
-    // 스위칭 조건
-    MIN_HOLD_TIME: 30 * 60 * 1000, // 최소 보유 시간 (30분)
-    MAX_LOSS_FOR_SWITCH: -5, // 스위칭 허용 최대 손실률 (%) - 너무 큰 손실일 때는 스위칭 대신 손절
+    // 스위칭 조건 (기술적 신호 기반으로 변경)
+    // MIN_HOLD_TIME 제거: 시간 기반 → 기술적 신호 기반으로 변경
+    // MAX_LOSS_FOR_SWITCH 제거: 손실률 기반 → ATR 기반으로 변경 예정
 
-    // 리스크 관리 (환경변수에서 동적 로드)
-    POSITION_SIZE_PERCENT: 2, // 계좌 대비 포지션 크기 (%)
+    // 리스크 관리 (표준 기법 적용 예정)
+    POSITION_SIZE_PERCENT: 2, // Kelly Criterion으로 변경 예정 (기존: 2%)
 
-    // 스위칭 신호 조건 (2개 이상 만족 시)
-    SWITCH_CONDITIONS_REQUIRED: 2,
+    // 스위칭 신호 조건 (표준 기법으로 변경 예정)
+    SWITCH_CONDITIONS_REQUIRED: 2, // 표준 기법으로 변경 예정
   };
 
   constructor(
@@ -183,13 +183,14 @@ export class AutoTradingService implements OnModuleInit {
     const positionAge =
       Date.now() - new Date(currentPosition.timestamp).getTime();
 
-    // 최소 보유 시간 확인
-    if (positionAge < this.AUTO_TRADING_CONFIG.MIN_HOLD_TIME) {
-      this.logger.debug(
-        `⏰ [${symbol}] 최소 보유 시간 미달: ${Math.round(positionAge / 60000)}분 < ${this.AUTO_TRADING_CONFIG.MIN_HOLD_TIME / 60000}분`,
-      );
-      return;
-    }
+    // 최소 보유 시간 확인 (제거됨 - 기술적 신호 기반으로 변경)
+    // 기존: 시간 기반 제한 → 변경: 기술적 신호 기반 판단
+    // if (positionAge < this.AUTO_TRADING_CONFIG.MIN_HOLD_TIME) {
+    //   this.logger.debug(
+    //     `⏰ [${symbol}] 최소 보유 시간 미달: ${Math.round(positionAge / 60000)}분 < ${this.AUTO_TRADING_CONFIG.MIN_HOLD_TIME / 60000}분`,
+    //   );
+    //   return;
+    // }
 
     // 현재 포지션의 수익률 계산
     const currentPrice = analysisResult.currentPrice;
@@ -223,20 +224,21 @@ export class AutoTradingService implements OnModuleInit {
       }
     }
 
-    // 손실 제한 확인 (우선순위 2)
-    if (
-      shouldSwitch &&
-      pnlPercent < this.AUTO_TRADING_CONFIG.MAX_LOSS_FOR_SWITCH
-    ) {
-      this.logger.warn(
-        `⚠️ [${symbol}] 손실률 과다로 스위칭 차단: ${pnlPercent.toFixed(2)}% < ${this.AUTO_TRADING_CONFIG.MAX_LOSS_FOR_SWITCH}% (${switchReason})`,
-      );
-      // 손실이 너무 클 때는 스위칭 대신 손절 고려
-      this.logger.log(
-        `💡 [${symbol}] 손절 로직 실행 권장 (현재 손실: ${pnlPercent.toFixed(2)}%)`,
-      );
-      return;
-    }
+    // 손실 제한 확인 (제거됨 - ATR 기반으로 변경 예정)
+    // 기존: 고정 손실률 제한 → 변경: ATR 기반 동적 손절
+    // if (
+    //   shouldSwitch &&
+    //   pnlPercent < this.AUTO_TRADING_CONFIG.MAX_LOSS_FOR_SWITCH
+    // ) {
+    //   this.logger.warn(
+    //     `⚠️ [${symbol}] 손실률 과다로 스위칭 차단: ${pnlPercent.toFixed(2)}% < ${this.AUTO_TRADING_CONFIG.MAX_LOSS_FOR_SWITCH}% (${switchReason})`,
+    //   );
+    //   // 손실이 너무 클 때는 스위칭 대신 손절 고려
+    //   this.logger.log(
+    //     `💡 [${symbol}] 손절 로직 실행 권장 (현재 손실: ${pnlPercent.toFixed(2)}%)`,
+    //   );
+    //   return;
+    // }
 
     // 스위칭 실행
     if (shouldSwitch) {

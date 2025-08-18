@@ -12,5 +12,6 @@ export default () => ({
     'ATOMUSDT',
     'NEARUSDT',
   ],
-  alertThreshold: 80,
+  // 알림 임계값 (신호 강도 기반으로 변경 예정)
+  alertThreshold: 80, // 신호 강도 기반으로 변경 예정 (기존: 80)
 });

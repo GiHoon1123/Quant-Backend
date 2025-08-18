@@ -12,10 +12,12 @@ export class TradingConfigService {
   constructor(private readonly configService: ConfigService) {}
 
   /**
-   * 현물 거래 기본 손절 비율 조회
+   * 현물 거래 기본 손절 비율 조회 (ATR 기반으로 변경 예정)
    *
    * @description 자동매매/전략에서 사용할 현물 거래의 기본 손절 비율을 반환합니다.
    * 환경변수 SPOT_DEFAULT_STOP_LOSS_PERCENT에서 값을 읽어옵니다.
+   *
+   * ⚠️ 주의: 현재 고정 비율 사용 중 → ATR 기반 동적 손절로 변경 예정
    *
    * @returns 현물 기본 손절 비율 (0.03 = 3%)
    * @default 0.03 (3%)
@@ -26,15 +28,17 @@ export class TradingConfigService {
   getSpotDefaultStopLossPercent(): number {
     return this.configService.get<number>(
       'SPOT_DEFAULT_STOP_LOSS_PERCENT',
-      0.03,
+      0.03, // ATR 기반으로 변경 예정 (기존: 3%)
     );
   }
 
   /**
-   * 현물 거래 기본 익절 비율 조회
+   * 현물 거래 기본 익절 비율 조회 (2:1 리스크/리워드로 변경 예정)
    *
    * @description 자동매매/전략에서 사용할 현물 거래의 기본 익절 비율을 반환합니다.
    * 환경변수 SPOT_DEFAULT_TAKE_PROFIT_PERCENT에서 값을 읽어옵니다.
+   *
+   * ⚠️ 주의: 현재 고정 비율 사용 중 → 2:1 리스크/리워드 비율로 변경 예정
    *
    * @returns 현물 기본 익절 비율 (0.06 = 6%)
    * @default 0.06 (6%)
@@ -45,16 +49,18 @@ export class TradingConfigService {
   getSpotDefaultTakeProfitPercent(): number {
     return this.configService.get<number>(
       'SPOT_DEFAULT_TAKE_PROFIT_PERCENT',
-      0.06,
+      0.06, // 2:1 리스크/리워드로 변경 예정 (기존: 6%)
     );
   }
 
   /**
-   * 선물 거래 기본 손절 비율 조회
+   * 선물 거래 기본 손절 비율 조회 (ATR 기반으로 변경 예정)
    *
    * @description 자동매매/전략에서 사용할 선물 거래의 기본 손절 비율을 반환합니다.
    * 환경변수 FUTURES_DEFAULT_STOP_LOSS_PERCENT에서 값을 읽어옵니다.
    * 선물은 레버리지가 있어 현물보다 낮은 비율을 사용합니다.
+   *
+   * ⚠️ 주의: 현재 고정 비율 사용 중 → ATR 기반 동적 손절로 변경 예정
    *
    * @returns 선물 기본 손절 비율 (0.02 = 2%)
    * @default 0.02 (2%)
@@ -65,16 +71,18 @@ export class TradingConfigService {
   getFuturesDefaultStopLossPercent(): number {
     return this.configService.get<number>(
       'FUTURES_DEFAULT_STOP_LOSS_PERCENT',
-      0.02,
+      0.02, // ATR 기반으로 변경 예정 (기존: 2%)
     );
   }
 
   /**
-   * 선물 거래 기본 익절 비율 조회
+   * 선물 거래 기본 익절 비율 조회 (2:1 리스크/리워드로 변경 예정)
    *
    * @description 자동매매/전략에서 사용할 선물 거래의 기본 익절 비율을 반환합니다.
    * 환경변수 FUTURES_DEFAULT_TAKE_PROFIT_PERCENT에서 값을 읽어옵니다.
    * 선물은 레버리지가 있어 현물보다 낮은 비율을 사용합니다.
+   *
+   * ⚠️ 주의: 현재 고정 비율 사용 중 → 2:1 리스크/리워드 비율로 변경 예정
    *
    * @returns 선물 기본 익절 비율 (0.04 = 4%)
    * @default 0.04 (4%)
@@ -85,7 +93,7 @@ export class TradingConfigService {
   getFuturesDefaultTakeProfitPercent(): number {
     return this.configService.get<number>(
       'FUTURES_DEFAULT_TAKE_PROFIT_PERCENT',
-      0.04,
+      0.04, // 2:1 리스크/리워드로 변경 예정 (기존: 4%)
     );
   }
 

@@ -21,8 +21,8 @@ const notificationConfig = {
   },
   rateLimiting: {
     enabled: true,
-    maxPerMinute: 10,
-    maxPerHour: 100,
+    maxPerMinute: 10, // 신호 기반으로 변경 예정 (기존: 10)
+    maxPerHour: 100, // 신호 기반으로 변경 예정 (기존: 100)
   },
   quietHours: {
     enabled: false,
