@@ -142,6 +142,13 @@ export class TelegramClient {
 
     const fullMessage = header + message;
 
+    // 📱 텔레그램 알림 내용 콘솔 출력
+    console.log('\n' + '='.repeat(80));
+    console.log('📱 [TELEGRAM ALERT] 알림 내용:');
+    console.log('='.repeat(80));
+    console.log(fullMessage);
+    console.log('='.repeat(80) + '\n');
+
     const url = `https://api.telegram.org/bot${this.botToken}/sendMessage`;
     const payload = {
       chat_id: this.chatId,
@@ -592,6 +599,22 @@ export class TelegramClient {
    * 기술적 분석 결과 알림 (기존 호환성 유지)
    */
   async sendAnalysisResult(
+    symbol: string,
+    result: {
+      signal: 'BUY' | 'SELL' | 'HOLD';
+      indicators: Record<string, any>;
+      price: number;
+      timestamp: Date;
+    },
+  ): Promise<void> {
+    // 객관적 분석 결과 알림으로 변경
+    await this.sendObjectiveAnalysisResult(symbol, result);
+  }
+
+  /**
+   * 객관적 기술적 분석 결과 알림 (주관적 해석 제거)
+   */
+  async sendObjectiveAnalysisResult(
     symbol: string,
     result: {
       signal: 'BUY' | 'SELL' | 'HOLD';
