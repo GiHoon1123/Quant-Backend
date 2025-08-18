@@ -30,23 +30,27 @@ import { FuturesService } from '../../futures/service/FuturesService';
 export class AutoTradingService implements OnModuleInit {
   private readonly logger = new Logger(AutoTradingService.name);
 
-  // 자동 매매 설정 (표준 기법 기반으로 변경)
+  // 자동 매매 설정 (피벗 반전 전략 기반)
   private readonly AUTO_TRADING_CONFIG = {
-    // 진입 조건 (표준 기법 적용)
-    MIN_VOLUME_RATIO: 2.0, // 표준 거래량 급증 기준 (기존: 1.2)
-    MIN_RSI_FOR_LONG: 30, // 표준 RSI 과매도 기준 (기존: 40)
-    MAX_RSI_FOR_LONG: 70, // 표준 RSI 과매수 기준 (유지)
-    MIN_RSI_FOR_SHORT: 70, // 표준 RSI 과매수 기준 (유지)
+    // 피벗 반전 전략 설정
+    PIVOT_TOUCH_TOLERANCE: 0.005, // 피벗선 터치 허용 오차 (0.5%)
+    MIN_VOLUME_RATIO: 1.5, // 거래량 급증 기준 (1.5배)
 
-    // 스위칭 조건 (기술적 신호 기반으로 변경)
-    // MIN_HOLD_TIME 제거: 시간 기반 → 기술적 신호 기반으로 변경
-    // MAX_LOSS_FOR_SWITCH 제거: 손실률 기반 → ATR 기반으로 변경 예정
+    // RSI 설정
+    RSI_OVERSOLD: 30, // RSI 과매도 기준
+    RSI_OVERBOUGHT: 70, // RSI 과매수 기준
 
-    // 리스크 관리 (표준 기법 적용 예정)
-    POSITION_SIZE_PERCENT: 2, // Kelly Criterion으로 변경 예정 (기존: 2%)
+    // 리스크 관리
+    POSITION_SIZE_PERCENT: 2, // 포지션 크기 2%
+    SWITCH_CONDITIONS_REQUIRED: 2, // 스위칭 조건 2개
 
-    // 스위칭 신호 조건 (표준 기법으로 변경 예정)
-    SWITCH_CONDITIONS_REQUIRED: 2, // 표준 기법으로 변경 예정
+    // 피벗 레벨 설정
+    PIVOT_LEVELS: {
+      SUPPORT_1: 'S1', // 1차 지지선
+      SUPPORT_2: 'S2', // 2차 지지선
+      RESISTANCE_1: 'R1', // 1차 저항선
+      RESISTANCE_2: 'R2', // 2차 저항선
+    },
   };
 
   constructor(
@@ -142,10 +146,10 @@ export class AutoTradingService implements OnModuleInit {
         );
       }
     }
-    // STRONG_SELL 신호: 숏 진입 검토
-    else if (overallSignal === 'STRONG_SELL') {
+    // STRONG_SELL 또는 SELL 신호: 숏 진입 검토 (신호 범위 확대)
+    else if (overallSignal === 'STRONG_SELL' || overallSignal === 'SELL') {
       this.logger.log(
-        `💥💥💥 [AUTO-TRADING] ${symbol} STRONG_SELL 신호 감지 - 숏 진입 조건 검사 시작 💥💥💥`,
+        `💥💥💥 [AUTO-TRADING] ${symbol} ${overallSignal} 신호 감지 - 숏 진입 조건 검사 시작 💥💥💥`,
       );
       const canEnterShort = this.checkShortEntryConditions(analysisResult);
       if (canEnterShort) {
@@ -204,18 +208,21 @@ export class AutoTradingService implements OnModuleInit {
     let shouldSwitch = false;
     let switchReason = '';
 
-    // 롱 포지션에서 숏 신호: 롱→숏 스위칭 검토
-    if (currentPosition.side === 'LONG' && overallSignal === 'STRONG_SELL') {
+    // 롱 포지션에서 숏 신호: 롱→숏 스위칭 검토 (신호 범위 확대)
+    if (
+      currentPosition.side === 'LONG' &&
+      (overallSignal === 'STRONG_SELL' || overallSignal === 'SELL')
+    ) {
       const canSwitchToShort = this.checkLongToShortSwitch(analysisResult);
       if (canSwitchToShort) {
         shouldSwitch = true;
         switchReason = '롱→숏 전략 신호';
       }
     }
-    // 숏 포지션에서 롱 신호: 숏→롱 스위칭 검토
+    // 숏 포지션에서 롱 신호: 숏→롱 스위칭 검토 (신호 범위 확대)
     else if (
       currentPosition.side === 'SHORT' &&
-      overallSignal === 'STRONG_BUY'
+      (overallSignal === 'STRONG_BUY' || overallSignal === 'BUY')
     ) {
       const canSwitchToLong = this.checkShortToLongSwitch(analysisResult);
       if (canSwitchToLong) {
@@ -259,7 +266,7 @@ export class AutoTradingService implements OnModuleInit {
   }
 
   /**
-   * 롱 진입 조건 확인
+   * 롱 진입 조건 확인 (피벗 반전 전략 기반)
    *
    * @param analysisResult 분석 결과
    * @returns 롱 진입 가능 여부
@@ -267,51 +274,47 @@ export class AutoTradingService implements OnModuleInit {
   private checkLongEntryConditions(analysisResult: any): boolean {
     const indicators = analysisResult.indicators || {};
 
-    // 안전한 지표 추출 (실제 구조에 맞게 조정)
-    const sma20 = indicators?.SMA20 || indicators?.sma20 || 0;
-    const sma50 = indicators?.SMA50 || indicators?.sma50 || 0;
+    // 피벗 반전 전략 지표 추출
+    const currentPrice = analysisResult.currentPrice || 0;
+    const support1 = indicators?.support1 || indicators?.Support1 || 0;
+    const support2 = indicators?.support2 || indicators?.Support2 || 0;
     const rsi = indicators?.RSI || indicators?.rsi || 50;
     const volumeRatio = indicators?.VolumeRatio || indicators?.volumeRatio || 1;
-    const ema12 = indicators?.EMA12 || indicators?.ema12 || 0;
-    const ema26 = indicators?.EMA26 || indicators?.ema26 || 0;
 
-    // 기본 조건들
-    const isTrendUp = sma20 > sma50; // 상승 트렌드
-    const isRsiHealthy =
-      rsi > this.AUTO_TRADING_CONFIG.MIN_RSI_FOR_LONG &&
-      rsi < this.AUTO_TRADING_CONFIG.MAX_RSI_FOR_LONG; // RSI 건전
-    const isVolumeSupport =
-      volumeRatio > this.AUTO_TRADING_CONFIG.MIN_VOLUME_RATIO; // 거래량 지지
-    const isGoldenCross = ema12 > ema26; // 골든크로스
+    // 피벗 반전 전략 조건들
+    const isPivotSupportTouch =
+      currentPrice <=
+        support1 * (1 + this.AUTO_TRADING_CONFIG.PIVOT_TOUCH_TOLERANCE) ||
+      currentPrice <=
+        support2 * (1 + this.AUTO_TRADING_CONFIG.PIVOT_TOUCH_TOLERANCE); // 피벗 지지선 터치
 
-    // 4개 조건 중 3개 이상 만족
-    const conditions = [
-      isTrendUp,
-      isRsiHealthy,
-      isVolumeSupport,
-      isGoldenCross,
-    ];
+    const isRsiOversold = rsi < this.AUTO_TRADING_CONFIG.RSI_OVERSOLD; // RSI 과매도
+
+    const isVolumeSurge =
+      volumeRatio > this.AUTO_TRADING_CONFIG.MIN_VOLUME_RATIO; // 거래량 급증
+
+    // 3개 조건 중 2개 이상 만족 (피벗 반전 전략)
+    const conditions = [isPivotSupportTouch, isRsiOversold, isVolumeSurge];
     const satisfiedCount = conditions.filter(Boolean).length;
 
-    this.logger.log(`🔍 롱 진입 조건 검사 (${satisfiedCount}/4 만족):`);
     this.logger.log(
-      `  • 상승 트렌드 (SMA20 > SMA50): ${sma20} > ${sma50} → ${isTrendUp ? '✅' : '❌'}`,
+      `🔍 피벗 반전 롱 진입 조건 검사 (${satisfiedCount}/3 만족):`,
     );
     this.logger.log(
-      `  • RSI 건전 (${this.AUTO_TRADING_CONFIG.MIN_RSI_FOR_LONG}-${this.AUTO_TRADING_CONFIG.MAX_RSI_FOR_LONG}): ${rsi} → ${isRsiHealthy ? '✅' : '❌'}`,
+      `  • 피벗 지지선 터치 (S1: ${support1}, S2: ${support2}): ${currentPrice} → ${isPivotSupportTouch ? '✅' : '❌'}`,
     );
     this.logger.log(
-      `  • 거래량 지지 (≥${this.AUTO_TRADING_CONFIG.MIN_VOLUME_RATIO}): ${volumeRatio} → ${isVolumeSupport ? '✅' : '❌'}`,
+      `  • RSI 과매도 (<${this.AUTO_TRADING_CONFIG.RSI_OVERSOLD}): ${rsi} → ${isRsiOversold ? '✅' : '❌'}`,
     );
     this.logger.log(
-      `  • 골든크로스 (EMA12 > EMA26): ${ema12} > ${ema26} → ${isGoldenCross ? '✅' : '❌'}`,
+      `  • 거래량 급증 (≥${this.AUTO_TRADING_CONFIG.MIN_VOLUME_RATIO}): ${volumeRatio} → ${isVolumeSurge ? '✅' : '❌'}`,
     );
 
-    return satisfiedCount >= 3;
+    return satisfiedCount >= 2;
   }
 
   /**
-   * 숏 진입 조건 확인
+   * 숏 진입 조건 확인 (피벗 반전 전략 기반)
    *
    * @param analysisResult 분석 결과
    * @returns 숏 진입 가능 여부
@@ -319,49 +322,48 @@ export class AutoTradingService implements OnModuleInit {
   private checkShortEntryConditions(analysisResult: any): boolean {
     const indicators = analysisResult.indicators || {};
 
-    // 안전한 지표 추출
-    const sma20 = indicators?.SMA20 || indicators?.sma20 || 0;
-    const sma50 = indicators?.SMA50 || indicators?.sma50 || 0;
+    // 피벗 반전 전략 지표 추출
+    const currentPrice = analysisResult.currentPrice || 0;
+    const resistance1 = indicators?.resistance1 || indicators?.Resistance1 || 0;
+    const resistance2 = indicators?.resistance2 || indicators?.Resistance2 || 0;
     const rsi = indicators?.RSI || indicators?.rsi || 50;
     const volumeRatio = indicators?.VolumeRatio || indicators?.volumeRatio || 1;
-    const ema12 = indicators?.EMA12 || indicators?.ema12 || 0;
-    const ema26 = indicators?.EMA26 || indicators?.ema26 || 0;
 
-    // 기본 조건들
-    const isTrendDown = sma20 < sma50; // 하락 트렌드
-    const isRsiOverbought = rsi > this.AUTO_TRADING_CONFIG.MIN_RSI_FOR_SHORT; // RSI 과매수
-    const isVolumeSupport =
-      volumeRatio > this.AUTO_TRADING_CONFIG.MIN_VOLUME_RATIO; // 거래량 지지
-    const isDeadCross = ema12 < ema26; // 데드크로스
+    // 피벗 반전 전략 조건들
+    const isPivotResistanceTouch =
+      currentPrice >=
+        resistance1 * (1 - this.AUTO_TRADING_CONFIG.PIVOT_TOUCH_TOLERANCE) ||
+      currentPrice >=
+        resistance2 * (1 - this.AUTO_TRADING_CONFIG.PIVOT_TOUCH_TOLERANCE); // 피벗 저항선 터치
 
-    // 4개 조건 중 3개 이상 만족
-    const conditions = [
-      isTrendDown,
-      isRsiOverbought,
-      isVolumeSupport,
-      isDeadCross,
-    ];
+    const isRsiOverbought = rsi > this.AUTO_TRADING_CONFIG.RSI_OVERBOUGHT; // RSI 과매수
+
+    const isVolumeSurge =
+      volumeRatio > this.AUTO_TRADING_CONFIG.MIN_VOLUME_RATIO; // 거래량 급증
+
+    // 3개 조건 중 2개 이상 만족 (피벗 반전 전략) - 숏 진입 조건 완화
+    const conditions = [isPivotResistanceTouch, isRsiOverbought, isVolumeSurge];
     const satisfiedCount = conditions.filter(Boolean).length;
 
-    this.logger.log(`🔍 숏 진입 조건 검사 (${satisfiedCount}/4 만족):`);
     this.logger.log(
-      `  • 하락 트렌드 (SMA20 < SMA50): ${sma20} < ${sma50} → ${isTrendDown ? '✅' : '❌'}`,
+      `🔍 피벗 반전 숏 진입 조건 검사 (${satisfiedCount}/3 만족):`,
     );
     this.logger.log(
-      `  • RSI 과매수 (≥${this.AUTO_TRADING_CONFIG.MIN_RSI_FOR_SHORT}): ${rsi} → ${isRsiOverbought ? '✅' : '❌'}`,
+      `  • 피벗 저항선 터치 (R1: ${resistance1}, R2: ${resistance2}): ${currentPrice} → ${isPivotResistanceTouch ? '✅' : '❌'}`,
     );
     this.logger.log(
-      `  • 거래량 지지 (≥${this.AUTO_TRADING_CONFIG.MIN_VOLUME_RATIO}): ${volumeRatio} → ${isVolumeSupport ? '✅' : '❌'}`,
+      `  • RSI 과매수 (>${this.AUTO_TRADING_CONFIG.RSI_OVERBOUGHT}): ${rsi} → ${isRsiOverbought ? '✅' : '❌'}`,
     );
     this.logger.log(
-      `  • 데드크로스 (EMA12 < EMA26): ${ema12} < ${ema26} → ${isDeadCross ? '✅' : '❌'}`,
+      `  • 거래량 급증 (≥${this.AUTO_TRADING_CONFIG.MIN_VOLUME_RATIO}): ${volumeRatio} → ${isVolumeSurge ? '✅' : '❌'}`,
     );
 
-    return satisfiedCount >= 3;
+    // 숏 진입 조건 완화: 3개 중 1개만 만족해도 진입 (더 적극적인 숏 진입)
+    return satisfiedCount >= 1;
   }
 
   /**
-   * 롱→숏 스위칭 조건 확인
+   * 롱→숏 스위칭 조건 확인 (피벗 반전 전략 기반)
    *
    * @param analysisResult 분석 결과
    * @returns 롱→숏 스위칭 가능 여부
@@ -369,22 +371,27 @@ export class AutoTradingService implements OnModuleInit {
   private checkLongToShortSwitch(analysisResult: any): boolean {
     const indicators = analysisResult.indicators || {};
 
-    const sma20 = indicators?.SMA20 || indicators?.sma20 || 0;
     const currentPrice = analysisResult.currentPrice;
+    const resistance1 = indicators?.resistance1 || indicators?.Resistance1 || 0;
+    const resistance2 = indicators?.resistance2 || indicators?.Resistance2 || 0;
     const rsi = indicators?.RSI || indicators?.rsi || 50;
-    const ema12 = indicators?.EMA12 || indicators?.ema12 || 0;
-    const ema26 = indicators?.EMA26 || indicators?.ema26 || 0;
+    const volumeRatio = indicators?.VolumeRatio || indicators?.volumeRatio || 1;
 
-    // 스위칭 조건들
-    const isPriceBelowSMA20 = currentPrice < sma20; // 현재가가 20일선 아래
-    const isRsiOverbought = rsi > 70; // RSI 과매수
-    const isDeadCross = ema12 < ema26; // 데드크로스
+    // 피벗 반전 스위칭 조건들
+    const isPivotResistanceTouch =
+      currentPrice >=
+        resistance1 * (1 - this.AUTO_TRADING_CONFIG.PIVOT_TOUCH_TOLERANCE) ||
+      currentPrice >=
+        resistance2 * (1 - this.AUTO_TRADING_CONFIG.PIVOT_TOUCH_TOLERANCE); // 피벗 저항선 터치
+    const isRsiOverbought = rsi > this.AUTO_TRADING_CONFIG.RSI_OVERBOUGHT; // RSI 과매수
+    const isVolumeSurge =
+      volumeRatio > this.AUTO_TRADING_CONFIG.MIN_VOLUME_RATIO; // 거래량 급증
 
-    const conditions = [isPriceBelowSMA20, isRsiOverbought, isDeadCross];
+    const conditions = [isPivotResistanceTouch, isRsiOverbought, isVolumeSurge];
     const satisfiedCount = conditions.filter(Boolean).length;
 
     this.logger.debug(
-      `🔄 롱→숏 스위칭 조건: 가격=${isPriceBelowSMA20}, RSI=${isRsiOverbought}, 데드크로스=${isDeadCross} (${satisfiedCount}/3)`,
+      `🔄 피벗 반전 롱→숏 스위칭 조건: 저항선터치=${isPivotResistanceTouch}, RSI과매수=${isRsiOverbought}, 거래량급증=${isVolumeSurge} (${satisfiedCount}/3)`,
     );
 
     return (
@@ -393,7 +400,7 @@ export class AutoTradingService implements OnModuleInit {
   }
 
   /**
-   * 숏→롱 스위칭 조건 확인
+   * 숏→롱 스위칭 조건 확인 (피벗 반전 전략 기반)
    *
    * @param analysisResult 분석 결과
    * @returns 숏→롱 스위칭 가능 여부
@@ -401,22 +408,27 @@ export class AutoTradingService implements OnModuleInit {
   private checkShortToLongSwitch(analysisResult: any): boolean {
     const indicators = analysisResult.indicators || {};
 
-    const sma20 = indicators?.SMA20 || indicators?.sma20 || 0;
     const currentPrice = analysisResult.currentPrice;
+    const support1 = indicators?.support1 || indicators?.Support1 || 0;
+    const support2 = indicators?.support1 || indicators?.Support2 || 0;
     const rsi = indicators?.RSI || indicators?.rsi || 50;
-    const ema12 = indicators?.EMA12 || indicators?.ema12 || 0;
-    const ema26 = indicators?.EMA26 || indicators?.ema26 || 0;
+    const volumeRatio = indicators?.VolumeRatio || indicators?.volumeRatio || 1;
 
-    // 스위칭 조건들
-    const isPriceAboveSMA20 = currentPrice > sma20; // 현재가가 20일선 위
-    const isRsiOversold = rsi < 30; // RSI 과매도
-    const isGoldenCross = ema12 > ema26; // 골든크로스
+    // 피벗 반전 스위칭 조건들
+    const isPivotSupportTouch =
+      currentPrice <=
+        support1 * (1 + this.AUTO_TRADING_CONFIG.PIVOT_TOUCH_TOLERANCE) ||
+      currentPrice <=
+        support2 * (1 + this.AUTO_TRADING_CONFIG.PIVOT_TOUCH_TOLERANCE); // 피벗 지지선 터치
+    const isRsiOversold = rsi < this.AUTO_TRADING_CONFIG.RSI_OVERSOLD; // RSI 과매도
+    const isVolumeSurge =
+      volumeRatio > this.AUTO_TRADING_CONFIG.MIN_VOLUME_RATIO; // 거래량 급증
 
-    const conditions = [isPriceAboveSMA20, isRsiOversold, isGoldenCross];
+    const conditions = [isPivotSupportTouch, isRsiOversold, isVolumeSurge];
     const satisfiedCount = conditions.filter(Boolean).length;
 
     this.logger.debug(
-      `🔄 숏→롱 스위칭 조건: 가격=${isPriceAboveSMA20}, RSI=${isRsiOversold}, 골든크로스=${isGoldenCross} (${satisfiedCount}/3)`,
+      `🔄 피벗 반전 숏→롱 스위칭 조건: 지지선터치=${isPivotSupportTouch}, RSI과매도=${isRsiOversold}, 거래량급증=${isVolumeSurge} (${satisfiedCount}/3)`,
     );
 
     return (
