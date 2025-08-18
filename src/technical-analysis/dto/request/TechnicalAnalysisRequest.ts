@@ -1,15 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
+  ArrayMinSize,
   IsArray,
   IsEnum,
+  IsNumber,
   IsOptional,
   IsString,
-  IsNumber,
-  Min,
   Max,
-  ArrayMinSize,
+  Min,
 } from 'class-validator';
-import { Type } from 'class-transformer';
 import { StrategyType } from '../../types/StrategyTypes';
 import { TimeFrame } from '../../types/TechnicalAnalysisTypes';
 
@@ -117,20 +117,6 @@ export class ScreenMultipleSymbolsDto {
   @IsArray()
   @IsEnum(TimeFrame, { each: true })
   timeframes?: TimeFrame[];
-
-  @ApiPropertyOptional({
-    description: '최소 신뢰도 필터 (0-100)',
-    minimum: 0,
-    maximum: 100,
-    example: 60,
-    default: 60,
-  })
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  @Max(100)
-  @Type(() => Number)
-  minConfidence?: number;
 }
 
 /**
@@ -194,20 +180,6 @@ export class MonitorMarketDto {
   @IsArray()
   @IsString({ each: true })
   symbols?: string[];
-
-  @ApiPropertyOptional({
-    description: '알림 신뢰도 임계값 (0-100)',
-    minimum: 0,
-    maximum: 100,
-    example: 80,
-    default: 80,
-  })
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  @Max(100)
-  @Type(() => Number)
-  alertThreshold?: number;
 }
 
 /**

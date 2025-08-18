@@ -82,9 +82,7 @@ export class StrategyExecutionService {
         config,
       );
 
-      console.log(
-        `✅ 전략 실행 완료: ${strategy} - 신호: ${result.signal} (신뢰도: ${result.confidence}%)`,
-      );
+      console.log(`✅ 전략 실행 완료: ${strategy} - 신호: ${result.signal}`);
       return result;
     } catch (error) {
       console.error(
@@ -98,7 +96,7 @@ export class StrategyExecutionService {
         symbol,
         timeframe,
         signal: SignalType.NEUTRAL,
-        confidence: 0,
+
         timestamp: Date.now(),
         details: {
           indicators: {},
@@ -150,7 +148,7 @@ export class StrategyExecutionService {
     const overallAnalysis = this.analyzeMultipleResults(allResults);
 
     console.log(
-      `✅ 다중 전략 분석 완료: ${symbol} - 종합 신호: ${overallAnalysis.overallSignal} (신뢰도: ${overallAnalysis.overallConfidence}%)`,
+      `✅ 다중 전략 분석 완료: ${symbol} - 종합 신호: ${overallAnalysis.overallSignal}`,
     );
 
     return {
@@ -633,29 +631,20 @@ export class StrategyExecutionService {
       signalScores[rsiResult.signal] +
       signalScores[volumeResult.signal];
 
-    const avgConfidence =
-      (maResult.confidence + rsiResult.confidence + volumeResult.confidence) /
-      3;
-
     let signal = SignalType.NEUTRAL;
-    let confidence = 0;
     const conditions: string[] = [];
 
     if (totalScore >= 4) {
       signal = SignalType.STRONG_BUY;
-      confidence = Math.min(avgConfidence + 20, 95);
       conditions.push('3중 확인 강한 매수 신호');
     } else if (totalScore >= 2) {
       signal = SignalType.BUY;
-      confidence = Math.min(avgConfidence + 10, 85);
       conditions.push('3중 확인 매수 신호');
     } else if (totalScore >= 1) {
       signal = SignalType.WEAK_BUY;
-      confidence = Math.min(avgConfidence, 70);
       conditions.push('부분적 매수 신호');
     } else if (totalScore <= -2) {
       signal = SignalType.SELL;
-      confidence = Math.min(avgConfidence + 10, 85);
       conditions.push('3중 확인 매도 신호');
     }
 
@@ -667,13 +656,9 @@ export class StrategyExecutionService {
     return {
       ...baseResult,
       signal,
-      confidence: Math.round(confidence),
       details: {
         indicators: {
           totalScore,
-          maConfidence: maResult.confidence,
-          rsiConfidence: rsiResult.confidence,
-          volumeConfidence: volumeResult.confidence,
         },
         conditions,
         notes: '3중 확인 전략 (MA + RSI + Volume)',
@@ -690,7 +675,7 @@ export class StrategyExecutionService {
     if (results.length === 0) {
       return {
         overallSignal: SignalType.NEUTRAL,
-        overallConfidence: 0,
+
         consensus: 0,
         timeframeSummary: {},
       };
@@ -709,16 +694,12 @@ export class StrategyExecutionService {
 
     // 가중 평균 점수 계산
     let totalWeightedScore = 0;
-    let totalConfidence = 0;
-
     for (const result of results) {
-      const weight = result.confidence / 100;
+      const weight = 1; // 신뢰도 대신 동일 가중치 사용
       totalWeightedScore += signalWeights[result.signal] * weight;
-      totalConfidence += result.confidence;
     }
 
     const avgScore = totalWeightedScore / results.length;
-    const avgConfidence = totalConfidence / results.length;
 
     // 종합 신호 결정
     let overallSignal = SignalType.NEUTRAL;
@@ -749,8 +730,6 @@ export class StrategyExecutionService {
       const tfAvgScore =
         tfResults.reduce((sum, r) => sum + signalWeights[r.signal], 0) /
         tfResults.length;
-      const tfAvgConfidence =
-        tfResults.reduce((sum, r) => sum + r.confidence, 0) / tfResults.length;
 
       let tfSignal = SignalType.NEUTRAL;
       if (tfAvgScore >= 1) tfSignal = SignalType.BUY;
@@ -760,14 +739,14 @@ export class StrategyExecutionService {
 
       timeframeSummary[timeframe] = {
         signal: tfSignal,
-        confidence: Math.round(tfAvgConfidence),
+
         strategyCount: tfResults.length,
       };
     }
 
     return {
       overallSignal,
-      overallConfidence: Math.round(avgConfidence),
+
       consensus: Math.round(consensus * 100) / 100,
       timeframeSummary,
     };

@@ -14,7 +14,7 @@ export class TechnicalAnalysisMapper {
       symbol: result.symbol,
       timestamp: result.timestamp,
       overallSignal: result.overallSignal,
-      overallConfidence: result.overallConfidence,
+
       consensus: result.consensus,
       strategies: result.strategies,
       timeframeSummary: result.timeframeSummary,

@@ -232,7 +232,6 @@ export class TechnicalAnalysisController {
         dto.symbols,
         dto.strategies,
         dto.timeframes,
-        dto.minConfidence,
       );
 
       // Map을 Array로 변환
@@ -310,10 +309,8 @@ export class TechnicalAnalysisController {
     }
 
     try {
-      const signals = await this.technicalAnalysisService.findStrongBuySignals(
-        symbols,
-        minConfidence,
-      );
+      const signals =
+        await this.technicalAnalysisService.findStrongBuySignals(symbols);
 
       return {
         success: true,
@@ -325,16 +322,15 @@ export class TechnicalAnalysisController {
           signals: signals.map(({ symbol, result }) => ({
             symbol,
             signal: result.overallSignal,
-            confidence: result.overallConfidence,
+
             consensus: result.consensus,
             topStrategies: result.strategies
-              .filter((s) => s.confidence >= 70)
-              .sort((a, b) => b.confidence - a.confidence)
+              .filter((s) => s.signal !== 'NEUTRAL')
               .slice(0, 3)
               .map((s) => ({
                 strategy: s.strategy,
                 signal: s.signal,
-                confidence: s.confidence,
+
                 timeframe: s.timeframe,
               })),
           })),
@@ -392,10 +388,7 @@ export class TechnicalAnalysisController {
     }
 
     try {
-      const alerts = await this.technicalAnalysisService.monitorMarket(
-        symbols,
-        alertThreshold ?? 80,
-      );
+      const alerts = await this.technicalAnalysisService.monitorMarket(symbols);
 
       return {
         success: true,
@@ -408,7 +401,7 @@ export class TechnicalAnalysisController {
             symbol,
             alertMessage: alert,
             signal: result.overallSignal,
-            confidence: result.overallConfidence,
+
             consensus: result.consensus,
           })),
         },
@@ -527,7 +520,7 @@ export class TechnicalAnalysisController {
           results: results.map((result) => ({
             symbol: result.symbol,
             signal: result.signal,
-            confidence: result.confidence,
+
             reasoning: result.reasoning || '분석 완료',
             indicators: result.indicators || {},
           })),

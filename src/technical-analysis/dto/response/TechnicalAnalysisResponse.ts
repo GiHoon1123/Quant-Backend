@@ -1,7 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
   MultiStrategyResult,
-  StrategyResult,
   SignalType,
   StrategyType,
 } from '../../types/StrategyTypes';
@@ -209,12 +208,6 @@ export class MarketAlert {
   signal: SignalType;
 
   @ApiProperty({
-    description: '신뢰도',
-    example: 85,
-  })
-  confidence: number;
-
-  @ApiProperty({
     description: '합의도',
     example: 0.9,
   })
@@ -287,12 +280,6 @@ export class StrategyResultSummary {
     example: SignalType.BUY,
   })
   signal: SignalType;
-
-  @ApiProperty({
-    description: '신뢰도',
-    example: 75,
-  })
-  confidence: number;
 
   @ApiProperty({
     description: '분석 근거',

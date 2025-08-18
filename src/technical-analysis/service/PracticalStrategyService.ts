@@ -54,7 +54,6 @@ export class PracticalStrategyService {
     };
 
     let signal = SignalType.NEUTRAL;
-    let confidence = 0;
     const conditions: string[] = [];
 
     // 데이 트레이딩 매수 조건 (15분봉 기준)
@@ -75,7 +74,6 @@ export class PracticalStrategyService {
       isBBMiddleToUpper
     ) {
       signal = SignalType.BUY;
-      confidence = 75;
       conditions.push('단기 상승 추세 확인 (SMA10 > SMA20)');
       conditions.push('가격이 단기 평균선 위 위치');
       conditions.push('RSI 건전한 모멘텀 구간 (45-75)');
@@ -85,12 +83,10 @@ export class PracticalStrategyService {
 
       // 추가 확인 조건들
       if (current.macd.isGoldenCross) {
-        confidence += 10;
         conditions.push('MACD 골든크로스 추가 확인');
       }
 
       if (current.volume.volumeRatio > 1.5) {
-        confidence += 5;
         conditions.push('강한 거래량 증가');
       }
     }
@@ -109,7 +105,6 @@ export class PracticalStrategyService {
       (isMacdNegative && isVolumeWeak)
     ) {
       signal = SignalType.SELL;
-      confidence = 70;
       conditions.push('데이 트레이딩 청산 조건 충족');
 
       if (isShortTermDowntrend) conditions.push('단기 하락 추세 전환');
@@ -124,7 +119,6 @@ export class PracticalStrategyService {
       symbol,
       timeframe,
       signal,
-      confidence,
       timestamp: Date.now(),
       details: {
         indicators: {
@@ -176,7 +170,6 @@ export class PracticalStrategyService {
     };
 
     let signal = SignalType.NEUTRAL;
-    let confidence = 0;
     const conditions: string[] = [];
 
     // 스윙 매수 조건 (트렌드 + 조정 완료)
@@ -188,7 +181,6 @@ export class PracticalStrategyService {
 
     if (isTrendUp && isPullbackComplete && isMacdPositive && isRsiHealthy) {
       signal = SignalType.BUY;
-      confidence = 75;
       conditions.push('상승 트렌드 확인 (SMA20 > SMA50)');
       conditions.push('조정 완료 후 재상승 시작');
       conditions.push('MACD 골든크로스 확인');
@@ -196,7 +188,6 @@ export class PracticalStrategyService {
 
       // 볼린저밴드 위치 확인
       if (current.bb.percentB > 0.2 && current.bb.percentB < 0.8) {
-        confidence += 10;
         conditions.push('볼린저밴드 중간 위치 (안전 구간)');
       }
     }
@@ -208,7 +199,6 @@ export class PracticalStrategyService {
 
     if (isTrendDown || isOverextended || isRsiOverbought) {
       signal = SignalType.SELL;
-      confidence = 70;
       conditions.push('스윙 매도 조건 충족');
 
       if (isTrendDown) conditions.push('트렌드 전환 감지');
@@ -221,7 +211,6 @@ export class PracticalStrategyService {
       symbol,
       timeframe,
       signal,
-      confidence,
       timestamp: Date.now(),
       details: {
         indicators: {
@@ -269,7 +258,6 @@ export class PracticalStrategyService {
     };
 
     let signal = SignalType.NEUTRAL;
-    let confidence = 0;
     const conditions: string[] = [];
 
     // 장기 상승 트렌드 확인
@@ -282,7 +270,6 @@ export class PracticalStrategyService {
 
     if (isLongTermBullish && isPriceAboveMAs && isMacdBullish && isRsiStrong) {
       signal = SignalType.STRONG_BUY;
-      confidence = 80;
       conditions.push('장기 상승 트렌드 확인 (SMA50 > SMA200)');
       conditions.push('가격이 주요 이동평균선 위 위치');
       conditions.push('MACD 강세 신호');
@@ -292,7 +279,6 @@ export class PracticalStrategyService {
       const previous50 = sma50[sma50.length - 2]?.value;
       const previous200 = sma200[sma200.length - 2]?.value;
       if (current.sma50 > current.sma200 && previous50 <= previous200) {
-        confidence += 15;
         conditions.push('🌟 골든크로스 발생 (SMA50 > SMA200)');
       }
     }
@@ -304,7 +290,6 @@ export class PracticalStrategyService {
 
     if (isLongTermBearish && isPriceBelowMAs && isMacdBearish) {
       signal = SignalType.STRONG_SELL;
-      confidence = 75;
       conditions.push('장기 하락 트렌드 또는 약세 전환');
     }
 
@@ -313,7 +298,6 @@ export class PracticalStrategyService {
       symbol,
       timeframe,
       signal,
-      confidence,
       timestamp: Date.now(),
       details: {
         indicators: {
@@ -361,7 +345,6 @@ export class PracticalStrategyService {
     };
 
     let signal = SignalType.NEUTRAL;
-    let confidence = 0;
     const conditions: string[] = [];
 
     // 과매도 상태에서 평균 회귀 매수
@@ -371,14 +354,12 @@ export class PracticalStrategyService {
 
     if (isOversold && isRsiOversold && isPriceBelowMA) {
       signal = SignalType.BUY;
-      confidence = 70;
       conditions.push('극도 과매도 상태 - 평균 회귀 예상');
       conditions.push(`볼린저 %B: ${(current.bb.percentB * 100).toFixed(1)}%`);
       conditions.push(`RSI: ${current.rsi.value.toFixed(1)} (극도 과매도)`);
 
       // 추가 확인: 볼린저밴드 수축
       if (current.bb.bandwidth < 0.05) {
-        confidence += 15;
         conditions.push('볼린저밴드 수축 - 변동성 확대 예상');
       }
     }
@@ -390,7 +371,6 @@ export class PracticalStrategyService {
 
     if (isOverbought && isRsiOverbought && isPriceAboveMA) {
       signal = SignalType.SELL;
-      confidence = 70;
       conditions.push('극도 과매수 상태 - 평균 회귀 예상');
       conditions.push(`볼린저 %B: ${(current.bb.percentB * 100).toFixed(1)}%`);
       conditions.push(`RSI: ${current.rsi.value.toFixed(1)} (극도 과매수)`);
@@ -401,7 +381,6 @@ export class PracticalStrategyService {
       symbol,
       timeframe,
       signal,
-      confidence,
       timestamp: Date.now(),
       details: {
         indicators: {
@@ -448,15 +427,10 @@ export class PracticalStrategyService {
 
     const results = await Promise.all(strategies);
 
-    // 결과 정렬 (신뢰도 높은 순)
-    results.sort((a, b) => b.confidence - a.confidence);
-
     console.log(`✅ 실전 전략 실행 완료: ${results.length}개 전략`);
     results.forEach((result, index) => {
-      if (result.confidence > 60) {
-        console.log(
-          `${index + 1}. ${result.strategy}: ${result.signal} (${result.confidence}%)`,
-        );
+      if (result.signal !== 'NEUTRAL') {
+        console.log(`${index + 1}. ${result.strategy}: ${result.signal}`);
       }
     });
 

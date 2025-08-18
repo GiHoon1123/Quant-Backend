@@ -503,24 +503,23 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
         symbol: result.symbol,
         timeframe: result.timeframe,
         signal: result.signal,
-        confidence: result.confidence,
+
         reasoning: result.reasoning,
         indicators: result.details?.indicators || {},
         conditions: result.details?.conditions || [],
         timestamp: result.timestamp,
       }));
 
-      // 높은 신뢰도의 신호들만 로그 출력
-      const highConfidenceSignals = formattedResults.filter(
-        (result) => result.confidence >= 70 && result.signal !== 'NEUTRAL',
+      // 강한 신호들만 로그 출력
+      const strongSignals = formattedResults.filter(
+        (result) =>
+          result.signal === 'STRONG_BUY' || result.signal === 'STRONG_SELL',
       );
 
-      if (highConfidenceSignals.length > 0) {
+      if (strongSignals.length > 0) {
         console.log(
-          `🎯 [PracticalStrategies] 높은 신뢰도 신호 발견: ${symbol}`,
-          highConfidenceSignals
-            .map((s) => `${s.type}: ${s.signal} (${s.confidence}%)`)
-            .join(', '),
+          `🎯 [PracticalStrategies] 강한 신호 발견: ${symbol}`,
+          strongSignals.map((s) => `${s.type}: ${s.signal}`).join(', '),
         );
       }
 

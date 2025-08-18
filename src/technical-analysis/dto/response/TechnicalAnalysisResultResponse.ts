@@ -13,7 +13,7 @@ export class TechnicalAnalysisResultResponse {
   symbol?: string;
   timestamp?: number;
   overallSignal?: string;
-  overallConfidence?: number;
+
   consensus?: number;
   strategies?: any[];
   timeframeSummary?: any;

@@ -32,6 +32,6 @@ import { BaseEventDto } from './BaseEventDto';
  */
 export interface AnalysisCompletedEvent extends BaseEventDto {
   signal: string;
-  confidence: number;
+
   analyzedAt: Date;
 }

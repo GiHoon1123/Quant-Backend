@@ -21,7 +21,6 @@ export interface TradingSignalEvent {
   signal: 'LONG' | 'SHORT' | 'CLOSE';
 
   /** 신호 신뢰도 (0-100) */
-  confidence: number;
 
   /** 사용된 전략명 */
   strategy: string;

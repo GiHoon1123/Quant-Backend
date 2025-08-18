@@ -262,12 +262,9 @@ export class RiskManagementService {
       maxDrawdown: number;
     },
   ): {
-    adjustedConfidence: number;
     recommendedRisk: number;
     riskAdjustmentFactor: number;
   } {
-    const baseConfidence = strategyResult.confidence;
-
     // 샤프 비율 기반 조정
     const sharpeAdjustment = Math.min(historicalPerformance.sharpeRatio / 2, 1);
 
@@ -284,11 +281,9 @@ export class RiskManagementService {
     const riskAdjustmentFactor =
       (sharpeAdjustment + winRateAdjustment + drawdownAdjustment) / 3;
 
-    const adjustedConfidence = baseConfidence * riskAdjustmentFactor;
     const recommendedRisk = 0.02 * riskAdjustmentFactor; // 기본 2%에서 조정
 
     return {
-      adjustedConfidence,
       recommendedRisk,
       riskAdjustmentFactor,
     };

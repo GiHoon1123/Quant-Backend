@@ -12,7 +12,5 @@ export default () => ({
     'ATOMUSDT',
     'NEARUSDT',
   ],
-  defaultConfidence: 60,
-  strongBuyConfidence: 80,
   alertThreshold: 80,
 });

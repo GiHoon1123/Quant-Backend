@@ -59,7 +59,6 @@ export class AdvancedStrategyService {
     const institutionalFlow = this.calculateInstitutionalFlow(candles);
 
     let signal = SignalType.NEUTRAL;
-    let confidence = 0;
     const conditions: string[] = [];
 
     // 🟢 스마트 머니 유입 감지 로직
@@ -68,7 +67,6 @@ export class AdvancedStrategyService {
     // 💭 해석: 기관들이 지지선 근처에서 대량 매수 → 상승 준비 신호
     if (institutionalFlow.isAccumulating && volumeProfile.highVolumeAtSupport) {
       signal = SignalType.BUY;
-      confidence = 75; // 기관 매집은 신뢰도 높은 신호
       conditions.push('기관 자금 유입 감지 - 대량 매집 패턴 확인');
       conditions.push('지지선에서 대량 거래 확인 - 바닥 다지기 완료');
     }
@@ -82,7 +80,6 @@ export class AdvancedStrategyService {
       volumeProfile.highVolumeAtResistance
     ) {
       signal = SignalType.SELL;
-      confidence = 75; // 기관 분산도 신뢰도 높은 신호
       conditions.push('기관 자금 유출 감지 - 대량 분산 패턴 확인');
       conditions.push('저항선에서 대량 매도 확인 - 천장 형성 신호');
     }
@@ -92,7 +89,7 @@ export class AdvancedStrategyService {
       symbol,
       timeframe,
       signal,
-      confidence,
+
       timestamp: Date.now(),
       details: {
         indicators: {
@@ -174,7 +171,7 @@ export class AdvancedStrategyService {
     const alignment = Math.max(bullishCount, bearishCount) / timeframes.length;
 
     let signal = SignalType.NEUTRAL;
-    let confidence = Math.round(alignment * 100); // 일치도를 신뢰도로 사용
+
     const conditions: string[] = [];
 
     // 🟢 강한 상승 신호 조건: 3개 이상 시간봉에서 상승 트렌드
@@ -213,7 +210,6 @@ export class AdvancedStrategyService {
       symbol,
       timeframe: 'MULTI', // 다중 시간봉 분석
       signal,
-      confidence,
       timestamp: Date.now(),
       details: {
         indicators: {
@@ -245,20 +241,17 @@ export class AdvancedStrategyService {
     const patterns = this.recognizePatterns(candles);
 
     let signal = SignalType.NEUTRAL;
-    let confidence = 0;
     const conditions: string[] = [];
 
     // 더블 바텀 패턴
     if (patterns.doubleBottom.detected) {
       signal = SignalType.BUY;
-      confidence = patterns.doubleBottom.reliability;
       conditions.push('더블 바텀 패턴 감지');
     }
 
     // 헤드 앤 숄더 패턴
     if (patterns.headAndShoulders.detected) {
       signal = SignalType.SELL;
-      confidence = patterns.headAndShoulders.reliability;
       conditions.push('헤드 앤 숄더 패턴 감지');
     }
 
@@ -266,7 +259,6 @@ export class AdvancedStrategyService {
     if (patterns.triangle.detected) {
       signal =
         patterns.triangle.direction === 'up' ? SignalType.BUY : SignalType.SELL;
-      confidence = patterns.triangle.reliability;
       conditions.push('삼각 수렴 패턴 돌파');
     }
 
@@ -275,7 +267,7 @@ export class AdvancedStrategyService {
       symbol,
       timeframe,
       signal,
-      confidence,
+
       timestamp: Date.now(),
       details: {
         indicators: {
@@ -306,20 +298,17 @@ export class AdvancedStrategyService {
     const waveAnalysis = this.analyzeElliottWaves(candles);
 
     let signal = SignalType.NEUTRAL;
-    let confidence = 0;
     const conditions: string[] = [];
 
     // 5파 완성 후 조정 예상
     if (waveAnalysis.currentWave === 5 && waveAnalysis.waveCompletion > 0.8) {
       signal = SignalType.SELL;
-      confidence = 70;
       conditions.push('5파 상승 완료, 조정 예상');
     }
 
     // 3파 조정 완료 후 상승 예상
     if (waveAnalysis.currentWave === 4 && waveAnalysis.correctionComplete) {
       signal = SignalType.BUY;
-      confidence = 75;
       conditions.push('4파 조정 완료, 5파 상승 예상');
     }
 
@@ -328,7 +317,6 @@ export class AdvancedStrategyService {
       symbol,
       timeframe,
       signal,
-      confidence,
       timestamp: Date.now(),
       details: {
         indicators: {
@@ -368,7 +356,7 @@ export class AdvancedStrategyService {
     const prediction = await this.predictWithAI(features);
 
     let signal = SignalType.NEUTRAL;
-    let confidence = Math.round(prediction.confidence * 100);
+
     const conditions: string[] = [];
 
     if (prediction.direction === 'up' && prediction.confidence > 0.7) {
@@ -388,7 +376,7 @@ export class AdvancedStrategyService {
       symbol,
       timeframe,
       signal,
-      confidence,
+
       timestamp: Date.now(),
       details: {
         indicators: {

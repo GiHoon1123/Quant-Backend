@@ -1153,7 +1153,6 @@ export class FuturesService implements OnModuleInit {
     const {
       symbol,
       signal,
-      confidence,
       strategy,
       entryPrice,
       stopLoss,
@@ -1163,18 +1162,10 @@ export class FuturesService implements OnModuleInit {
     } = event;
 
     this.logger.log(
-      `📊 [${symbol}] 자동 매매 신호 수신: ${signal} (신뢰도: ${confidence}%, 전략: ${strategy})`,
+      `📊 [${symbol}] 자동 매매 신호 수신: ${signal} (전략: ${strategy})`,
     );
 
     try {
-      // 신호 유효성 검증
-      if (confidence < 80) {
-        this.logger.warn(
-          `⚠️ [${symbol}] 신뢰도 부족으로 신호 무시: ${confidence}% < 80%`,
-        );
-        return;
-      }
-
       // 기존 포지션 확인
       const currentPosition = await this.getCurrentPosition(symbol);
 

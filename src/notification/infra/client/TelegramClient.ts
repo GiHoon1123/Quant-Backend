@@ -649,14 +649,6 @@ export class TelegramClient {
       return num.toFixed(2);
     };
 
-    // 신뢰도 표시
-    const confidence = result.indicators.confidence || 50;
-    const getConfidenceEmoji = (conf: number): string => {
-      if (conf >= 80) return '🟢';
-      if (conf >= 60) return '🟡';
-      return '🔴';
-    };
-
     // 현재가를 숫자로 변환
     const currentPrice = parseFloat(safeToFixed(result.price));
     // 환율 정보 확인
@@ -847,7 +839,6 @@ export class TelegramClient {
     currentPrice: number,
     maValue: number,
     signalType: 'breakout_up' | 'breakout_down',
-    confidence: number,
     timestamp: Date = new Date(),
   ): Promise<void> {
     const name = this.getDisplayName(symbol);
@@ -895,8 +886,7 @@ export class TelegramClient {
       `📊 시간대: ${timeframeDisplay}\n` +
       `💵 현재가: $${currentPrice.toLocaleString()}\n` +
       `📈 MA${maPeriod}: $${maValue.toLocaleString()}\n` +
-      `📊 돌파폭: <b>${percentText}</b>\n` +
-      `🎯 신뢰도: <b>${confidence}%</b>\n\n` +
+      `📊 돌파폭: <b>${percentText}</b>\n\n` +
       `${signalMeaning}\n\n` +
       `🕒 돌파 시점: ${this.formatTimeWithKST(timestamp)}`;
 
@@ -911,7 +901,6 @@ export class TelegramClient {
     timeframe: string,
     currentRSI: number,
     signalType: 'overbought' | 'oversold' | 'bullish_50' | 'bearish_50',
-    confidence: number,
     timestamp: Date = new Date(),
   ): Promise<void> {
     const name = this.getDisplayName(symbol);
@@ -990,8 +979,7 @@ export class TelegramClient {
       `📈 현재 RSI: <b>${currentRSI.toFixed(1)}</b>\n` +
       `🎯 임계값: ${info.threshold}\n` +
       `💡 기본 의미: ${info.description}\n` +
-      `📊 투자 전략: ${info.action}\n` +
-      `🎯 신뢰도: <b>${confidence}%</b>\n\n` +
+      `📊 투자 전략: ${info.action}\n\n` +
       `${detailedMeaning}\n\n` +
       `🕒 신호 시점: ${this.formatTimeWithKST(timestamp)}`;
 
@@ -1012,7 +1000,6 @@ export class TelegramClient {
       | 'dead_cross'
       | 'bullish_divergence'
       | 'bearish_divergence',
-    confidence: number,
     timestamp: Date = new Date(),
   ): Promise<void> {
     const name = this.getDisplayName(symbol);
@@ -1086,8 +1073,7 @@ export class TelegramClient {
       `📊 시그널 라인: ${signalLine.toFixed(4)}\n` +
       `📊 히스토그램: ${histogram.toFixed(4)}\n` +
       `💡 기본 의미: ${info.description}\n` +
-      `🎯 투자 전략: ${info.action}\n` +
-      `🎯 신뢰도: <b>${confidence}%</b>\n\n` +
+      `🎯 투자 전략: ${info.action}\n\n` +
       `${detailedMeaning}\n\n` +
       `🕒 신호 시점: ${this.formatTimeWithKST(timestamp)}`;
 
@@ -1110,7 +1096,6 @@ export class TelegramClient {
       | 'break_upper'
       | 'break_lower'
       | 'squeeze',
-    confidence: number,
     timestamp: Date = new Date(),
   ): Promise<void> {
     const name = this.getDisplayName(symbol);
@@ -1202,8 +1187,7 @@ export class TelegramClient {
       `💵 현재가: $${currentPrice.toLocaleString()}\n` +
       bandInfo +
       `📊 중간선: $${middleBand.toLocaleString()}\n` +
-      `💡 기본 의미: ${info.description}\n` +
-      `🎯 신뢰도: <b>${confidence}%</b>\n\n` +
+      `💡 기본 의미: ${info.description}\n\n` +
       `${detailedMeaning}\n\n` +
       `🕒 신호 시점: ${this.formatTimeWithKST(timestamp)}`;
 
@@ -1220,7 +1204,6 @@ export class TelegramClient {
     avgVolume: number,
     volumeRatio: number,
     signalType: 'volume_surge' | 'volume_dry_up',
-    confidence: number,
     timestamp: Date = new Date(),
   ): Promise<void> {
     const name = this.getDisplayName(symbol);
@@ -1286,8 +1269,7 @@ export class TelegramClient {
       `📊 평균 거래량: ${formatVolume(avgVolume)}\n` +
       `📊 거래량 비율: <b>${volumeRatio.toFixed(2)}배</b>\n` +
       `💡 기본 의미: ${info.description}\n` +
-      `🎯 투자 전망: ${info.action}\n` +
-      `🎯 신뢰도: <b>${confidence}%</b>\n\n` +
+      `🎯 투자 전망: ${info.action}\n\n` +
       `${detailedMeaning}\n\n` +
       `🕒 신호 시점: ${this.formatTimeWithKST(timestamp)}`;
 
@@ -1304,7 +1286,6 @@ export class TelegramClient {
     levelPrice: number,
     levelType: 'support' | 'resistance',
     signalType: 'break_up' | 'break_down',
-    confidence: number,
     timestamp: Date = new Date(),
   ): Promise<void> {
     const name = this.getDisplayName(symbol);
@@ -1335,7 +1316,6 @@ export class TelegramClient {
       `📈 ${levelName}: $${levelPrice.toLocaleString()}\n` +
       `📊 돌파폭: <b>${percentText}</b>\n` +
       `💡 의미: ${levelName} ${action} → 추세 전환 가능성\n` +
-      `🎯 신뢰도: <b>${confidence}%</b>\n` +
       `🕒 돌파 시점: ${this.formatTimeWithKST(timestamp)}`;
 
     await this.sendBasic(symbol, message);
@@ -1352,7 +1332,6 @@ export class TelegramClient {
     symbol: string,
     timeframe: string,
     signal: string,
-    confidence: number,
     indicators: any,
     timestamp: Date = new Date(),
   ): Promise<void> {
@@ -1385,7 +1364,6 @@ export class TelegramClient {
       `${emoji} <b>${name}(${symbol}) 스마트 머니 플로우 감지!</b>\n\n` +
       `📊 시간대: ${timeframeDisplay}\n` +
       `${signalColor} 신호: <b>${signalText}</b>\n` +
-      `🎯 신뢰도: <b>${confidence}%</b>\n` +
       `📈 기관 자금 흐름: ${indicators.institutionalFlow || 'N/A'}\n` +
       `📊 거래량 프로필: ${indicators.volumeProfile || 'N/A'}\n` +
       `💡 의미: 기관투자자들의 자금 움직임이 감지되었습니다.\n\n` +
@@ -1400,7 +1378,6 @@ export class TelegramClient {
   async sendMultiTimeframeTrendAlert(
     symbol: string,
     signal: string,
-    confidence: number,
     trendAnalysis: any[],
     timestamp: Date = new Date(),
   ): Promise<void> {
@@ -1430,8 +1407,7 @@ export class TelegramClient {
 
     const message =
       `${emoji} <b>${name}(${symbol}) 다중 시간봉 분석!</b>\n\n` +
-      `${signalColor} 종합 신호: <b>${signalText}</b>\n` +
-      `🎯 신뢰도: <b>${confidence}%</b>\n\n` +
+      `${signalColor} 종합 신호: <b>${signalText}</b>\n\n` +
       `📊 <b>시간봉별 트렌드:</b>\n${trendSummary}\n\n` +
       `💡 의미: 여러 시간봉에서 동일한 방향성이 확인되어 신뢰도가 높습니다.\n\n` +
       `🕒 분석 시점: ${this.formatTimeWithKST(timestamp)}`;
@@ -1446,7 +1422,6 @@ export class TelegramClient {
     symbol: string,
     timeframe: string,
     signal: string,
-    confidence: number,
     patterns: any,
     timestamp: Date = new Date(),
   ): Promise<void> {
@@ -1489,8 +1464,7 @@ export class TelegramClient {
     const message =
       `${emoji} <b>${name}(${symbol}) 차트 패턴 감지!</b>\n\n` +
       `📊 시간대: ${timeframeDisplay}\n` +
-      `${signalColor} 신호: <b>${signalText}</b>\n` +
-      `🎯 신뢰도: <b>${confidence}%</b>\n\n` +
+      `${signalColor} 신호: <b>${signalText}</b>\n\n` +
       `🔍 <b>감지된 패턴:</b>\n• ${patternList}\n\n` +
       `💡 의미: 기술적 차트 패턴이 감지되어 향후 가격 움직임을 예측할 수 있습니다.\n\n` +
       `🕒 감지 시점: ${this.formatTimeWithKST(timestamp)}`;
@@ -1509,7 +1483,6 @@ export class TelegramClient {
     symbol: string,
     timeframe: string,
     signal: string,
-    confidence: number,
     indicators: any,
     timestamp: Date = new Date(),
   ): Promise<void> {
@@ -1533,7 +1506,6 @@ export class TelegramClient {
       `${emoji} <b>${name}(${symbol}) 데이 트레이딩 기회!</b>\n\n` +
       `📊 시간대: 15분봉 (당일매매)\n` +
       `${signalColor} 신호: <b>${signalText}</b>\n` +
-      `🎯 신뢰도: <b>${confidence}%</b>\n` +
       `📈 SMA10: ${indicators.sma10 ? indicators.sma10.toLocaleString() : 'N/A'}\n` +
       `�  SMA20: ${indicators.sma20 ? indicators.sma20.toLocaleString() : 'N/A'}\n` +
       `� RS저I: ${indicators.rsi || 'N/A'}\n` +
@@ -1556,7 +1528,6 @@ export class TelegramClient {
     symbol: string,
     timeframe: string,
     signal: string,
-    confidence: number,
     indicators: any,
     timestamp: Date = new Date(),
   ): Promise<void> {
@@ -1580,7 +1551,6 @@ export class TelegramClient {
       `${emoji} <b>${name}(${symbol}) 스윙 트레이딩 신호!</b>\n\n` +
       `📊 시간대: 1시간봉 (중기매매)\n` +
       `${signalColor} 신호: <b>${signalText}</b>\n` +
-      `🎯 신뢰도: <b>${confidence}%</b>\n` +
       `📈 SMA20: ${indicators.sma20 || 'N/A'}\n` +
       `📈 SMA50: ${indicators.sma50 || 'N/A'}\n` +
       `📊 RSI: ${indicators.rsi || 'N/A'}\n` +
@@ -1599,7 +1569,6 @@ export class TelegramClient {
     symbol: string,
     timeframe: string,
     signal: string,
-    confidence: number,
     indicators: any,
     timestamp: Date = new Date(),
   ): Promise<void> {
@@ -1623,7 +1592,6 @@ export class TelegramClient {
       `${emoji} <b>${name}(${symbol}) 포지션 트레이딩 신호!</b>\n\n` +
       `📊 시간대: 일봉 (장기투자)\n` +
       `${signalColor} 신호: <b>${signalText}</b>\n` +
-      `🎯 신뢰도: <b>${confidence}%</b>\n` +
       `📈 SMA50: ${indicators.sma50 || 'N/A'}\n` +
       `📈 SMA200: ${indicators.sma200 || 'N/A'}\n` +
       `📊 RSI: ${indicators.rsi || 'N/A'}\n` +
@@ -1642,7 +1610,6 @@ export class TelegramClient {
     symbol: string,
     timeframe: string,
     signal: string,
-    confidence: number,
     indicators: any,
     timestamp: Date = new Date(),
   ): Promise<void> {
@@ -1666,7 +1633,6 @@ export class TelegramClient {
       `${emoji} <b>${name}(${symbol}) 평균 회귀 신호!</b>\n\n` +
       `📊 시간대: ${timeframe}\n` +
       `${signalColor} 신호: <b>${signalText}</b>\n` +
-      `🎯 신뢰도: <b>${confidence}%</b>\n` +
       `📈 현재가 vs 평균: ${indicators.priceVsAverage || 'N/A'}\n` +
       `📊 RSI: ${indicators.rsi || 'N/A'}\n` +
       `📊 볼린저 위치: ${indicators.bollingerPosition || 'N/A'}\n\n` +
@@ -1684,7 +1650,6 @@ export class TelegramClient {
     symbol: string,
     strategyType: string,
     signal: string,
-    confidence: number,
     details: any,
     timestamp: Date = new Date(),
   ): Promise<void> {
@@ -1719,15 +1684,9 @@ export class TelegramClient {
       signalText = '매도';
     }
 
-    // 신뢰도에 따른 강도 표시
-    let confidenceEmoji = '🟡';
-    if (confidence >= 80) confidenceEmoji = '🟢';
-    else if (confidence < 60) confidenceEmoji = '🔴';
-
     const message =
       `${info.emoji} <b>${name}(${symbol}) ${info.name} 신호!</b>\n\n` +
       `${signalColor} 신호: <b>${signalText}</b>\n` +
-      `${confidenceEmoji} 신뢰도: <b>${confidence}%</b>\n` +
       `📊 전략: ${info.name}\n` +
       `🎯 근거: ${details.reasoning || '기술적 분석 결과'}\n\n` +
       `💡 이 신호는 고급 분석 알고리즘을 통해 생성되었습니다.\n\n` +

@@ -390,8 +390,8 @@ export class NotificationService implements OnModuleInit {
       );
 
       for (const strategy of advancedStrategies) {
-        // 높은 신뢰도의 신호만 알림 발송 (스팸 방지)
-        if (strategy.confidence < 70 || strategy.signal === 'NEUTRAL') {
+        // 중립 신호는 알림 발송하지 않음 (스팸 방지)
+        if (strategy.signal === 'NEUTRAL') {
           continue;
         }
 
@@ -403,7 +403,6 @@ export class NotificationService implements OnModuleInit {
               symbol,
               strategy.timeframe || '15m',
               strategy.signal,
-              strategy.confidence,
               strategy.indicators || {},
               timestamp,
             );
@@ -413,7 +412,6 @@ export class NotificationService implements OnModuleInit {
             await this.telegramService.sendMultiTimeframeTrendAlert(
               symbol,
               strategy.signal,
-              strategy.confidence,
               strategy.details?.trendAnalysis || [],
               timestamp,
             );
@@ -424,7 +422,6 @@ export class NotificationService implements OnModuleInit {
               symbol,
               strategy.timeframe || '15m',
               strategy.signal,
-              strategy.confidence,
               strategy.details?.patterns || {},
               timestamp,
             );
@@ -436,7 +433,6 @@ export class NotificationService implements OnModuleInit {
               symbol,
               strategy.type || strategy.strategy,
               strategy.signal,
-              strategy.confidence,
               strategy.details || { reasoning: strategy.reasoning },
               timestamp,
             );
@@ -468,8 +464,8 @@ export class NotificationService implements OnModuleInit {
       );
 
       for (const strategy of practicalStrategies) {
-        // 높은 신뢰도의 신호만 알림 발송 (스팸 방지)
-        if (strategy.confidence < 70 || strategy.signal === 'NEUTRAL') {
+        // 중립 신호는 알림 발송하지 않음 (스팸 방지)
+        if (strategy.signal === 'NEUTRAL') {
           continue;
         }
 
@@ -481,7 +477,6 @@ export class NotificationService implements OnModuleInit {
               symbol,
               strategy.timeframe || '15m',
               strategy.signal,
-              strategy.confidence,
               strategy.indicators || {},
               timestamp,
             );
@@ -492,7 +487,6 @@ export class NotificationService implements OnModuleInit {
               symbol,
               strategy.timeframe || '1h',
               strategy.signal,
-              strategy.confidence,
               strategy.indicators || {},
               timestamp,
             );
@@ -503,7 +497,6 @@ export class NotificationService implements OnModuleInit {
               symbol,
               strategy.timeframe || '1d',
               strategy.signal,
-              strategy.confidence,
               strategy.indicators || {},
               timestamp,
             );
@@ -514,7 +507,6 @@ export class NotificationService implements OnModuleInit {
               symbol,
               strategy.timeframe || '1h',
               strategy.signal,
-              strategy.confidence,
               strategy.indicators || {},
               timestamp,
             );
@@ -526,7 +518,6 @@ export class NotificationService implements OnModuleInit {
               symbol,
               strategy.type || strategy.strategy,
               strategy.signal,
-              strategy.confidence,
               strategy.details || { reasoning: strategy.reasoning },
               timestamp,
             );
@@ -555,7 +546,6 @@ export class NotificationService implements OnModuleInit {
     symbol: string;
     analysisResult: {
       signal: string;
-      confidence: number;
       indicators?: any;
     };
     analyzedAt: Date;
@@ -564,15 +554,15 @@ export class NotificationService implements OnModuleInit {
 
     // 신호에 따른 우선순위 결정
     let priority = NotificationPriority.MEDIUM;
-    if (analysisResult.confidence >= 80) {
+    if (
+      analysisResult.signal === 'STRONG_BUY' ||
+      analysisResult.signal === 'STRONG_SELL'
+    ) {
       priority = NotificationPriority.HIGH;
-    }
-    if (analysisResult.confidence >= 90) {
-      priority = NotificationPriority.CRITICAL;
     }
 
     // 제목 생성
-    const title = `${symbol} ${analysisResult.signal} 신호 (${analysisResult.confidence}%)`;
+    const title = `${symbol} ${analysisResult.signal} 신호`;
 
     // 메시지 본문 생성
     const message = this.formatAnalysisMessage(symbol, analysisResult);

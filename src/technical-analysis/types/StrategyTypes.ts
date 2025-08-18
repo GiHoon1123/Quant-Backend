@@ -102,9 +102,6 @@ export interface StrategyResult {
   /** 생성된 신호 */
   signal: SignalType;
 
-  /** 신호 강도 (0~100) */
-  confidence: number;
-
   /** 신호 생성 시간 */
   timestamp: number;
 
@@ -183,9 +180,6 @@ export interface StrategyConfig {
     customParams?: Record<string, any>;
   };
 
-  /** 최소 신뢰도 임계값 (이 값 이상일 때만 신호 생성) */
-  minConfidence: number;
-
   /** 적용할 시간봉들 */
   timeframes: string[];
 }
@@ -208,9 +202,6 @@ export interface MultiStrategyResult {
   /** 종합 신호 (모든 전략 고려) */
   overallSignal: SignalType;
 
-  /** 종합 신뢰도 */
-  overallConfidence: number;
-
   /** 신호 일치도 (같은 방향 신호 비율) */
   consensus: number;
 
@@ -218,7 +209,6 @@ export interface MultiStrategyResult {
   timeframeSummary: {
     [timeframe: string]: {
       signal: SignalType;
-      confidence: number;
       strategyCount: number;
     };
   };

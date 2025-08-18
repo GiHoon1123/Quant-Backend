@@ -33,7 +33,6 @@ export class AutoTradingService implements OnModuleInit {
   // 자동 매매 설정 (환경변수에서 동적 로드)
   private readonly AUTO_TRADING_CONFIG = {
     // 진입 조건
-    MIN_CONFIDENCE: 80, // 최소 신뢰도
     MIN_VOLUME_RATIO: 1.2, // 최소 거래량 비율
     MIN_RSI_FOR_LONG: 40, // 롱 진입 최소 RSI
     MAX_RSI_FOR_LONG: 70, // 롱 진입 최대 RSI
@@ -124,15 +123,7 @@ export class AutoTradingService implements OnModuleInit {
     symbol: string,
     analysisResult: any,
   ): Promise<void> {
-    const { overallSignal, overallConfidence, currentPrice } = analysisResult;
-
-    // 신뢰도 검증
-    if (overallConfidence < this.AUTO_TRADING_CONFIG.MIN_CONFIDENCE) {
-      this.logger.log(
-        `🚫🚫🚫 [AUTO-TRADING] ${symbol} 신뢰도 부족으로 진입 보류: ${overallConfidence}% < ${this.AUTO_TRADING_CONFIG.MIN_CONFIDENCE}% 🚫🚫🚫`,
-      );
-      return;
-    }
+    const { overallSignal, currentPrice } = analysisResult;
 
     // STRONG_BUY 신호: 롱 진입 검토
     if (overallSignal === 'STRONG_BUY') {
@@ -188,7 +179,7 @@ export class AutoTradingService implements OnModuleInit {
     analysisResult: any,
     currentPosition: any,
   ): Promise<void> {
-    const { overallSignal, overallConfidence } = analysisResult;
+    const { overallSignal } = analysisResult;
     const positionAge =
       Date.now() - new Date(currentPosition.timestamp).getTime();
 
@@ -441,7 +432,7 @@ export class AutoTradingService implements OnModuleInit {
     symbol: string,
     analysisResult: any,
   ): Promise<void> {
-    const { currentPrice, overallConfidence } = analysisResult;
+    const { currentPrice } = analysisResult;
 
     // 포지션 크기 계산
     const quantity = this.calculatePositionSize(symbol, currentPrice);
@@ -457,7 +448,6 @@ export class AutoTradingService implements OnModuleInit {
       timestamp: new Date(),
       symbol,
       signal: 'LONG',
-      confidence: overallConfidence,
       strategy: 'AutoTradingService',
       entryPrice: currentPrice,
       stopLoss,
@@ -487,9 +477,6 @@ export class AutoTradingService implements OnModuleInit {
     this.logger.log(
       `🎯🎯🎯 [AUTO-TRADING] ${symbol} 익절가: $${takeProfit.toFixed(2)} (${futuresConfig.takeProfitPercent * 100}%) 🎯🎯🎯`,
     );
-    this.logger.log(
-      `🎲🎲🎲 [AUTO-TRADING] ${symbol} 신뢰도: ${overallConfidence}% 🎲🎲🎲`,
-    );
   }
 
   /**
@@ -502,7 +489,7 @@ export class AutoTradingService implements OnModuleInit {
     symbol: string,
     analysisResult: any,
   ): Promise<void> {
-    const { currentPrice, overallConfidence } = analysisResult;
+    const { currentPrice } = analysisResult;
 
     // 포지션 크기 계산
     const quantity = this.calculatePositionSize(symbol, currentPrice);
@@ -518,7 +505,6 @@ export class AutoTradingService implements OnModuleInit {
       timestamp: new Date(),
       symbol,
       signal: 'SHORT',
-      confidence: overallConfidence,
       strategy: 'AutoTradingService',
       entryPrice: currentPrice,
       stopLoss,
@@ -547,9 +533,6 @@ export class AutoTradingService implements OnModuleInit {
     );
     this.logger.log(
       `🎯🎯🎯 [AUTO-TRADING] ${symbol} 익절가: $${takeProfit.toFixed(2)} (${futuresConfig.takeProfitPercent * 100}%) 🎯🎯🎯`,
-    );
-    this.logger.log(
-      `🎲🎲🎲 [AUTO-TRADING] ${symbol} 신뢰도: ${overallConfidence}% 🎲🎲🎲`,
     );
   }
 

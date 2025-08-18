@@ -187,9 +187,8 @@ export class StrategyRepository {
     );
 
     // 평균 신뢰도 계산
-    const averageConfidence =
-      recentResults.reduce((sum, result) => sum + result.confidence, 0) /
-      recentResults.length;
+    const averageConfidence = recentResults.length;
+    recentResults.length;
 
     return {
       symbol,

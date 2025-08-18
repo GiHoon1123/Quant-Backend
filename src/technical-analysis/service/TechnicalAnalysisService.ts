@@ -38,8 +38,6 @@ import { TechnicalIndicatorService } from './TechnicalIndicatorService';
 export class TechnicalAnalysisService {
   private readonly logger = new Logger(TechnicalAnalysisService.name);
   private readonly DEFAULT_SYMBOLS: string[];
-  private readonly DEFAULT_CONFIDENCE: number;
-  private readonly STRONG_BUY_CONFIDENCE: number;
   private readonly ALERT_THRESHOLD: number;
 
   // 기본 전략 세트
@@ -73,14 +71,7 @@ export class TechnicalAnalysisService {
       'technicalAnalysis.defaultSymbols',
       config.defaultSymbols,
     );
-    this.DEFAULT_CONFIDENCE = this.configService.get<number>(
-      'technicalAnalysis.defaultConfidence',
-      config.defaultConfidence,
-    );
-    this.STRONG_BUY_CONFIDENCE = this.configService.get<number>(
-      'technicalAnalysis.strongBuyConfidence',
-      config.strongBuyConfidence,
-    );
+
     this.ALERT_THRESHOLD = this.configService.get<number>(
       'technicalAnalysis.alertThreshold',
       config.alertThreshold,
@@ -131,7 +122,6 @@ export class TechnicalAnalysisService {
         service: 'TechnicalAnalysisService',
         symbol,
         signal: result.overallSignal,
-        confidence: result.overallConfidence,
         analyzedAt: new Date(),
         timestamp: new Date(),
       };
@@ -172,7 +162,6 @@ export class TechnicalAnalysisService {
     symbols: string[] = this.DEFAULT_SYMBOLS,
     strategies: StrategyType[] = this.DEFAULT_STRATEGIES,
     timeframes: TimeFrame[] = this.DEFAULT_TIMEFRAMES,
-    minConfidence: number = 60,
   ): Promise<Map<string, MultiStrategyResult>> {
     this.logger.log(`🔍 다중 심볼 스크리닝 시작: ${symbols.length}개 심볼`);
 
@@ -192,17 +181,8 @@ export class TechnicalAnalysisService {
             timeframes,
           );
 
-          // 최소 신뢰도 필터링
-          if (result.overallConfidence >= minConfidence) {
-            results.set(symbol, result);
-            this.logger.log(
-              `✅ ${symbol}: ${result.overallSignal} (${result.overallConfidence}%)`,
-            );
-          } else {
-            this.logger.log(
-              `⚪ ${symbol}: 신뢰도 부족 (${result.overallConfidence}% < ${minConfidence}%)`,
-            );
-          }
+          results.set(symbol, result);
+          this.logger.log(`✅ ${symbol}: ${result.overallSignal}`);
         } catch (error) {
           const errorMsg = `${symbol}: ${error.message}`;
           errors.push(errorMsg);
@@ -240,33 +220,27 @@ export class TechnicalAnalysisService {
    */
   async findStrongBuySignals(
     symbols: string[] = this.DEFAULT_SYMBOLS,
-    minConfidence: number = 75,
   ): Promise<Array<{ symbol: string; result: MultiStrategyResult }>> {
-    this.logger.log(
-      `🔍 강한 매수 신호 검색: ${symbols.length}개 심볼, 최소 신뢰도 ${minConfidence}%`,
-    );
+    this.logger.log(`🔍 강한 매수 신호 검색: ${symbols.length}개 심볼`);
 
     const screening = await this.screenMultipleSymbols(
       symbols,
       undefined,
       undefined,
-      minConfidence,
     );
 
     const strongBuySignals = Array.from(screening.entries())
       .filter(
         ([_, result]) =>
           result.overallSignal === SignalType.STRONG_BUY ||
-          (result.overallSignal === SignalType.BUY &&
-            result.overallConfidence >= this.STRONG_BUY_CONFIDENCE),
+          result.overallSignal === SignalType.BUY,
       )
-      .map(([symbol, result]) => ({ symbol, result }))
-      .sort((a, b) => b.result.overallConfidence - a.result.overallConfidence); // 신뢰도 높은 순
+      .map(([symbol, result]) => ({ symbol, result }));
 
     this.logger.log(`🎯 강한 매수 신호 발견: ${strongBuySignals.length}개`);
     strongBuySignals.forEach(({ symbol, result }) => {
       this.logger.log(
-        `🚀 ${symbol}: ${result.overallSignal} (신뢰도: ${result.overallConfidence}%, 합의도: ${result.consensus})`,
+        `🚀 ${symbol}: ${result.overallSignal} (합의도: ${result.consensus})`,
       );
     });
 
@@ -321,9 +295,6 @@ export class TechnicalAnalysisService {
       }
     }
 
-    // 결과 정렬 (신뢰도 높은 순)
-    results.sort((a, b) => b.confidence - a.confidence);
-
     this.logger.log(`✅ 전략 스캔 완료: ${results.length}개 결과`);
     if (errors.length > 0) {
       this.logger.warn(`⚠️ 실패: ${errors.length}개 심볼`);
@@ -331,9 +302,7 @@ export class TechnicalAnalysisService {
 
     // 상위 결과들 로깅
     results.slice(0, 5).forEach((result, index) => {
-      this.logger.log(
-        `${index + 1}. ${result.symbol}: ${result.signal} (${result.confidence}%)`,
-      );
+      this.logger.log(`${index + 1}. ${result.symbol}: ${result.signal}`);
     });
 
     return results;
@@ -353,7 +322,6 @@ export class TechnicalAnalysisService {
    */
   async monitorMarket(
     symbols: string[] = this.DEFAULT_SYMBOLS,
-    alertThreshold: number = 80,
   ): Promise<
     Array<{ symbol: string; alert: string; result: MultiStrategyResult }>
   > {
@@ -377,7 +345,6 @@ export class TechnicalAnalysisService {
       symbols,
       quickStrategies,
       quickTimeframes,
-      alertThreshold,
     );
 
     const screeningEntries = Array.from(screening.entries());
@@ -385,14 +352,11 @@ export class TechnicalAnalysisService {
       let alertMessage = '';
 
       if (result.overallSignal === SignalType.STRONG_BUY) {
-        alertMessage = `🚀 강한 매수 신호 (${result.overallConfidence}%)`;
-      } else if (
-        result.overallSignal === SignalType.BUY &&
-        result.overallConfidence >= alertThreshold
-      ) {
-        alertMessage = `📈 매수 신호 (${result.overallConfidence}%)`;
+        alertMessage = `🚀 강한 매수 신호`;
+      } else if (result.overallSignal === SignalType.BUY) {
+        alertMessage = `📈 매수 신호`;
       } else if (result.overallSignal === SignalType.STRONG_SELL) {
-        alertMessage = `🔴 강한 매도 신호 (${result.overallConfidence}%)`;
+        alertMessage = `🔴 강한 매도 신호`;
       }
 
       if (alertMessage) {
@@ -534,28 +498,27 @@ export class TechnicalAnalysisService {
   private logAnalysisResult(symbol: string, result: MultiStrategyResult): void {
     this.logger.log(`\n📈 === ${symbol} 분석 결과 ===`);
     this.logger.log(`🎯 종합 신호: ${result.overallSignal}`);
-    this.logger.log(`🎲 종합 신뢰도: ${result.overallConfidence}%`);
+
     this.logger.log(`🤝 합의도: ${(result.consensus * 100).toFixed(1)}%`);
 
     // 시간봉별 요약
     this.logger.log(`\n⏰ 시간봉별 요약:`);
     Object.entries(result.timeframeSummary).forEach(([tf, summary]) => {
       this.logger.log(
-        `  ${tf}: ${summary.signal} (${summary.confidence}%) - ${summary.strategyCount}개 전략`,
+        `  ${tf}: ${summary.signal} - ${summary.strategyCount}개 전략`,
       );
     });
 
     // 주요 신호들만 표시
     const significantResults = result.strategies
-      .filter((s) => s.confidence >= 60)
-      .sort((a, b) => b.confidence - a.confidence)
+      .filter((s) => s.signal !== 'NEUTRAL')
       .slice(0, 5);
 
     if (significantResults.length > 0) {
       this.logger.log(`\n🔍 주요 신호들:`);
       significantResults.forEach((s, index) => {
         this.logger.log(
-          `  ${index + 1}. ${s.strategy}: ${s.signal} (${s.confidence}%) - ${s.timeframe}`,
+          `  ${index + 1}. ${s.strategy}: ${s.signal} - ${s.timeframe}`,
         );
       });
     }
