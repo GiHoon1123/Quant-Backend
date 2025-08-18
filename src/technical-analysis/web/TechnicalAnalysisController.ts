@@ -30,8 +30,7 @@ import {
   SymbolAnalysisResponse,
 } from '../dto/response/TechnicalAnalysisResponse';
 import { AdvancedStrategyService } from '../service/AdvancedStrategyService';
-import { PracticalStrategyService } from '../service/PracticalStrategyService';
-import { RiskManagementService } from '../service/RiskManagementService';
+
 import { TechnicalAnalysisService } from '../service/TechnicalAnalysisService';
 import { StrategyType } from '../types/StrategyTypes';
 import { TimeFrame } from '../types/TechnicalAnalysisTypes';
@@ -62,8 +61,6 @@ export class TechnicalAnalysisController {
   constructor(
     private readonly technicalAnalysisService: TechnicalAnalysisService,
     private readonly advancedStrategyService: AdvancedStrategyService,
-    private readonly practicalStrategyService: PracticalStrategyService,
-    private readonly riskManagementService: RiskManagementService,
   ) {}
 
   /**
@@ -585,146 +582,6 @@ export class TechnicalAnalysisController {
     } catch (error: any) {
       console.error(`❌ 고급 전략 실행 API 실패: ${symbol}`, error);
       throw new BadRequestException(`실행에 실패했습니다: ${error.message}`);
-    }
-  }
-
-  /**
-   * 실전 전략 실행
-   *
-   * 특정 심볼에 대해 실전 검증된 전략들을 실행합니다.
-   *
-   * @param symbol 분석할 심볼
-   * @param timeframe 분석할 시간봉 (선택사항)
-   * @returns 실전 전략 분석 결과
-   */
-  @Get('practical/:symbol')
-  @ApiOperation({
-    summary: '실전 전략 실행',
-    description: '특정 심볼에 대해 실전 검증된 전략들을 실행합니다.',
-  })
-  @ApiParam({
-    name: 'symbol',
-    description: '분석할 암호화폐 심볼',
-    example: 'BTCUSDT',
-  })
-  @ApiQuery({
-    name: 'timeframe',
-    description: '분석할 시간봉',
-    required: false,
-    example: '1h',
-  })
-  @ApiResponse({
-    status: 200,
-    description: '실전 전략 실행 성공',
-  })
-  async executePracticalStrategies(
-    @Param('symbol') symbol: string,
-    @Query('timeframe', new DefaultValuePipe(TimeFrame.ONE_HOUR))
-    timeframe?: TimeFrame,
-  ) {
-    console.log(`💼 API 요청: 실전 전략 실행 - ${symbol} ${timeframe}`);
-
-    if (!symbol || !symbol.endsWith('USDT')) {
-      throw new BadRequestException('유효한 USDT 페어 심볼을 입력해주세요');
-    }
-
-    try {
-      const result =
-        await this.practicalStrategyService.executeAllPracticalStrategies(
-          symbol.toUpperCase(),
-          timeframe || TimeFrame.ONE_HOUR,
-        );
-
-      return {
-        success: true,
-        message: '실전 전략 실행이 완료되었습니다',
-        data: {
-          symbol: symbol.toUpperCase(),
-          timeframe,
-          timestamp: Date.now(),
-          result,
-        },
-      };
-    } catch (error: any) {
-      console.error(`❌ 실전 전략 실행 API 실패: ${symbol}`, error);
-      throw new BadRequestException(`실행에 실패했습니다: ${error.message}`);
-    }
-  }
-
-  /**
-   * 리스크 분석
-   *
-   * 계좌 정보를 바탕으로 리스크를 분석합니다.
-   *
-   * @param dto 리스크 분석 요청 데이터
-   * @returns 리스크 분석 결과
-   */
-  @Post('risk/analyze')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: '리스크 분석',
-    description: '계좌 정보를 바탕으로 포지션 리스크를 분석합니다.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: '리스크 분석 성공',
-  })
-  async analyzeRisk(
-    @Body()
-    dto: {
-      accountBalance: number;
-      winRate: number;
-      avgWin: number;
-      avgLoss: number;
-      symbol?: string;
-      positionSize?: number;
-    },
-  ) {
-    console.log(`⚠️ API 요청: 리스크 분석 - 잔고: ${dto.accountBalance}`);
-
-    if (dto.accountBalance <= 0) {
-      throw new BadRequestException('계좌 잔고는 0보다 커야 합니다');
-    }
-
-    if (dto.winRate < 0 || dto.winRate > 100) {
-      throw new BadRequestException('승률은 0-100 사이의 값이어야 합니다');
-    }
-
-    try {
-      const positionSizeResult =
-        this.riskManagementService.calculatePositionSize(
-          dto.accountBalance,
-          dto.winRate / 100, // 백분율을 소수로 변환
-          dto.avgWin,
-          dto.avgLoss,
-        );
-
-      const riskAnalysis = {
-        positionSizing: positionSizeResult,
-        riskAssessment: {
-          accountBalance: dto.accountBalance,
-          winRate: dto.winRate,
-          avgWin: dto.avgWin,
-          avgLoss: dto.avgLoss,
-          expectedValue:
-            (dto.winRate / 100) * dto.avgWin -
-            ((100 - dto.winRate) / 100) * dto.avgLoss,
-          riskRewardRatio: dto.avgWin / dto.avgLoss,
-        },
-      };
-
-      return {
-        success: true,
-        message: '리스크 분석이 완료되었습니다',
-        data: {
-          timestamp: Date.now(),
-          input: dto,
-          analysis: riskAnalysis,
-        },
-      };
-    } catch (error: any) {
-      console.error('❌ 리스크 분석 API 실패', error);
-      throw new BadRequestException(`분석에 실패했습니다: ${error.message}`);
     }
   }
 

@@ -2,9 +2,7 @@ import { Module } from '@nestjs/common';
 import { MarketDataModule } from '../market-data/MarketDataModule';
 import { StrategyRepository } from './infra/persistence/repository/StrategyRepository';
 import { AdvancedStrategyService } from './service/AdvancedStrategyService';
-import { PracticalStrategyService } from './service/PracticalStrategyService';
-import { RiskManagementService } from './service/RiskManagementService';
-import { StrategyExecutionService } from './service/StrategyExecutionService';
+import { BasicStrategyService } from './service/BasicStrategyService';
 import { TechnicalAnalysisEventService } from './service/TechnicalAnalysisEventService';
 import { TechnicalAnalysisService } from './service/TechnicalAnalysisService';
 import { TechnicalIndicatorService } from './service/TechnicalIndicatorService';
@@ -45,19 +43,16 @@ import { TechnicalAnalysisController } from './web/TechnicalAnalysisController';
     // 🔍 핵심 분석 서비스들
     TechnicalAnalysisService,
     TechnicalAnalysisEventService, // 🆕 이벤트 기반 분석 처리
-    StrategyExecutionService,
     TechnicalIndicatorService,
     StrategyRepository,
-    // 🚀 고급 전략 서비스들
+    // 🚀 전략 서비스들
+    BasicStrategyService,
     AdvancedStrategyService,
-    PracticalStrategyService,
-    RiskManagementService,
   ],
   exports: [
     // 🔄 다른 도메인에서 사용할 수 있도록 export
     TechnicalAnalysisService,
     TechnicalAnalysisEventService, // 🆕 이벤트 연결용
-    StrategyExecutionService,
   ],
 })
 export class TechnicalAnalysisModule {}

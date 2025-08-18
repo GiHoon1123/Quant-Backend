@@ -9,8 +9,7 @@ import {
 } from '../../market-data/types/MarketDataEvents';
 import { TimeFrame } from '../types/TechnicalAnalysisTypes';
 import { AdvancedStrategyService } from './AdvancedStrategyService';
-import { PracticalStrategyService } from './PracticalStrategyService';
-import { RiskManagementService } from './RiskManagementService';
+import { BasicStrategyService } from './BasicStrategyService';
 import { TechnicalAnalysisService } from './TechnicalAnalysisService';
 import { TechnicalIndicatorService } from './TechnicalIndicatorService';
 
@@ -40,8 +39,7 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
     private readonly technicalIndicatorService: TechnicalIndicatorService,
     private readonly candleRepository: Candle15MRepository,
     private readonly advancedStrategyService: AdvancedStrategyService,
-    private readonly practicalStrategyService: PracticalStrategyService,
-    private readonly riskManagementService: RiskManagementService,
+    private readonly basicStrategyService: BasicStrategyService,
     private readonly exchangeRateService: ExchangeRateService,
   ) {
     this.eventEmitter = new EventEmitter();
@@ -99,25 +97,22 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
         `🔍 [TechnicalAnalysis] 새 캔들 감지 - 분석 시작: ${symbol} ${timeframe}`,
       );
 
-      // 📊 1. 15분봉 종합 리포트 생성 및 전송 (기존 개별 전략 알림 대체)
-      if (timeframe === '15m') {
-        await this.generateAndSendComprehensiveReport(symbol, candleData);
-      }
+      // 1. 기본 전략 분석 실행
+      const basicResults =
+        await this.basicStrategyService.executeAllBasicStrategies(
+          symbol,
+          timeframe as TimeFrame,
+        );
 
-      // 📊 2. 종합 기술적 분석 실행
+      // 2. 고급 전략 분석 실행
+      const advancedResults =
+        await this.advancedStrategyService.executeAllAdvancedStrategies(
+          symbol,
+          timeframe as TimeFrame,
+        );
+
+      // 5. 종합 분석 결과 생성
       const analysisResult = await this.performComprehensiveAnalysis(
-        symbol,
-        timeframe as TimeFrame,
-      );
-
-      // 🚀 3. 고급 전략 분석 실행
-      const advancedResults = await this.executeAdvancedStrategies(
-        symbol,
-        timeframe as TimeFrame,
-      );
-
-      // 💼 4. 실전 전략 분석 실행
-      const practicalResults = await this.executePracticalStrategies(
         symbol,
         timeframe as TimeFrame,
       );
@@ -138,7 +133,6 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
         {
           ...analysisResult,
           advancedStrategies: advancedResults,
-          practicalStrategies: practicalResults,
         },
         candleData,
         usdToKrwRate,
@@ -464,126 +458,6 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
         error,
       );
       return [];
-    }
-  }
-
-  /**
-   * 💼 실전 전략 분석 실행
-   *
-   * 새로운 캔들 데이터를 기반으로 실전 전략들을 실행합니다.
-   *
-   * @param symbol 심볼
-   * @param timeframe 시간봉
-   * @returns 실전 전략 분석 결과
-   */
-  private async executePracticalStrategies(
-    symbol: string,
-    timeframe: TimeFrame,
-  ): Promise<any[]> {
-    try {
-      console.log(`💼 [PracticalStrategies] 실전 전략 분석 시작: ${symbol}`);
-
-      // 모든 실전 전략을 한번에 실행
-      const practicalResults =
-        await this.practicalStrategyService.executeAllPracticalStrategies(
-          symbol,
-          timeframe,
-        );
-
-      // 결과를 표준 형태로 변환
-      const formattedResults = practicalResults.map((result) => ({
-        type: result.strategy,
-        symbol: result.symbol,
-        timeframe: result.timeframe,
-        signal: result.signal,
-
-        reasoning: result.reasoning,
-        indicators: result.details?.indicators || {},
-        conditions: result.details?.conditions || [],
-        timestamp: result.timestamp,
-      }));
-
-      // 강한 신호들만 로그 출력
-      const strongSignals = formattedResults.filter(
-        (result) =>
-          result.signal === 'STRONG_BUY' || result.signal === 'STRONG_SELL',
-      );
-
-      if (strongSignals.length > 0) {
-        console.log(
-          `🎯 [PracticalStrategies] 강한 신호 발견: ${symbol}`,
-          strongSignals.map((s) => `${s.type}: ${s.signal}`).join(', '),
-        );
-      }
-
-      console.log(
-        `✅ [PracticalStrategies] 실전 전략 분석 완료: ${symbol} (${formattedResults.length}개 전략)`,
-      );
-      return formattedResults;
-    } catch (error) {
-      console.error(
-        `❌ [PracticalStrategies] 실전 전략 분석 실패: ${symbol}`,
-        error,
-      );
-      return [];
-    }
-  }
-
-  /**
-   * ⚠️ 리스크 관리 분석 실행
-   *
-   * 현재 시장 상황에 대한 리스크 평가를 수행합니다.
-   *
-   * @param symbol 심볼
-   * @param analysisResult 기본 분석 결과
-   * @returns 리스크 분석 결과
-   */
-  private async executeRiskAnalysis(
-    symbol: string,
-    analysisResult: any,
-  ): Promise<any> {
-    try {
-      console.log(`⚠️ [RiskAnalysis] 리스크 분석 시작: ${symbol}`);
-
-      // 기본 리스크 파라미터 (실제 환경에서는 사용자 설정이나 DB에서 가져와야 함)
-      const defaultRiskParams = {
-        accountBalance: 10000, // 기본 계좌 잔고 (USDT)
-        winRate: 60, // 기본 승률 60%
-        avgWin: 2.5, // 평균 수익 2.5%
-        avgLoss: 1.5, // 평균 손실 1.5%
-      };
-
-      // 포지션 사이징 계산
-      const positionSizing = this.riskManagementService.calculatePositionSize(
-        defaultRiskParams.accountBalance,
-        defaultRiskParams.winRate / 100,
-        defaultRiskParams.avgWin,
-        defaultRiskParams.avgLoss,
-      );
-
-      const riskAnalysis = {
-        symbol,
-        timestamp: Date.now(),
-        positionSizing,
-        adjustedRisk: positionSizing.recommendedSize,
-        riskLevel: this.calculateRiskLevel(analysisResult.overallSignal),
-        recommendations: this.generateRiskRecommendations(
-          analysisResult.overallSignal,
-        ),
-      };
-
-      console.log(
-        `✅ [RiskAnalysis] 리스크 분석 완료: ${symbol} (리스크 레벨: ${riskAnalysis.riskLevel})`,
-      );
-      return riskAnalysis;
-    } catch (error) {
-      console.error(`❌ [RiskAnalysis] 리스크 분석 실패: ${symbol}`, error);
-      return {
-        symbol,
-        timestamp: Date.now(),
-        error: error.message,
-        riskLevel: 'UNKNOWN',
-      };
     }
   }
 

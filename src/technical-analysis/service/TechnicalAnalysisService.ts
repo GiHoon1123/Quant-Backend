@@ -13,7 +13,9 @@ import {
   StrategyType,
 } from '../types/StrategyTypes';
 import { TimeFrame } from '../types/TechnicalAnalysisTypes';
-import { StrategyExecutionService } from './StrategyExecutionService';
+
+import { AdvancedStrategyService } from './AdvancedStrategyService';
+import { BasicStrategyService } from './BasicStrategyService';
 import { TechnicalIndicatorService } from './TechnicalIndicatorService';
 
 /**
@@ -61,7 +63,8 @@ export class TechnicalAnalysisService {
   ];
   constructor(
     private readonly candleRepository: Candle15MRepository,
-    private readonly strategyService: StrategyExecutionService,
+    private readonly basicStrategyService: BasicStrategyService,
+    private readonly advancedStrategyService: AdvancedStrategyService,
     private readonly indicatorService: TechnicalIndicatorService,
     private readonly eventEmitter: EventEmitter2,
     private readonly configService: ConfigService,
@@ -110,11 +113,45 @@ export class TechnicalAnalysisService {
     );
 
     try {
-      const result = await this.strategyService.executeMultipleStrategies(
-        strategies,
+      const basicResults =
+        await this.basicStrategyService.executeAllBasicStrategies(
+          symbol,
+          timeframes[0],
+        );
+      const advancedResults =
+        await this.advancedStrategyService.executeAllAdvancedStrategies(
+          symbol,
+          timeframes[0],
+        );
+
+      const allResults = [...basicResults, ...advancedResults];
+      const buySignals = allResults.filter(
+        (r) => r.signal === 'BUY' || r.signal === 'STRONG_BUY',
+      ).length;
+      const sellSignals = allResults.filter(
+        (r) => r.signal === 'SELL' || r.signal === 'STRONG_SELL',
+      ).length;
+
+      let overallSignal = SignalType.NEUTRAL;
+      if (buySignals > sellSignals) overallSignal = SignalType.BUY;
+      else if (sellSignals > buySignals) overallSignal = SignalType.SELL;
+
+      const result = {
         symbol,
-        timeframes,
-      );
+        timestamp: Date.now(),
+        overallSignal,
+        strategies: allResults,
+        consensus:
+          buySignals > sellSignals
+            ? buySignals / allResults.length
+            : sellSignals / allResults.length,
+        timeframeSummary: {
+          [timeframes[0]]: {
+            signal: overallSignal,
+            strategyCount: allResults.length,
+          },
+        },
+      };
       this.logAnalysisResult(symbol, result);
       // 이벤트 발행 (공통 DTO 적용)
       const analysisCompletedEvent: AnalysisCompletedEvent = {
@@ -284,11 +321,19 @@ export class TechnicalAnalysisService {
 
     for (const symbol of symbols) {
       try {
-        const result = await this.strategyService.executeStrategy(
-          strategy,
-          symbol,
-          timeframe,
-        );
+        const basicResults =
+          await this.basicStrategyService.executeAllBasicStrategies(
+            symbol,
+            timeframe,
+          );
+        const advancedResults =
+          await this.advancedStrategyService.executeAllAdvancedStrategies(
+            symbol,
+            timeframe,
+          );
+        const allResults = [...basicResults, ...advancedResults];
+        const result =
+          allResults.find((r) => r.strategy === strategy) || allResults[0];
         results.push(result);
       } catch (error) {
         errors.push(`${symbol}: ${error.message}`);
