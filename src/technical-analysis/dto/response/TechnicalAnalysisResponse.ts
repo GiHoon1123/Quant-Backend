@@ -80,7 +80,7 @@ export class SymbolAnalysisData {
  *     "timestamp": 1703123456789,
  *     "analysis": {
  *       "overallSignal": "BUY",
- *       "overallConfidence": 75,
+
  *       "consensus": 0.8,
  *       "strategies": [...],
  *       "timeframeSummary": {...}
@@ -377,12 +377,6 @@ export class StrongBuySignal {
   signal: SignalType;
 
   @ApiProperty({
-    description: '신뢰도',
-    example: 85,
-  })
-  confidence: number;
-
-  @ApiProperty({
     description: '합의도',
     example: 0.9,
   })
@@ -394,7 +388,6 @@ export class StrongBuySignal {
   topStrategies: Array<{
     strategy: StrategyType;
     signal: SignalType;
-    confidence: number;
     timeframe: TimeFrame;
   }>;
 }
@@ -408,12 +401,6 @@ export class StrongBuySignalsData {
     example: 3,
   })
   count: number;
-
-  @ApiProperty({
-    description: '최소 신뢰도',
-    example: 75,
-  })
-  minConfidence: number;
 
   @ApiProperty({
     description: '검색 시간',
@@ -440,7 +427,7 @@ export class StrongBuySignalsData {
  *   "message": "3개의 강한 매수 신호를 발견했습니다",
  *   "data": {
  *     "count": 3,
- *     "minConfidence": 75,
+
  *     "timestamp": 1703123456789,
  *     "signals": [...]
  *   }

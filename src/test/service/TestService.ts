@@ -231,7 +231,7 @@ export class TestService {
         symbol: testData?.symbol || 'BTCUSDT',
         timeframe: '15m',
         signal: testData?.signal || SignalType.BUY,
-        confidence: testData?.confidence || 80,
+
         analysis: {
           rsi: 65,
           macd: 0.02,
@@ -268,7 +268,6 @@ export class TestService {
     symbol: string,
     testData?: {
       signal?: 'BUY' | 'SELL' | 'HOLD';
-      confidence?: number;
       message?: string;
     },
   ) {
@@ -277,7 +276,6 @@ export class TestService {
 
     try {
       const signal = testData?.signal || 'BUY';
-      const confidence = testData?.confidence || 85;
 
       // 분석 결과 객체 생성
       const analysisResult = {
@@ -286,7 +284,7 @@ export class TestService {
           SMA5: 43250.5,
           SMA10: 43100.25,
           SMA20: 42950.75,
-          RSI: confidence > 70 ? 72.5 : 65.2,
+          RSI: 72.5,
           MACD: signal === 'BUY' ? 'BULLISH' : 'BEARISH',
           Volume: 1250.45,
           AvgVolume: 850.3,
@@ -302,7 +300,6 @@ export class TestService {
         symbol,
         analysisResult: {
           signal,
-          confidence,
           indicators: analysisResult.indicators,
           price: analysisResult.price,
         },
@@ -323,7 +320,7 @@ export class TestService {
         data: {
           symbol,
           signal,
-          confidence,
+
           analysisResult,
           event: testEvent,
         },

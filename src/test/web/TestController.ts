@@ -183,7 +183,6 @@ export class TestController {
     testData?: {
       symbol?: string;
       signal?: string;
-      confidence?: number;
     },
   ) {
     return this.testService.testNotification(testData);
@@ -250,7 +249,6 @@ export class TestController {
     @Body()
     testData?: {
       signal?: 'BUY' | 'SELL' | 'HOLD';
-      confidence?: number;
       message?: string;
     },
   ) {

@@ -40,7 +40,6 @@ export class AutoTradingController {
           failedTrades: 30,
           winRate: 80.0,
           settings: {
-            minConfidence: 80,
             minVolumeRatio: 1.2,
             positionSizePercent: 2,
             stopLossPercent: -2,
@@ -60,7 +59,6 @@ export class AutoTradingController {
       failedTrades: 30,
       winRate: 80.0,
       settings: {
-        minConfidence: 80,
         minVolumeRatio: 1.2,
         positionSizePercent: 2,
         stopLossPercent: -2,

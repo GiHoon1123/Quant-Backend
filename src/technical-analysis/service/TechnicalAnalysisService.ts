@@ -94,7 +94,7 @@ export class TechnicalAnalysisService {
    * 💡 사용 예시:
    * ```typescript
    * const analysis = await service.analyzeSymbol('BTCUSDT');
-   * if (analysis.overallSignal === SignalType.BUY && analysis.overallConfidence > 70) {
+   * if (analysis.overallSignal === SignalType.BUY) {
    *   // 매수 신호 처리
    * }
    * ```
@@ -143,7 +143,7 @@ export class TechnicalAnalysisService {
    * @param symbols 분석할 심볼들 (선택사항, 기본값: 주요 10개 코인)
    * @param strategies 실행할 전략들 (선택사항)
    * @param timeframes 분석할 시간봉들 (선택사항)
-   * @param minConfidence 최소 신뢰도 필터 (선택사항, 기본값: 60)
+
    * @returns 심볼별 분석 결과 맵
    *
    * 🎯 활용:
@@ -210,7 +210,7 @@ export class TechnicalAnalysisService {
    * 강한 매수 신호 검색
    *
    * @param symbols 검색할 심볼들 (선택사항)
-   * @param minConfidence 최소 신뢰도 (선택사항, 기본값: 75)
+
    * @returns 강한 매수 신호가 있는 심볼들과 분석 결과
    *
    * 🎯 활용:

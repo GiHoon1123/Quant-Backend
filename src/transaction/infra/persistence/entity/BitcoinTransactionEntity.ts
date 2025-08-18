@@ -111,10 +111,6 @@ export class BitcoinTransaction {
   @Column({ length: 50, nullable: true })
   relatedExchange: string; // 연관된 거래소 (binance, coinbase 등)
 
-  // 분석 결과
-  @Column('decimal', { precision: 5, scale: 4, default: 0 })
-  confidence: number; // 분석 신뢰도 (0~1)
-
   @Column({ type: 'json', nullable: true })
   tags: string[]; // 태그들 (dca, consolidation, mixing 등)
 

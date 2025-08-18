@@ -248,41 +248,33 @@ export class StrategyExecutionService {
     const isBreakout = isPriceAboveMA && wasPriceBelowMA;
 
     // 추가 확인 조건들
-    const breakoutStrength = ((currentPrice - currentMA) / currentMA) * 100;
     const maSlope = ((currentMA - previousMA) / previousMA) * 100;
 
     let signal = SignalType.NEUTRAL;
-    let confidence = 0;
     const conditions: string[] = [];
 
     if (isBreakout) {
       signal = SignalType.BUY;
-      confidence = Math.min(60 + Math.abs(breakoutStrength) * 10, 90);
       conditions.push(`${period}일선 상향 돌파 확인`);
 
       if (maSlope > 0) {
-        confidence += 10;
         conditions.push('이동평균선 상승 기울기 확인');
       }
     } else if (isPriceAboveMA) {
       signal = SignalType.WEAK_BUY;
-      confidence = Math.min(30 + Math.abs(breakoutStrength) * 5, 50);
       conditions.push(`${period}일선 위 위치 유지`);
     } else {
       signal = SignalType.WEAK_SELL;
-      confidence = Math.min(20 + Math.abs(breakoutStrength) * 5, 40);
       conditions.push(`${period}일선 아래 위치`);
     }
 
     return {
       ...baseResult,
       signal,
-      confidence: Math.round(confidence),
       details: {
         indicators: {
           currentPrice,
           currentMA,
-          breakoutStrength,
           maSlope,
         },
         conditions,
@@ -321,34 +313,28 @@ export class StrategyExecutionService {
     const slowSlope = ((currentSlow - previousSlow) / previousSlow) * 100;
 
     let signal = SignalType.NEUTRAL;
-    let confidence = 0;
     const conditions: string[] = [];
 
     if (isGoldenCross) {
       signal = SignalType.STRONG_BUY;
-      confidence = Math.min(70 + Math.abs(crossGap) * 20, 95);
       conditions.push(
         `${fastPeriod}일선이 ${slowPeriod}일선 상향 돌파 (골든크로스)`,
       );
 
       if (fastSlope > 0 && slowSlope > 0) {
-        confidence += 10;
         conditions.push('두 이동평균선 모두 상승 기울기');
       }
     } else if (isCurrentCross) {
       signal = SignalType.BUY;
-      confidence = Math.min(40 + Math.abs(crossGap) * 10, 70);
       conditions.push(`${fastPeriod}일선이 ${slowPeriod}일선 위 위치 유지`);
     } else {
       signal = SignalType.WEAK_SELL;
-      confidence = Math.min(30 + Math.abs(crossGap) * 5, 50);
       conditions.push(`${fastPeriod}일선이 ${slowPeriod}일선 아래 위치`);
     }
 
     return {
       ...baseResult,
       signal,
-      confidence: Math.round(confidence),
       details: {
         indicators: {
           fastMA: currentFast,
@@ -384,30 +370,25 @@ export class StrategyExecutionService {
     const isRsiBouncing = isCurrentOversold && wasMoreOversold;
 
     let signal = SignalType.NEUTRAL;
-    let confidence = 0;
     const conditions: string[] = [];
 
     if (isRsiBouncing) {
       signal = SignalType.BUY;
-      confidence = Math.min(60 + (30 - currentRSI.value) * 2, 85);
       conditions.push('RSI 과매도 구간에서 반등 시작');
       conditions.push(
         `RSI: ${currentRSI.value.toFixed(2)} (이전: ${previousRSI?.value.toFixed(2)})`,
       );
     } else if (currentRSI.isOversold) {
       signal = SignalType.WEAK_BUY;
-      confidence = Math.min(40 + (30 - currentRSI.value), 60);
       conditions.push('RSI 과매도 구간 진입');
     } else if (currentRSI.isOverbought) {
       signal = SignalType.WEAK_SELL;
-      confidence = Math.min(40 + (currentRSI.value - 70), 60);
       conditions.push('RSI 과매수 구간');
     }
 
     return {
       ...baseResult,
       signal,
-      confidence: Math.round(confidence),
       details: {
         indicators: {
           currentRSI: currentRSI.value,
@@ -438,33 +419,27 @@ export class StrategyExecutionService {
     const isMacdGoldenCross = isCurrentGolden && wasPreviousDead;
 
     let signal = SignalType.NEUTRAL;
-    let confidence = 0;
     const conditions: string[] = [];
 
     if (isMacdGoldenCross) {
       signal = SignalType.BUY;
-      confidence = Math.min(65 + Math.abs(current.histogram) * 100, 90);
       conditions.push('MACD 골든크로스 발생');
       conditions.push(`히스토그램: ${current.histogram.toFixed(4)}`);
 
       if (current.macdLine > 0) {
-        confidence += 10;
         conditions.push('MACD 라인이 0선 위에서 골든크로스');
       }
     } else if (isCurrentGolden) {
       signal = SignalType.WEAK_BUY;
-      confidence = Math.min(40 + Math.abs(current.histogram) * 50, 70);
       conditions.push('MACD 골든크로스 상태 유지');
     } else {
       signal = SignalType.WEAK_SELL;
-      confidence = Math.min(30 + Math.abs(current.histogram) * 30, 50);
       conditions.push('MACD 데드크로스 상태');
     }
 
     return {
       ...baseResult,
       signal,
-      confidence: Math.round(confidence),
       details: {
         indicators: {
           macdLine: current.macdLine,
@@ -497,35 +472,26 @@ export class StrategyExecutionService {
     const isUpperBreakout = isAboveUpper && wasInsideBand;
 
     let signal = SignalType.NEUTRAL;
-    let confidence = 0;
     const conditions: string[] = [];
 
     if (isUpperBreakout) {
       signal = SignalType.BUY;
-      const breakoutStrength =
-        ((currentPrice - current.upper) / current.upper) * 100;
-      confidence = Math.min(60 + breakoutStrength * 20, 85);
       conditions.push('볼린저 상단 밴드 돌파');
-      conditions.push(`돌파 강도: ${breakoutStrength.toFixed(2)}%`);
 
       if (current.bandwidth < 0.1) {
-        confidence += 15;
         conditions.push('밴드 수축 후 돌파 (스퀴즈 브레이크아웃)');
       }
     } else if (isAboveUpper) {
       signal = SignalType.WEAK_BUY;
-      confidence = 50;
       conditions.push('볼린저 상단 밴드 위 위치 유지');
     } else if (current.percentB > 0.8) {
       signal = SignalType.WEAK_BUY;
-      confidence = 40;
       conditions.push('볼린저 밴드 상단 근접');
     }
 
     return {
       ...baseResult,
       signal,
-      confidence: Math.round(confidence),
       details: {
         indicators: {
           currentPrice,
@@ -557,33 +523,27 @@ export class StrategyExecutionService {
     const isConfirmedSignal = isPriceUp && isVolumeSurge;
 
     let signal = SignalType.NEUTRAL;
-    let confidence = 0;
     const conditions: string[] = [];
 
     if (isConfirmedSignal) {
       signal = SignalType.BUY;
-      confidence = Math.min(65 + (current.volumeRatio - 2) * 10, 90);
       conditions.push('거래량 급증과 함께 가격 상승');
       conditions.push(`거래량 비율: ${current.volumeRatio.toFixed(2)}배`);
 
       if (current.obv > 0) {
-        confidence += 10;
         conditions.push('OBV 상승세 확인');
       }
     } else if (isVolumeSurge && !isPriceUp) {
       signal = SignalType.WEAK_SELL;
-      confidence = 40;
       conditions.push('거래량 급증하지만 가격 하락');
     } else if (isPriceUp && current.volumeRatio > 1.5) {
       signal = SignalType.WEAK_BUY;
-      confidence = 45;
       conditions.push('가격 상승 + 거래량 증가');
     }
 
     return {
       ...baseResult,
       signal,
-      confidence: Math.round(confidence),
       details: {
         indicators: {
           volumeRatio: current.volumeRatio,
@@ -774,12 +734,10 @@ export class StrategyExecutionService {
     const isVolumeConfirmed = currentVolume.volumeRatio > 1.5;
 
     let signal = SignalType.NEUTRAL;
-    let confidence = 0;
     const conditions: string[] = [];
 
     if (isRsiBreakout && isVolumeConfirmed) {
       signal = SignalType.BUY;
-      confidence = Math.min(70 + (currentRSI.value - 70) * 2, 90);
       conditions.push('RSI 70선 상향 돌파 (강한 모멘텀)');
       conditions.push(
         `RSI: ${currentRSI.value.toFixed(2)} (이전: ${previousRSI?.value.toFixed(2)})`,
@@ -787,23 +745,19 @@ export class StrategyExecutionService {
       conditions.push('거래량 증가로 모멘텀 확인');
 
       if (isStrongMomentum) {
-        confidence += 10;
         conditions.push('RSI 75 이상 - 매우 강한 모멘텀');
       }
     } else if (isStrongMomentum && !isVolumeConfirmed) {
       signal = SignalType.WEAK_BUY;
-      confidence = 50;
       conditions.push('RSI 강세이지만 거래량 부족');
     } else if (currentRSI.value > 85) {
       signal = SignalType.WEAK_SELL;
-      confidence = 60;
       conditions.push('RSI 극도 과매수 (85 이상)');
     }
 
     return {
       ...baseResult,
       signal,
-      confidence: Math.round(confidence),
       details: {
         indicators: {
           currentRSI: currentRSI.value,
@@ -838,43 +792,35 @@ export class StrategyExecutionService {
     const histogramStrength = Math.abs(current.histogram);
 
     let signal = SignalType.NEUTRAL;
-    let confidence = 0;
     const conditions: string[] = [];
 
     if (isZeroCrossUp) {
       signal = SignalType.BUY;
-      confidence = Math.min(65 + histogramStrength * 200, 85);
       conditions.push('MACD 0선 상향 돌파');
       conditions.push(`MACD 라인: ${current.macdLine.toFixed(4)}`);
 
       if (isAboveSMA20) {
-        confidence += 10;
         conditions.push('가격이 SMA20 위에서 돌파 (추가 확인)');
       }
 
       if (current.isGoldenCross) {
-        confidence += 10;
         conditions.push('MACD 골든크로스도 함께 발생');
       }
     } else if (isZeroCrossDown) {
       signal = SignalType.SELL;
-      confidence = Math.min(65 + histogramStrength * 200, 85);
       conditions.push('MACD 0선 하향 돌파');
       conditions.push(`MACD 라인: ${current.macdLine.toFixed(4)}`);
     } else if (current.macdLine > 0 && current.isGoldenCross) {
       signal = SignalType.WEAK_BUY;
-      confidence = 50;
       conditions.push('MACD 0선 위에서 골든크로스 유지');
     } else if (current.macdLine < 0 && !current.isGoldenCross) {
       signal = SignalType.WEAK_SELL;
-      confidence = 40;
       conditions.push('MACD 0선 아래에서 데드크로스 유지');
     }
 
     return {
       ...baseResult,
       signal,
-      confidence: Math.round(confidence),
       details: {
         indicators: {
           macdLine: current.macdLine,
@@ -912,12 +858,10 @@ export class StrategyExecutionService {
     const bandwidthNormal = current.bandwidth > 0.02; // 밴드가 너무 좁지 않음
 
     let signal = SignalType.NEUTRAL;
-    let confidence = 0;
     const conditions: string[] = [];
 
     if (isTouchingLower && isBouncing && isRSIOversold && bandwidthNormal) {
       signal = SignalType.BUY;
-      confidence = Math.min(70 + (35 - currentRSI.value) * 2, 90);
       conditions.push('볼린저 하단 터치 후 반등 시작');
       conditions.push(
         `%B: ${(current.percentB * 100).toFixed(1)}% (하단 근처)`,
@@ -926,27 +870,22 @@ export class StrategyExecutionService {
       conditions.push('가격 반등 확인');
 
       if (current.bandwidth < 0.05) {
-        confidence += 15;
         conditions.push('밴드 수축 상태 - 변동성 확대 예상');
       }
     } else if (isTouchingLower && !isBouncing) {
       signal = SignalType.WEAK_BUY;
-      confidence = 45;
       conditions.push('볼린저 하단 근처 - 반등 대기');
     } else if (wasBelowLower && currentPrice > current.lower) {
       signal = SignalType.WEAK_BUY;
-      confidence = 55;
       conditions.push('볼린저 하단 이탈 - 반등 시작 가능성');
     } else if (current.percentB < 0.1 && !isRSIOversold) {
       signal = SignalType.NEUTRAL;
-      confidence = 30;
       conditions.push('하단 근처이지만 RSI 과매도 아님');
     }
 
     return {
       ...baseResult,
       signal,
-      confidence: Math.round(confidence),
       details: {
         indicators: {
           currentPrice,
@@ -983,7 +922,6 @@ export class StrategyExecutionService {
     const rsiLows = this.findTroughs(recentRSI.map((r) => r.value));
 
     let signal = SignalType.NEUTRAL;
-    let confidence = 0;
     const conditions: string[] = [];
 
     // 강세 다이버전스 (가격 저점 하락, RSI 저점 상승)
@@ -998,7 +936,6 @@ export class StrategyExecutionService {
         latestRSILow.value > prevRSILow.value
       ) {
         signal = SignalType.BUY;
-        confidence = 75;
         conditions.push('강세 다이버전스 감지');
         conditions.push('가격 저점은 하락, RSI 저점은 상승');
         conditions.push('상승 반전 가능성 높음');
@@ -1017,7 +954,6 @@ export class StrategyExecutionService {
         latestRSIHigh.value < prevRSIHigh.value
       ) {
         signal = SignalType.SELL;
-        confidence = 75;
         conditions.push('약세 다이버전스 감지');
         conditions.push('가격 고점은 상승, RSI 고점은 하락');
         conditions.push('하락 반전 가능성 높음');
@@ -1027,7 +963,6 @@ export class StrategyExecutionService {
     return {
       ...baseResult,
       signal,
-      confidence,
       details: {
         indicators: {
           currentRSI: rsi[rsi.length - 1].value,
@@ -1056,7 +991,6 @@ export class StrategyExecutionService {
       return {
         ...baseResult,
         signal: SignalType.NEUTRAL,
-        confidence: 0,
         details: { indicators: {}, conditions: ['데이터 부족'] },
       };
     }
@@ -1077,40 +1011,33 @@ export class StrategyExecutionService {
     const histogramMomentum = Math.abs(current.histogram - previous.histogram);
 
     let signal = SignalType.NEUTRAL;
-    let confidence = 0;
     const conditions: string[] = [];
 
     if (isHistogramTurningUp && current.histogram < 0) {
       signal = SignalType.BUY;
-      confidence = Math.min(60 + histogramMomentum * 1000, 85);
       conditions.push('MACD 히스토그램 상승 전환');
       conditions.push('음수 구간에서 전환 (강한 신호)');
       conditions.push(`히스토그램: ${current.histogram.toFixed(4)}`);
 
       if (current.macdLine > current.signalLine) {
-        confidence += 10;
         conditions.push('MACD 라인이 시그널 라인 위에 위치');
       }
     } else if (isHistogramTurningDown && current.histogram > 0) {
       signal = SignalType.SELL;
-      confidence = Math.min(60 + histogramMomentum * 1000, 85);
       conditions.push('MACD 히스토그램 하락 전환');
       conditions.push('양수 구간에서 전환 (강한 신호)');
       conditions.push(`히스토그램: ${current.histogram.toFixed(4)}`);
     } else if (isHistogramTurningUp) {
       signal = SignalType.WEAK_BUY;
-      confidence = 45;
       conditions.push('MACD 히스토그램 상승 전환 (약한 신호)');
     } else if (isHistogramTurningDown) {
       signal = SignalType.WEAK_SELL;
-      confidence = 45;
       conditions.push('MACD 히스토그램 하락 전환 (약한 신호)');
     }
 
     return {
       ...baseResult,
       signal,
-      confidence: Math.round(confidence),
       details: {
         indicators: {
           currentHistogram: current.histogram,

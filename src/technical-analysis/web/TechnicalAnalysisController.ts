@@ -266,7 +266,7 @@ export class TechnicalAnalysisController {
    * 높은 신뢰도의 매수 신호가 있는 암호화폐들을 찾습니다.
    *
    * @param symbols 검색할 심볼들
-   * @param minConfidence 최소 신뢰도
+
    * @returns 강한 매수 신호 목록
    */
   @Get('buy-signals')
@@ -280,32 +280,16 @@ export class TechnicalAnalysisController {
     required: false,
     example: 'BTCUSDT,ETHUSDT,ADAUSDT',
   })
-  @ApiQuery({
-    name: 'minConfidence',
-    description: '최소 신뢰도 (0-100)',
-    required: false,
-    example: 75,
-  })
   @ApiResponse({
     status: 200,
     description: '검색 성공',
   })
-  async findStrongBuySignals(
-    @Query('symbols') symbolsParam?: string,
-    @Query('minConfidence', new DefaultValuePipe(75), ParseIntPipe)
-    minConfidence?: number,
-  ) {
-    console.log(
-      `🔍 API 요청: 강한 매수 신호 검색 (신뢰도 >= ${minConfidence}%)`,
-    );
+  async findStrongBuySignals(@Query('symbols') symbolsParam?: string) {
+    console.log(`🔍 API 요청: 강한 매수 신호 검색`);
 
     let symbols: string[] | undefined;
     if (symbolsParam) {
       symbols = symbolsParam.split(',').map((s) => s.trim().toUpperCase());
-    }
-
-    if ((minConfidence ?? 75) < 0 || (minConfidence ?? 75) > 100) {
-      throw new BadRequestException('신뢰도는 0-100 사이의 값이어야 합니다');
     }
 
     try {
@@ -317,7 +301,7 @@ export class TechnicalAnalysisController {
         message: `${signals.length}개의 강한 매수 신호를 발견했습니다`,
         data: {
           count: signals.length,
-          minConfidence,
+
           timestamp: Date.now(),
           signals: signals.map(({ symbol, result }) => ({
             symbol,

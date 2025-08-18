@@ -1,14 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
   IsEnum,
-  IsNumber,
   IsOptional,
   IsString,
-  Max,
-  Min,
 } from 'class-validator';
 import { StrategyType } from '../../types/StrategyTypes';
 import { TimeFrame } from '../../types/TechnicalAnalysisTypes';
@@ -73,7 +69,7 @@ export class AnalyzeSymbolDto {
  * - symbols: 스크리닝할 심볼들 (선택사항, 기본값: 주요 10개 코인)
  * - strategies: 실행할 전략들 (선택사항)
  * - timeframes: 분석할 시간봉들 (선택사항)
- * - minConfidence: 최소 신뢰도 필터 (선택사항, 기본값: 60)
+
  *
  * 💡 사용 예시:
  * ```json
@@ -81,7 +77,7 @@ export class AnalyzeSymbolDto {
  *   "symbols": ["BTCUSDT", "ETHUSDT", "ADAUSDT"],
  *   "strategies": ["MA_20_BREAKOUT", "RSI_OVERSOLD_BOUNCE"],
  *   "timeframes": ["15m", "1h"],
- *   "minConfidence": 70
+
  * }
  * ```
  */
@@ -236,13 +232,13 @@ export class StrategyScreeningDto {
  *
  * 🎯 주요 필드:
  * - symbols: 검색할 심볼들 (선택사항)
- * - minConfidence: 최소 신뢰도 (선택사항, 기본값: 75)
+
  *
  * 💡 사용 예시:
  * ```json
  * {
  *   "symbols": ["BTCUSDT", "ETHUSDT"],
- *   "minConfidence": 80
+
  * }
  * ```
  */
@@ -256,20 +252,6 @@ export class FindStrongBuySignalsDto {
   @IsArray()
   @IsString({ each: true })
   symbols?: string[];
-
-  @ApiPropertyOptional({
-    description: '최소 신뢰도 (0-100)',
-    minimum: 0,
-    maximum: 100,
-    example: 75,
-    default: 75,
-  })
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  @Max(100)
-  @Type(() => Number)
-  minConfidence?: number;
 }
 
 /**

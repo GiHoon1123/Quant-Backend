@@ -359,16 +359,12 @@ export class AdvancedStrategyService {
 
     const conditions: string[] = [];
 
-    if (prediction.direction === 'up' && prediction.confidence > 0.7) {
+    if (prediction.direction === 'up') {
       signal = SignalType.BUY;
-      conditions.push(
-        `AI 모델 상승 예측 (확률: ${(prediction.confidence * 100).toFixed(1)}%)`,
-      );
-    } else if (prediction.direction === 'down' && prediction.confidence > 0.7) {
+      conditions.push(`AI 모델 상승 예측`);
+    } else if (prediction.direction === 'down') {
       signal = SignalType.SELL;
-      conditions.push(
-        `AI 모델 하락 예측 (확률: ${(prediction.confidence * 100).toFixed(1)}%)`,
-      );
+      conditions.push(`AI 모델 하락 예측`);
     }
 
     return {
@@ -380,7 +376,6 @@ export class AdvancedStrategyService {
       timestamp: Date.now(),
       details: {
         indicators: {
-          aiConfidence: prediction.confidence,
           predictedDirection:
             prediction.direction === 'bullish'
               ? 1
@@ -485,7 +480,7 @@ export class AdvancedStrategyService {
     // 여기서는 모의 예측 결과 반환
     return {
       direction: 'up',
-      confidence: 0.75,
+
       modelVersion: 'v1.0',
     };
   }

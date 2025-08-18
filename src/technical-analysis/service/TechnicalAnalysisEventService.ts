@@ -216,7 +216,6 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
 
         // 전략 시그널 정보
         overallSignal: strategyResult.overallSignal || 'HOLD',
-        confidence: strategyResult.overallConfidence || 50,
         strategies: strategyResult.strategies || [],
 
         // 상세 지표 정보 (실제 데이터 구조에 맞게 수정)
@@ -245,7 +244,6 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
 
       console.log(`🔍 [TechnicalAnalysis] 종합 분석 완료: ${symbol}`, {
         signal: comprehensiveResult.overallSignal,
-        confidence: comprehensiveResult.confidence,
         price: comprehensiveResult.currentPrice,
       });
 
@@ -260,7 +258,6 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
         currentPrice: 0,
         timestamp: Date.now(),
         overallSignal: 'HOLD',
-        confidence: 0,
         strategies: [],
         indicators: {
           SMA5: null,
@@ -301,8 +298,7 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
         timeframe,
         analysisResult: {
           signal: analysisResult.overallSignal || 'HOLD',
-          confidence:
-            analysisResult.overallConfidence || analysisResult.confidence || 50,
+
           indicators: {
             ...analysisResult.indicators,
             SMA5: analysisResult.indicators?.SMA5 || 'N/A',
@@ -328,8 +324,7 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
           ...event.analysisResult,
           // 확장된 데이터 추가
           overallSignal: analysisResult.overallSignal || 'HOLD',
-          overallConfidence:
-            analysisResult.overallConfidence || analysisResult.confidence || 50,
+
           currentPrice: analysisResult.currentPrice || 0,
           timestamp: analysisResult.timestamp || Date.now(),
         },
@@ -338,7 +333,6 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
       console.log(`📡 [AnalysisEvent] 이벤트 발송 데이터:`, {
         symbol: event.symbol,
         signal: event.analysisResult.signal,
-        confidence: event.analysisResult.confidence,
         currentPrice: analysisResult.currentPrice || 0,
         indicators: event.analysisResult.indicators,
       });
@@ -349,7 +343,7 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
       // HOLD 시그널이 아닌 경우에만 로그 출력
       if (event.analysisResult.signal !== 'HOLD') {
         console.log(
-          `📡 [AnalysisCompleted Event] 분석 완료 이벤트 발송: ${symbol} - ${event.analysisResult.signal} (신뢰도: ${event.analysisResult.confidence}%)`,
+          `📡 [AnalysisCompleted Event] 분석 완료 이벤트 발송: ${symbol} - ${event.analysisResult.signal}`,
         );
       }
     } catch (error) {
@@ -384,7 +378,6 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
   private extractStrategyResults(analysisResult: any): Array<{
     name: string;
     signal: string;
-    confidence: number;
   }> {
     // 분석 결과에서 전략별 결과를 추출
     return [
@@ -568,22 +561,13 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
         defaultRiskParams.avgLoss,
       );
 
-      // 현재 신호의 신뢰도에 따른 리스크 조정
-      const signalConfidence = analysisResult.confidence || 50;
-      const adjustedRisk =
-        positionSizing.recommendedSize * (signalConfidence / 100);
-
       const riskAnalysis = {
         symbol,
         timestamp: Date.now(),
         positionSizing,
-        adjustedRisk,
-        riskLevel: this.calculateRiskLevel(
-          signalConfidence,
-          analysisResult.overallSignal,
-        ),
+        adjustedRisk: positionSizing.recommendedSize,
+        riskLevel: this.calculateRiskLevel(analysisResult.overallSignal),
         recommendations: this.generateRiskRecommendations(
-          signalConfidence,
           analysisResult.overallSignal,
         ),
       };
@@ -606,14 +590,14 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
   /**
    * 📊 리스크 레벨 계산
    */
-  private calculateRiskLevel(confidence: number, signal: string): string {
+  private calculateRiskLevel(signal: string): string {
     if (signal === 'NEUTRAL' || signal === 'HOLD') {
       return 'LOW';
     }
 
-    if (confidence >= 80) {
+    if (signal === 'STRONG_BUY' || signal === 'STRONG_SELL') {
       return 'LOW';
-    } else if (confidence >= 60) {
+    } else if (signal === 'BUY' || signal === 'SELL') {
       return 'MEDIUM';
     } else {
       return 'HIGH';
@@ -623,25 +607,17 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
   /**
    * 💡 리스크 관리 권장사항 생성
    */
-  private generateRiskRecommendations(
-    confidence: number,
-    signal: string,
-  ): string[] {
+  private generateRiskRecommendations(signal: string): string[] {
     const recommendations: string[] = [];
-
-    if (confidence < 60) {
-      recommendations.push('신뢰도가 낮으므로 포지션 크기를 줄이세요');
-      recommendations.push('추가 확인 신호를 기다리는 것을 권장합니다');
-    }
 
     if (signal === 'STRONG_BUY' || signal === 'STRONG_SELL') {
       recommendations.push('강한 신호이므로 손절매를 반드시 설정하세요');
       recommendations.push('수익 실현 목표가를 미리 정하세요');
     }
 
-    if (confidence >= 80) {
-      recommendations.push('높은 신뢰도의 신호입니다');
+    if (signal === 'BUY' || signal === 'SELL') {
       recommendations.push('적절한 포지션 사이즈로 진입을 고려하세요');
+      recommendations.push('손절매 설정을 권장합니다');
     }
 
     return recommendations;

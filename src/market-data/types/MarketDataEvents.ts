@@ -27,12 +27,10 @@ export interface TechnicalAnalysisCompletedEvent {
   timeframe: string;
   analysisResult: {
     signal: 'BUY' | 'SELL' | 'HOLD';
-    confidence: number;
     indicators: Record<string, any>;
     strategies: Array<{
       name: string;
       signal: string;
-      confidence: number;
     }>;
   };
   candleData: CandleData;

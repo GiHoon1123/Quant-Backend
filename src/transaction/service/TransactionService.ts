@@ -242,7 +242,7 @@ export class TransactionService {
         // UUID 형식이 아닌 주문 ID는 저장하지 않음
         // 대신 메타데이터에 주문 ID 정보 추가
         relatedExchange: 'binance',
-        confidence: 0.85 + Math.random() * 0.15,
+
         tags: ['exchange', 'binance', event.side.toLowerCase()],
         inputAddresses: [`bc1q${Math.random().toString(36).substring(2, 34)}`],
         outputAddresses: [`bc1q${Math.random().toString(36).substring(2, 34)}`],

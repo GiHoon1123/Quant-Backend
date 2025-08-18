@@ -171,7 +171,7 @@ export class StrategyRepository {
         timeframe,
         period: `${days}일`,
         totalSignals: 0,
-        averageConfidence: 0,
+
         signalDistribution: {},
         lastUpdated: null,
       };
@@ -186,17 +186,13 @@ export class StrategyRepository {
       {} as Record<string, number>,
     );
 
-    // 평균 신뢰도 계산
-    const averageConfidence = recentResults.length;
-    recentResults.length;
-
     return {
       symbol,
       strategy,
       timeframe,
       period: `${days}일`,
       totalSignals: recentResults.length,
-      averageConfidence: Math.round(averageConfidence * 100) / 100,
+
       signalDistribution: signalCounts,
       lastUpdated: Math.max(...recentResults.map((r) => r.timestamp || 0)),
     };
@@ -237,15 +233,10 @@ export class StrategyRepository {
       period: `${days}일`,
       totalStrategies: performances.length,
       performances: performances.sort(
-        (a, b) => b.averageConfidence - a.averageConfidence,
+        (a, b) => b.totalSignals - a.totalSignals,
       ),
       summary: {
         totalSignals: performances.reduce((sum, p) => sum + p.totalSignals, 0),
-        averageConfidence:
-          performances.length > 0
-            ? performances.reduce((sum, p) => sum + p.averageConfidence, 0) /
-              performances.length
-            : 0,
       },
     };
   }

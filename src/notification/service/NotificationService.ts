@@ -162,19 +162,11 @@ export class NotificationService implements OnModuleInit {
    */
   private async handleIndividualSignal(event: any): Promise<void> {
     try {
-      const { signalType, symbol, timeframe, confidence } = event;
+      const { signalType, symbol, timeframe } = event;
 
       this.logger.log(
-        `🎯 [IndividualSignal] 개별 신호 수신: ${signalType} - ${symbol} (신뢰도: ${confidence}%)`,
+        `🎯 [IndividualSignal] 개별 신호 수신: ${signalType} - ${symbol}`,
       );
-
-      // 신뢰도가 너무 낮으면 알림 발송하지 않음
-      if (confidence < 60) {
-        this.logger.log(
-          `🎯 [IndividualSignal] 신뢰도 부족으로 알림 스킵: ${signalType} - ${symbol} (${confidence}%)`,
-        );
-        return;
-      }
 
       // 신호 타입별 개별 알림 발송
       await this.sendIndividualSignalNotification(signalType, event);
@@ -184,7 +176,6 @@ export class NotificationService implements OnModuleInit {
         eventId: uuidv4(),
         symbol,
         signalType,
-        confidence,
         timeframe,
         currentPrice: event.currentPrice,
         service: 'NotificationService',
@@ -210,7 +201,7 @@ export class NotificationService implements OnModuleInit {
     event: any,
   ): Promise<void> {
     try {
-      const { symbol, timeframe, confidence, currentPrice } = event;
+      const { symbol, timeframe, currentPrice } = event;
 
       switch (signalType) {
         case 'rsi_overbought':
@@ -222,7 +213,6 @@ export class NotificationService implements OnModuleInit {
             timeframe,
             event.currentRSI,
             event.signalType,
-            confidence,
           );
           break;
 
@@ -235,7 +225,6 @@ export class NotificationService implements OnModuleInit {
             event.currentPrice,
             event.maValue,
             event.signalType,
-            confidence,
           );
           break;
 
@@ -248,7 +237,6 @@ export class NotificationService implements OnModuleInit {
             event.signalLine,
             event.histogram,
             event.signalType,
-            confidence,
           );
           break;
 
@@ -266,7 +254,6 @@ export class NotificationService implements OnModuleInit {
             event.lowerBand,
             event.middleBand,
             event.signalType,
-            confidence,
           );
           break;
 
@@ -279,7 +266,6 @@ export class NotificationService implements OnModuleInit {
             event.avgVolume,
             event.volumeRatio,
             event.signalType,
-            confidence,
           );
           break;
 
@@ -314,14 +300,12 @@ export class NotificationService implements OnModuleInit {
         type: event.type || 'unknown',
         symbol: event.symbol,
         signal: event.analysisResult?.signal || event.signal,
-        confidence: event.analysisResult?.confidence || event.confidence,
       });
 
       // 이벤트 구조가 다를 수 있으므로 유연하게 처리
       const symbol = event.symbol;
       const analysisResult = event.analysisResult || {
         signal: event.signal || 'UNKNOWN',
-        confidence: event.confidence || 50,
         indicators: event.indicators || {},
       };
 
@@ -334,7 +318,7 @@ export class NotificationService implements OnModuleInit {
       }
 
       this.logger.log(
-        `📢 [Notification] 분석 완료 이벤트 수신: ${symbol} - ${analysisResult.signal} (신뢰도: ${analysisResult.confidence}%)`,
+        `📢 [Notification] 분석 완료 이벤트 수신: ${symbol} - ${analysisResult.signal}`,
       );
 
       // 📬 기본 분석 알림 메시지 생성
@@ -367,7 +351,6 @@ export class NotificationService implements OnModuleInit {
         eventId: uuidv4(),
         symbol,
         signal: analysisResult.signal,
-        confidence: analysisResult.confidence,
         analyzedAt: event.analyzedAt || new Date(),
         service: 'NotificationService',
         timestamp: new Date(),
@@ -592,8 +575,7 @@ export class NotificationService implements OnModuleInit {
    * @returns 포맷된 메시지
    */
   private formatAnalysisMessage(symbol: string, analysisResult: any): string {
-    const { signal, confidence, indicators, timestamp, timeframe } =
-      analysisResult;
+    const { signal, indicators, timestamp, timeframe } = analysisResult;
 
     let emoji = '📊';
     if (signal === 'BUY' || signal === 'STRONG_BUY') emoji = '📈';
@@ -630,7 +612,7 @@ export class NotificationService implements OnModuleInit {
       '',
       timeframeStr,
       `🎯 **신호**: ${signal}`,
-      `📊 **신뢰도**: ${confidence}%`,
+
       '',
       '📈 **주요 지표**:',
       indicators
@@ -730,7 +712,6 @@ export class NotificationService implements OnModuleInit {
       const uniqueKey = [
         notification.symbol,
         notification.data?.analysisResult?.signal ?? '',
-        notification.data?.analysisResult?.confidence ?? '',
         notification.type,
         notification.data?.analysisResult?.timeframe ?? '',
         analyzedMinute,
