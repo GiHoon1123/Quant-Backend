@@ -1,5 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { CacheService } from './cache/CacheService';
 import { TradingConfigService } from './config/TradingConfig';
 import { ExchangeRateService } from './service/ExchangeRateService';
 import { StopLossTakeProfitCalculator } from './utils/StopLossTakeProfitCalculator';
@@ -46,6 +47,14 @@ import { ExchangeRateController } from './web/ExchangeRateController';
      * 15분마다 캐싱하여 API 호출을 최소화합니다.
      */
     ExchangeRateService,
+
+    /**
+     * 캐시 서비스
+     *
+     * @description 메모리 기반 캐시를 관리하는 서비스입니다.
+     * ATR, 설정값, 포지션 정보 등을 캐싱하여 성능을 향상시킵니다.
+     */
+    CacheService,
   ],
   exports: [
     /**
@@ -54,10 +63,12 @@ import { ExchangeRateController } from './web/ExchangeRateController';
      * - TradingConfigService: 자동매매/전략 모듈에서 기본값 조회용
      * - StopLossTakeProfitCalculator: order/futures 모듈에서 가격 계산용
      * - ExchangeRateService: 모든 모듈에서 실시간 환율 조회용
+     * - CacheService: 모든 모듈에서 캐시 관리용
      */
     TradingConfigService,
     StopLossTakeProfitCalculator,
     ExchangeRateService,
+    CacheService,
   ],
 })
 export class CommonModule {}

@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { CacheService } from '../../common/cache/CacheService';
 import { TradingConfigService } from '../../common/config/TradingConfig';
 import { AnalysisCompletedEvent } from '../../common/dto/event/AnalysisCompletedEvent';
 import { TradingSignalEvent } from '../../common/dto/event/TradingSignalEvent';
@@ -57,6 +58,7 @@ export class AutoTradingService implements OnModuleInit {
     private readonly eventEmitter: EventEmitter2,
     private readonly futuresService: FuturesService,
     private readonly tradingConfigService: TradingConfigService,
+    private readonly cacheService: CacheService,
   ) {}
 
   /**
@@ -451,10 +453,17 @@ export class AutoTradingService implements OnModuleInit {
     // 포지션 크기 계산
     const quantity = this.calculatePositionSize(symbol, currentPrice);
 
-    // 손절/익절 가격 계산 (환경변수에서 동적 로드)
-    const futuresConfig = this.tradingConfigService.getFuturesDefaultConfig();
-    const stopLoss = currentPrice * (1 + futuresConfig.stopLossPercent);
-    const takeProfit = currentPrice * (1 + futuresConfig.takeProfitPercent);
+    // ATR 기반 손절/익절 가격 계산
+    const stopLoss = this.calculateATRBasedStopLoss(
+      symbol,
+      currentPrice,
+      'LONG',
+    );
+    const takeProfit = this.calculateATRBasedTakeProfit(
+      symbol,
+      currentPrice,
+      'LONG',
+    );
 
     // trading.signal 이벤트 발생
     const signalEvent: TradingSignalEvent = {
@@ -486,10 +495,10 @@ export class AutoTradingService implements OnModuleInit {
       `💵💵💵 [AUTO-TRADING] ${symbol} 진입 금액: $${(currentPrice * quantity).toFixed(2)} 💵💵💵`,
     );
     this.logger.log(
-      `🛑🛑🛑 [AUTO-TRADING] ${symbol} 손절가: $${stopLoss.toFixed(2)} (${futuresConfig.stopLossPercent * 100}%) 🛑🛑🛑`,
+      `🛑🛑🛑 [AUTO-TRADING] ${symbol} 손절가: $${stopLoss.toFixed(2)}  🛑🛑🛑`,
     );
     this.logger.log(
-      `🎯🎯🎯 [AUTO-TRADING] ${symbol} 익절가: $${takeProfit.toFixed(2)} (${futuresConfig.takeProfitPercent * 100}%) 🎯🎯🎯`,
+      `🎯🎯🎯 [AUTO-TRADING] ${symbol} 익절가: $${takeProfit.toFixed(2)}  🎯🎯🎯`,
     );
   }
 
@@ -508,10 +517,17 @@ export class AutoTradingService implements OnModuleInit {
     // 포지션 크기 계산
     const quantity = this.calculatePositionSize(symbol, currentPrice);
 
-    // 손절/익절 가격 계산 (환경변수에서 동적 로드)
-    const futuresConfig = this.tradingConfigService.getFuturesDefaultConfig();
-    const stopLoss = currentPrice * (1 + futuresConfig.stopLossPercent);
-    const takeProfit = currentPrice * (1 + futuresConfig.takeProfitPercent);
+    // ATR 기반 손절/익절 가격 계산
+    const stopLoss = this.calculateATRBasedStopLoss(
+      symbol,
+      currentPrice,
+      'SHORT',
+    );
+    const takeProfit = this.calculateATRBasedTakeProfit(
+      symbol,
+      currentPrice,
+      'SHORT',
+    );
 
     // trading.signal 이벤트 발생
     const signalEvent: TradingSignalEvent = {
@@ -543,10 +559,10 @@ export class AutoTradingService implements OnModuleInit {
       `💵💵💵 [AUTO-TRADING] ${symbol} 진입 금액: $${(currentPrice * quantity).toFixed(2)} 💵💵💵`,
     );
     this.logger.log(
-      `🛑🛑🛑 [AUTO-TRADING] ${symbol} 손절가: $${stopLoss.toFixed(2)} (${futuresConfig.stopLossPercent * 100}%) 🛑🛑🛑`,
+      `🛑🛑🛑 [AUTO-TRADING] ${symbol} 손절가: $${stopLoss.toFixed(2)}  🛑🛑🛑`,
     );
     this.logger.log(
-      `🎯🎯🎯 [AUTO-TRADING] ${symbol} 익절가: $${takeProfit.toFixed(2)} (${futuresConfig.takeProfitPercent * 100}%) 🎯🎯🎯`,
+      `🎯🎯🎯 [AUTO-TRADING] ${symbol} 익절가: $${takeProfit.toFixed(2)}  🎯🎯🎯`,
     );
   }
 
@@ -608,8 +624,8 @@ export class AutoTradingService implements OnModuleInit {
    * @returns 포지션 수량
    */
   private calculatePositionSize(symbol: string, currentPrice: number): number {
-    // TODO: 계좌 잔고를 확인하여 동적으로 계산
-    // 현재는 고정 $100 노셔널 값 사용
+    // 계좌 잔고를 확인하여 동적으로 계산
+    // 현재는 고정 $100 노셔널 값 사용 (기존 방식 유지)
     const notionalValue = 100; // USD
     const quantity = notionalValue / currentPrice;
 
@@ -618,6 +634,84 @@ export class AutoTradingService implements OnModuleInit {
     );
 
     return quantity;
+  }
+
+  /**
+   * ATR 기반 손절가 계산
+   *
+   * @param symbol 거래 심볼
+   * @param currentPrice 현재 가격
+   * @param side 포지션 방향
+   * @returns 손절가
+   */
+  private calculateATRBasedStopLoss(
+    symbol: string,
+    currentPrice: number,
+    side: 'LONG' | 'SHORT',
+  ): number {
+    // 캐시에서 ATR 조회
+    const atrData = this.cacheService.get(`atr:${symbol}`);
+    const stopLossMultiplier =
+      this.cacheService.get('config:atr_stop_loss_multiplier') ||
+      Number(process.env.ATR_STOP_LOSS_MULTIPLIER) ||
+      2.0;
+
+    if (atrData && atrData.atr) {
+      const stopLossDistance = atrData.atr * stopLossMultiplier;
+
+      if (side === 'LONG') {
+        return currentPrice - stopLossDistance;
+      } else {
+        return currentPrice + stopLossDistance;
+      }
+    }
+
+    // ATR이 없으면 기본 손절가 사용
+    const futuresConfig = this.tradingConfigService.getFuturesDefaultConfig();
+    if (side === 'LONG') {
+      return currentPrice * (1 - futuresConfig.stopLossPercent);
+    } else {
+      return currentPrice * (1 + futuresConfig.stopLossPercent);
+    }
+  }
+
+  /**
+   * ATR 기반 익절가 계산
+   *
+   * @param symbol 거래 심볼
+   * @param currentPrice 현재 가격
+   * @param side 포지션 방향
+   * @returns 익절가
+   */
+  private calculateATRBasedTakeProfit(
+    symbol: string,
+    currentPrice: number,
+    side: 'LONG' | 'SHORT',
+  ): number {
+    // 캐시에서 ATR 조회
+    const atrData = this.cacheService.get(`atr:${symbol}`);
+    const takeProfitMultiplier =
+      this.cacheService.get('config:atr_take_profit_multiplier') ||
+      Number(process.env.ATR_TAKE_PROFIT_MULTIPLIER) ||
+      4.0;
+
+    if (atrData && atrData.atr) {
+      const takeProfitDistance = atrData.atr * takeProfitMultiplier;
+
+      if (side === 'LONG') {
+        return currentPrice + takeProfitDistance;
+      } else {
+        return currentPrice - takeProfitDistance;
+      }
+    }
+
+    // ATR이 없으면 기본 익절가 사용
+    const futuresConfig = this.tradingConfigService.getFuturesDefaultConfig();
+    if (side === 'LONG') {
+      return currentPrice * (1 + futuresConfig.takeProfitPercent);
+    } else {
+      return currentPrice * (1 - futuresConfig.takeProfitPercent);
+    }
   }
 
   /**

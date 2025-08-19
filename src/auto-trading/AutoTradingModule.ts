@@ -3,6 +3,7 @@ import { CommonModule } from '../common/CommonModule';
 import { FuturesModule } from '../futures/FuturesModule';
 import { TechnicalAnalysisModule } from '../technical-analysis/TechnicalAnalysisModule';
 import { AutoTradingService } from './service/AutoTradingService';
+import { ATRController } from './web/ATRController';
 import { AutoTradingController } from './web/AutoTradingController';
 
 /**
@@ -22,7 +23,7 @@ import { AutoTradingController } from './web/AutoTradingController';
  */
 @Module({
   imports: [TechnicalAnalysisModule, FuturesModule, CommonModule],
-  controllers: [AutoTradingController],
+  controllers: [AutoTradingController, ATRController],
   providers: [AutoTradingService],
   exports: [AutoTradingService],
 })

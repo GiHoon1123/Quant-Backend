@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ATRResult } from '../types/ATRTypes';
 import {
   BollingerBandsResult,
   CandleData,
@@ -867,5 +868,188 @@ export class TechnicalIndicatorService {
       console.error('❌ 종합 리포트 생성 중 오류:', error);
       return '❌ 종합 리포트 생성 중 오류가 발생했습니다.';
     }
+  }
+
+  /**
+   * ATR (Average True Range) 계산
+   * 주어진 캔들 데이터로 ATR을 계산합니다.
+   * @param candles 캔들 데이터 배열
+   * @param period ATR 계산 기간 (기본값: 14)
+   * @returns ATR 값
+   */
+  calculateATR(candles: CandleData[], period: number = 14): number {
+    if (candles.length < period + 1) {
+      throw new Error(
+        `ATR 계산을 위한 데이터가 부족합니다. 필요: ${period + 1}개, 현재: ${candles.length}개`,
+      );
+    }
+
+    const trueRanges: number[] = [];
+
+    // True Range 계산
+    for (let i = 1; i < candles.length; i++) {
+      const high = candles[i].high;
+      const low = candles[i].low;
+      const prevClose = candles[i - 1].close;
+
+      const tr1 = high - low; // 당일 고가 - 당일 저가
+      const tr2 = Math.abs(high - prevClose); // |당일 고가 - 전일 종가|
+      const tr3 = Math.abs(low - prevClose); // |당일 저가 - 전일 종가|
+
+      const trueRange = Math.max(tr1, tr2, tr3);
+      trueRanges.push(trueRange);
+    }
+
+    // 최근 period개만 사용하여 ATR 계산
+    const recentTRs = trueRanges.slice(-period);
+    const atr = recentTRs.reduce((sum, tr) => sum + tr, 0) / recentTRs.length;
+
+    return atr;
+  }
+
+  /**
+   * 심볼별 ATR 계산
+   * 캔들 데이터를 조회하여 ATR을 계산합니다.
+   * @param symbol 거래 심볼
+   * @param period ATR 계산 기간 (기본값: 14)
+   * @returns ATR 계산 결과
+   */
+  async calculateATRForSymbol(
+    symbol: string,
+    period: number = 14,
+  ): Promise<ATRResult> {
+    // 캔들 데이터 조회 (최신 20개)
+    const candles = await this.getCandlesForSymbol(symbol, 20);
+
+    const atr = this.calculateATR(candles, period);
+
+    return {
+      symbol,
+      atr,
+      timestamp: new Date(),
+      period,
+      candlesUsed: candles.length,
+    };
+  }
+
+  /**
+   * ATR 기반 손절가 계산
+   * @param atr ATR 값
+   * @param currentPrice 현재가
+   * @param side 포지션 방향 ('LONG' | 'SHORT')
+   * @param percentPercent 퍼센트 단위 손절 비율 (기본값: 0.28 = 28%)
+   * @returns 손절가
+   */
+  calculateATRBasedStopLoss(
+    atr: number,
+    currentPrice: number,
+    side: 'LONG' | 'SHORT',
+    percentPercent: number = 0.028,
+  ): number {
+    const stopLossDistance = atr * percentPercent; // ATR 기반 거리 계산
+
+    if (side === 'LONG') {
+      return currentPrice - stopLossDistance; // 롱 포지션: 현재가 - ATR 거리
+    } else {
+      return currentPrice + stopLossDistance; // 숏 포지션: 현재가 + ATR 거리
+    }
+  }
+
+  /**
+   * ATR 기반 익절가 계산
+   * @param atr ATR 값
+   * @param currentPrice 현재가
+   * @param side 포지션 방향 ('LONG' | 'SHORT')
+   * @param percentPercent 퍼센트 단위 익절 비율 (기본값: 1.13 = 113%)
+   * @returns 익절가
+   */
+  calculateATRBasedTakeProfit(
+    atr: number,
+    currentPrice: number,
+    side: 'LONG' | 'SHORT',
+    percentPercent: number = 0.113,
+  ): number {
+    const takeProfitDistance = atr * percentPercent; // ATR 기반 거리 계산
+
+    if (side === 'LONG') {
+      return currentPrice + takeProfitDistance; // 롱 포지션: 현재가 + ATR 거리
+    } else {
+      return currentPrice - takeProfitDistance; // 숏 포지션: 현재가 - ATR 거리
+    }
+  }
+
+  /**
+   * ATR 기반 손절/익절가 종합 계산
+   * @param atr ATR 값
+   * @param currentPrice 현재가
+   * @param side 포지션 방향
+   * @param stopLossPercent 손절 퍼센트 (기본값: 0.28 = 28%)
+   * @param takeProfitPercent 익절 퍼센트 (기본값: 1.13 = 113%)
+   * @returns 손절가, 익절가, 리스크/리워드 비율
+   */
+  calculateATRBasedExitPrices(
+    atr: number,
+    currentPrice: number,
+    side: 'LONG' | 'SHORT',
+    stopLossPercent?: number,
+    takeProfitPercent?: number,
+  ): {
+    stopLoss: number;
+    takeProfit: number;
+    riskRewardRatio: number;
+    atrDistance: number;
+  } {
+    // 환경변수에서 기본값 가져오기 (환경변수 필수)
+    const envStopLoss = Number(process.env.ATR_STOP_LOSS_MULTIPLIER);
+    const envTakeProfit = Number(process.env.ATR_TAKE_PROFIT_MULTIPLIER);
+
+    if (!envStopLoss || !envTakeProfit) {
+      throw new Error(
+        '환경변수 ATR_STOP_LOSS_MULTIPLIER 또는 ATR_TAKE_PROFIT_MULTIPLIER가 설정되지 않았습니다.',
+      );
+    }
+
+    const defaultStopLoss = stopLossPercent ?? envStopLoss;
+    const defaultTakeProfit = takeProfitPercent ?? envTakeProfit;
+
+    const stopLoss = this.calculateATRBasedStopLoss(
+      atr,
+      currentPrice,
+      side,
+      defaultStopLoss,
+    );
+    const takeProfit = this.calculateATRBasedTakeProfit(
+      atr,
+      currentPrice,
+      side,
+      defaultTakeProfit,
+    );
+
+    // 리스크/리워드 비율 계산
+    const risk = Math.abs(currentPrice - stopLoss);
+    const reward = Math.abs(takeProfit - currentPrice);
+    const riskRewardRatio = reward / risk;
+
+    return {
+      stopLoss,
+      takeProfit,
+      riskRewardRatio,
+      atrDistance: atr,
+    };
+  }
+
+  /**
+   * 심볼의 캔들 데이터를 조회합니다.
+   * @param symbol 거래 심볼
+   * @param limit 조회할 캔들 개수
+   * @returns 캔들 데이터 배열
+   */
+  private async getCandlesForSymbol(
+    symbol: string,
+    limit: number,
+  ): Promise<CandleData[]> {
+    // 실제 구현에서는 market-data 모듈의 캔들 데이터를 사용
+    // 현재는 임시로 빈 배열 반환
+    return [];
   }
 }

@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { EventEmitter } from 'events';
+import { CacheService } from '../../common/cache/CacheService';
 import { ExchangeRateService } from '../../common/service/ExchangeRateService';
 import { Candle15MRepository } from '../../market-data/infra/persistence/repository/Candle15MRepository';
 import {
@@ -7,6 +8,7 @@ import {
   MARKET_DATA_EVENTS,
   TechnicalAnalysisCompletedEvent,
 } from '../../market-data/types/MarketDataEvents';
+import { ATRResult } from '../types/ATRTypes';
 import { TimeFrame } from '../types/TechnicalAnalysisTypes';
 import { AdvancedStrategyService } from './AdvancedStrategyService';
 import { BasicStrategyService } from './BasicStrategyService';
@@ -41,6 +43,7 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
     private readonly advancedStrategyService: AdvancedStrategyService,
     private readonly basicStrategyService: BasicStrategyService,
     private readonly exchangeRateService: ExchangeRateService,
+    private readonly cacheService: CacheService,
   ) {
     this.eventEmitter = new EventEmitter();
     console.log(
@@ -49,12 +52,15 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
   }
 
   /**
-   * 모듈 초기화 시 이벤트 핸들러 설정
+   * 모듈 초기화 시 이벤트 핸들러 설정 및 초기 ATR 계산
    */
   async onModuleInit(): Promise<void> {
     // Market-data 도메인의 EventEmitter와 연결은
     // AppModule에서 처리됩니다.
     console.log('🔍 [TechnicalAnalysisEventService] 이벤트 핸들러 준비 완료');
+
+    // 서버 시작 시 초기 ATR 계산
+    await this.initializeATR();
   }
 
   /**
@@ -97,21 +103,24 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
         `🔍 [TechnicalAnalysis] 새 캔들 감지 - 분석 시작: ${symbol} ${timeframe}`,
       );
 
-      // 1. 기본 전략 분석 실행
+      // 1. ATR 계산 및 캐시 저장
+      await this.calculateAndCacheATR(symbol);
+
+      // 2. 기본 전략 분석 실행
       const basicResults =
         await this.basicStrategyService.executeAllBasicStrategies(
           symbol,
           timeframe as TimeFrame,
         );
 
-      // 2. 고급 전략 분석 실행
+      // 3. 고급 전략 분석 실행
       const advancedResults =
         await this.advancedStrategyService.executeAllAdvancedStrategies(
           symbol,
           timeframe as TimeFrame,
         );
 
-      // 5. 종합 분석 결과 생성
+      // 4. 종합 분석 결과 생성
       const analysisResult = await this.performComprehensiveAnalysis(
         symbol,
         timeframe as TimeFrame,
@@ -158,13 +167,16 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
 
   /**
    * 📊 캔들 데이터 조회 헬퍼
+   * 메모리에 올린 20,000개 캔들 데이터에서 조회
    */
   private async getCandleData(symbol: string, limit: number): Promise<any[]> {
     try {
+      // 메모리에 올린 캔들 데이터에서 조회 (최대 20,000개)
+      const maxLimit = Math.min(limit, 20000);
       return await this.candleRepository.findLatestCandles(
         symbol,
         'FUTURES',
-        limit,
+        maxLimit,
       );
     } catch (error) {
       console.error(`❌ 캔들 데이터 조회 실패: ${symbol}`, error);
@@ -574,6 +586,144 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
       console.error(
         `❌ [ComprehensiveReport] 종합 리포트 생성 실패: ${error.message}`,
       );
+    }
+  }
+
+  /**
+   * 서버 시작 시 초기 ATR 계산
+   * 모든 모니터링 심볼에 대해 ATR을 계산하고 캐시에 저장합니다.
+   */
+  private async initializeATR(): Promise<void> {
+    try {
+      console.log('🚀 [ATR] 서버 시작 시 초기 ATR 계산 시작');
+
+      // 모니터링 심볼 목록 (환경변수에서 가져오기)
+      const monitoredSymbols = process.env.MONITORED_SYMBOLS?.split(',') || [
+        'BTCUSDT',
+        // 'ETHUSDT',
+        // 'SOLUSDT',
+        // 'ADAUSDT',
+        // 'DOGEUSDT',
+        // 'XRPUSDT',
+        // 'DOTUSDT',
+        // 'AVAXUSDT',
+        // 'MATICUSDT',
+        // 'LINKUSDT',
+      ];
+
+      for (const symbol of monitoredSymbols) {
+        try {
+          await this.calculateAndCacheATR(symbol);
+        } catch (error) {
+          console.error(`❌ [ATR] 초기 계산 실패: ${symbol}`, error);
+        }
+      }
+
+      console.log(
+        `✅ [ATR] 초기 ATR 계산 완료: ${monitoredSymbols.length}개 심볼`,
+      );
+    } catch (error) {
+      console.error('❌ [ATR] 초기 ATR 계산 중 오류:', error);
+    }
+  }
+
+  /**
+   * ATR 계산 및 캐시 저장
+   * 새로운 캔들이 생성될 때마다 ATR을 재계산하고 캐시에 저장합니다.
+   * @param symbol 거래 심볼
+   */
+  private async calculateAndCacheATR(symbol: string): Promise<void> {
+    try {
+      // 최신 200개 캔들 데이터 조회 (ATR 계산용, 충분한 데이터 확보)
+      const candles = await this.getCandleData(symbol, 200);
+
+      if (candles.length < 15) {
+        console.log(
+          `⚠️ [ATR] 충분한 캔들 데이터 없음: ${symbol} (${candles.length}개)`,
+        );
+        return;
+      }
+
+      // ATR 계산
+      const atr = this.technicalIndicatorService.calculateATR(candles, 14);
+
+      // ATR 결과 생성
+      const atrResult: ATRResult = {
+        symbol,
+        atr,
+        timestamp: new Date(),
+        period: 14,
+        candlesUsed: candles.length,
+      };
+
+      // 현재가 (최신 캔들 종가)
+      const currentPrice = candles[candles.length - 1].close;
+
+      // ATR 기반 손절/익절가 계산 (롱 포지션 기준)
+      const stopLossMultiplier =
+        this.cacheService.get('config:atr_stop_loss_multiplier') ||
+        Number(process.env.ATR_STOP_LOSS_MULTIPLIER) ||
+        2.0;
+      const takeProfitMultiplier =
+        this.cacheService.get('config:atr_take_profit_multiplier') ||
+        Number(process.env.ATR_TAKE_PROFIT_MULTIPLIER) ||
+        4.0;
+
+      const longStopLoss =
+        this.technicalIndicatorService.calculateATRBasedStopLoss(
+          atr,
+          currentPrice,
+          'LONG',
+          stopLossMultiplier,
+        );
+      const longTakeProfit =
+        this.technicalIndicatorService.calculateATRBasedTakeProfit(
+          atr,
+          currentPrice,
+          'LONG',
+          takeProfitMultiplier,
+        );
+      const shortStopLoss =
+        this.technicalIndicatorService.calculateATRBasedStopLoss(
+          atr,
+          currentPrice,
+          'SHORT',
+          stopLossMultiplier,
+        );
+      const shortTakeProfit =
+        this.technicalIndicatorService.calculateATRBasedTakeProfit(
+          atr,
+          currentPrice,
+          'SHORT',
+          takeProfitMultiplier,
+        );
+
+      // 캐시에 저장
+      this.cacheService.set(`atr:${symbol}`, atrResult);
+
+      console.log(`✅ [ATR] 계산 완료: ${symbol} - ATR: ${atr.toFixed(2)}`);
+      console.log(`💰 [ATR] 현재가: $${currentPrice.toFixed(2)}`);
+      console.log(
+        `📉 [ATR] 롱 손절: $${longStopLoss.toFixed(2)} (${(((longStopLoss - currentPrice) / currentPrice) * 100).toFixed(2)}%)`,
+      );
+      console.log(
+        `📈 [ATR] 롱 익절: $${longTakeProfit.toFixed(2)} (${(((longTakeProfit - currentPrice) / currentPrice) * 100).toFixed(2)}%)`,
+      );
+      console.log(
+        `📉 [ATR] 숏 손절: $${shortStopLoss.toFixed(2)} (${(((shortStopLoss - currentPrice) / currentPrice) * 100).toFixed(2)}%)`,
+      );
+      console.log(
+        `📈 [ATR] 숏 익절: $${shortTakeProfit.toFixed(2)} (${(((shortTakeProfit - currentPrice) / currentPrice) * 100).toFixed(2)}%)`,
+      );
+
+      // ATR 업데이트 이벤트 발송
+      this.eventEmitter.emit('atr.updated', {
+        symbol,
+        atr,
+        timestamp: new Date(),
+      });
+    } catch (error) {
+      console.error(`❌ [ATR] 계산 실패: ${symbol}`, error);
     }
   }
 
