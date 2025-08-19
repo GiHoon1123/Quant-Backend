@@ -529,6 +529,75 @@ export class TestService {
   }
 
   /**
+   * 🧪 종합 리포트 생성 테스트
+   */
+  async testComprehensiveReport(symbol: string) {
+    const testId = `comprehensive-report-${Date.now()}`;
+    console.log(`🧪 [${testId}] 종합 리포트 생성 테스트 시작: ${symbol}`);
+
+    try {
+      // 1. 최신 캔들 데이터 조회
+      const candles = await this.candleRepository.findLatestCandles(
+        symbol,
+        'FUTURES',
+        200,
+      );
+
+      if (!candles || candles.length === 0) {
+        throw new Error('캔들 데이터가 없습니다.');
+      }
+
+      // 2. TechnicalIndicatorService 주입을 위해 임시로 생성
+      const { TechnicalIndicatorService } = await import(
+        '../../technical-analysis/service/TechnicalIndicatorService'
+      );
+      const indicatorService = new TechnicalIndicatorService();
+
+      // 3. 종합 리포트 생성
+      const report = indicatorService.generateComprehensiveReport(candles);
+
+      // 4. 현재 가격과 이동평균선 값들 추출
+      const currentPrice = candles[candles.length - 1].close;
+
+      // SMA 계산
+      const sma5 = indicatorService.calculateSMA(candles, 5);
+      const sma20 = indicatorService.calculateSMA(candles, 20);
+      const sma50 = indicatorService.calculateSMA(candles, 50);
+      const sma200 = indicatorService.calculateSMA(candles, 200);
+
+      const smaValues = {
+        currentPrice,
+        sma5: sma5[sma5.length - 1]?.value,
+        sma20: sma20[sma20.length - 1]?.value,
+        sma50: sma50[sma50.length - 1]?.value,
+        sma200: sma200[sma200.length - 1]?.value,
+      };
+
+      console.log(`✅ [${testId}] 종합 리포트 생성 완료`);
+
+      return {
+        success: true,
+        testId,
+        message: '종합 리포트가 성공적으로 생성되었습니다',
+        data: {
+          symbol,
+          report,
+          currentPrice,
+          smaValues,
+        },
+      };
+    } catch (error) {
+      console.error(`❌ [${testId}] 종합 리포트 생성 실패:`, error);
+      return {
+        success: false,
+        testId,
+        message: `종합 리포트 생성 실패: ${error.message}`,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
    * 비동기 대기 헬퍼 (private)
    */
   private sleep(ms: number): Promise<void> {

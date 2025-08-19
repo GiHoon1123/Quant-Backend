@@ -694,11 +694,21 @@ export class TechnicalIndicatorService {
           const currentSMA = smaData[smaData.length - 1].value;
           const prevSMA = smaData[smaData.length - 2]?.value;
 
-          // 이전 값 대비 변화율 계산
-          const diff = prevSMA ? ((currentSMA - prevSMA) / prevSMA) * 100 : 0;
-          const diffSign = diff >= 0 ? '+' : '';
-          const trendEmoji = diff >= 0 ? '⬆️' : '⬇️';
-          report += `• SMA${period}: $${currentSMA.toLocaleString()} (${diffSign}${diff.toFixed(2)}% ${trendEmoji})\n`;
+          // 현재가 대비 퍼센트 계산 (현재가가 이동평균선 대비 얼마나 위/아래에 있는지)
+          const priceVsMA =
+            currentSMA > 0
+              ? ((currentPrice - currentSMA) / currentSMA) * 100
+              : 0;
+          const priceVsMASign = priceVsMA >= 0 ? '+' : '';
+          const priceVsMAEmoji = priceVsMA >= 0 ? '⬆️' : '⬇️';
+
+          // 이전 이동평균선 대비 변화율도 계산 (추가 정보)
+          const maChange =
+            prevSMA && prevSMA > 0
+              ? ((currentSMA - prevSMA) / prevSMA) * 100
+              : 0;
+
+          report += `• SMA${period}: $${currentSMA.toLocaleString()} (${priceVsMASign}${priceVsMA.toFixed(2)}% ${priceVsMAEmoji})\n`;
         }
       });
 
@@ -709,11 +719,21 @@ export class TechnicalIndicatorService {
           const currentEMA = emaData[emaData.length - 1].value;
           const prevEMA = emaData[emaData.length - 2]?.value;
 
-          // 이전 값 대비 변화율 계산
-          const diff = prevEMA ? ((currentEMA - prevEMA) / prevEMA) * 100 : 0;
-          const diffSign = diff >= 0 ? '+' : '';
-          const trendEmoji = diff >= 0 ? '⬆️' : '⬇️';
-          report += `• EMA${period}: $${currentEMA.toLocaleString()} (${diffSign}${diff.toFixed(2)}% ${trendEmoji})\n`;
+          // 현재가 대비 퍼센트 계산 (현재가가 이동평균선 대비 얼마나 위/아래에 있는지)
+          const priceVsEMA =
+            currentEMA > 0
+              ? ((currentPrice - currentEMA) / currentEMA) * 100
+              : 0;
+          const priceVsEMASign = priceVsEMA >= 0 ? '+' : '';
+          const priceVsEMAEmoji = priceVsEMA >= 0 ? '⬆️' : '⬇️';
+
+          // 이전 이동평균선 대비 변화율도 계산 (추가 정보)
+          const emaChange =
+            prevEMA && prevEMA > 0
+              ? ((currentEMA - prevEMA) / prevEMA) * 100
+              : 0;
+
+          report += `• EMA${period}: $${currentEMA.toLocaleString()} (${priceVsEMASign}${priceVsEMA.toFixed(2)}% ${priceVsEMAEmoji})\n`;
         }
       });
 
@@ -722,13 +742,21 @@ export class TechnicalIndicatorService {
         const currentVWAP = vwapResults[vwapResults.length - 1].value;
         const prevVWAP = vwapResults[vwapResults.length - 2]?.value;
 
-        // 이전 값 대비 변화율 계산
-        const vwapDiff = prevVWAP
-          ? ((currentVWAP - prevVWAP) / prevVWAP) * 100
-          : 0;
-        const diffSign = vwapDiff >= 0 ? '+' : '';
-        const trendEmoji = vwapDiff >= 0 ? '⬆️' : '⬇️';
-        report += `• VWAP: $${currentVWAP.toLocaleString()} (${diffSign}${vwapDiff.toFixed(2)}% ${trendEmoji})\n\n`;
+        // 현재가 대비 퍼센트 계산 (현재가가 VWAP 대비 얼마나 위/아래에 있는지)
+        const priceVsVWAP =
+          currentVWAP > 0
+            ? ((currentPrice - currentVWAP) / currentVWAP) * 100
+            : 0;
+        const priceVsVWAPSign = priceVsVWAP >= 0 ? '+' : '';
+        const priceVsVWAPEmoji = priceVsVWAP >= 0 ? '⬆️' : '⬇️';
+
+        // 이전 VWAP 대비 변화율도 계산 (추가 정보)
+        const vwapChange =
+          prevVWAP && prevVWAP > 0
+            ? ((currentVWAP - prevVWAP) / prevVWAP) * 100
+            : 0;
+
+        report += `• VWAP: $${currentVWAP.toLocaleString()} (${priceVsVWAPSign}${priceVsVWAP.toFixed(2)}% ${priceVsVWAPEmoji})\n\n`;
       }
 
       // 📊 모멘텀/오실레이터

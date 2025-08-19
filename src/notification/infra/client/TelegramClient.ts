@@ -702,10 +702,10 @@ export class TelegramClient {
     const vwap =
       parseFloat(safeToFixed(result.indicators.VWAP)) || currentPrice;
 
-    // 현재가 대비 퍼센트 계산
+    // 현재가 대비 퍼센트 계산 (현재가가 이동평균선 대비 얼마나 위/아래에 있는지)
     const calcPercent = (value: number) => {
       if (isNaN(value) || value === 0) return 'N/A';
-      const percent = ((value - currentPrice) / currentPrice) * 100;
+      const percent = ((currentPrice - value) / value) * 100;
       const sign = percent >= 0 ? '+' : '';
       const emoji = percent >= 0 ? '⬆️' : '⬇️';
       return `${sign}${percent.toFixed(2)}% ${emoji}`;

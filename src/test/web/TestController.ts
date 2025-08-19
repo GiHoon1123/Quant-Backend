@@ -266,4 +266,47 @@ export class TestController {
   async testRealEventChain(@Param('symbol') symbol: string) {
     return this.testService.testRealEventChain(symbol);
   }
+
+  /**
+   * 🧪 종합 리포트 생성 테스트
+   */
+  @Post('comprehensive-report/:symbol')
+  @ApiOperation({
+    summary: '종합 리포트 생성 테스트',
+    description:
+      '이동평균선 퍼센트 계산이 수정된 종합 리포트를 생성하는 테스트',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '종합 리포트 생성 성공',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        testId: {
+          type: 'string',
+          example: 'comprehensive-report-test-1234567890',
+        },
+        message: {
+          type: 'string',
+          example: '종합 리포트가 성공적으로 생성되었습니다',
+        },
+        data: {
+          type: 'object',
+          properties: {
+            symbol: { type: 'string', example: 'BTCUSDT' },
+            report: {
+              type: 'string',
+              example: '📌 [BTCUSDT] 비트코인 (메이저코인)...',
+            },
+            currentPrice: { type: 'number', example: 50700 },
+            smaValues: { type: 'object' },
+          },
+        },
+      },
+    },
+  })
+  async testComprehensiveReport(@Param('symbol') symbol: string) {
+    return this.testService.testComprehensiveReport(symbol);
+  }
 }
