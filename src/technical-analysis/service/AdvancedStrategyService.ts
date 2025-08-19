@@ -41,11 +41,11 @@ export class AdvancedStrategyService {
     symbol: string,
     timeframe: TimeFrame,
   ): Promise<StrategyResult> {
-    // 📊 200개 캔들 데이터 수집 (약 50시간 분량의 15분봉)
+    // 📊 20000개 캔들 데이터 수집 (약 208일 분량의 15분봉)
     const candles = await this.candleRepository.findLatestCandles(
       symbol,
       'FUTURES',
-      200,
+      20000,
     );
 
     // 🔍 스마트 머니 지표들 계산
@@ -292,7 +292,7 @@ export class AdvancedStrategyService {
     const candles = await this.candleRepository.findLatestCandles(
       symbol,
       'FUTURES',
-      200,
+      20000,
     );
 
     const waveAnalysis = this.analyzeElliottWaves(candles);

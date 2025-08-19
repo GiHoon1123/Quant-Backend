@@ -445,13 +445,17 @@ export class TechnicalAnalysisService {
     const candles = await this.candleRepository.findLatestCandles(
       symbol,
       'FUTURES',
-      200,
+      20000, // 200개 → 2만개로 증가 (SMA200, EMA26, VWAP 계산을 위해)
     );
 
     // 주요 지표들 계산
+    const sma5 = this.indicatorService.calculateSMA(candles, 5);
     const sma20 = this.indicatorService.calculateSMA(candles, 20);
     const sma50 = this.indicatorService.calculateSMA(candles, 50);
     const sma200 = this.indicatorService.calculateSMA(candles, 200);
+    const ema12 = this.indicatorService.calculateEMA(candles, 12);
+    const ema26 = this.indicatorService.calculateEMA(candles, 26);
+    const vwap = this.indicatorService.calculateVWAP(candles);
     const rsi = this.indicatorService.calculateRSI(candles);
     const macd = this.indicatorService.calculateMACD(candles);
     const bb = this.indicatorService.calculateBollingerBands(candles);
@@ -459,9 +463,13 @@ export class TechnicalAnalysisService {
 
     const currentPrice = candles[candles.length - 1].close;
     const current = {
+      sma5: sma5[sma5.length - 1]?.value,
       sma20: sma20[sma20.length - 1]?.value,
       sma50: sma50[sma50.length - 1]?.value,
       sma200: sma200[sma200.length - 1]?.value,
+      ema12: ema12[ema12.length - 1]?.value,
+      ema26: ema26[ema26.length - 1]?.value,
+      vwap: vwap[vwap.length - 1]?.value,
       rsi: rsi[rsi.length - 1],
       macd: macd[macd.length - 1],
       bb: bb[bb.length - 1],
@@ -476,12 +484,17 @@ export class TechnicalAnalysisService {
       indicators: {
         // 이동평균선 위치
         priceVsMA: {
+          above5MA: currentPrice > current.sma5,
           above20MA: currentPrice > current.sma20,
           above50MA: currentPrice > current.sma50,
           above200MA: currentPrice > current.sma200,
+          ma5: current.sma5,
           ma20: current.sma20,
           ma50: current.sma50,
           ma200: current.sma200,
+          ema12: current.ema12,
+          ema26: current.ema26,
+          vwap: current.vwap,
         },
 
         // RSI 상태

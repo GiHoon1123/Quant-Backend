@@ -540,7 +540,7 @@ export class TestService {
       const candles = await this.candleRepository.findLatestCandles(
         symbol,
         'FUTURES',
-        200,
+        20000,
       );
 
       if (!candles || candles.length === 0) {

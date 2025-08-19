@@ -11,7 +11,7 @@ export default {
     // 'MATICUSDT',
     // 'LINKUSDT',
   ],
-  maxMemoryCandles: Number(process.env.MAX_MEMORY_CANDLES) || 200,
+  maxMemoryCandles: Number(process.env.MAX_MEMORY_CANDLES) || 20000,
   reconnectInterval: Number(process.env.RECONNECT_INTERVAL) || 5000,
   healthCheckInterval: Number(process.env.HEALTH_CHECK_INTERVAL) || 300000, // 5분으로 변경
 };

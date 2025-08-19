@@ -214,10 +214,14 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
 
         // 상세 지표 정보 (실제 데이터 구조에 맞게 수정)
         indicators: {
-          // 실제 SMA 값들 (20, 50, 200일선을 5, 10, 20으로 표시)
-          SMA5: indicatorSummary.indicators?.priceVsMA?.ma20 || null,
-          SMA10: indicatorSummary.indicators?.priceVsMA?.ma50 || null,
-          SMA20: indicatorSummary.indicators?.priceVsMA?.ma200 || null,
+          // 실제 SMA 값들 (올바른 매핑)
+          SMA5: indicatorSummary.indicators?.priceVsMA?.ma5 || null,
+          SMA20: indicatorSummary.indicators?.priceVsMA?.ma20 || null,
+          SMA50: indicatorSummary.indicators?.priceVsMA?.ma50 || null,
+          SMA200: indicatorSummary.indicators?.priceVsMA?.ma200 || null,
+          EMA12: indicatorSummary.indicators?.priceVsMA?.ema12 || null,
+          EMA26: indicatorSummary.indicators?.priceVsMA?.ema26 || null,
+          VWAP: indicatorSummary.indicators?.priceVsMA?.vwap || null,
 
           // RSI 값
           RSI: indicatorSummary.indicators?.rsi?.value || null,
@@ -239,6 +243,8 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
       console.log(`🔍 [TechnicalAnalysis] 종합 분석 완료: ${symbol}`, {
         signal: comprehensiveResult.overallSignal,
         price: comprehensiveResult.currentPrice,
+        indicators: comprehensiveResult.indicators,
+        originalPriceVsMA: indicatorSummary.indicators?.priceVsMA,
       });
 
       return comprehensiveResult;
@@ -513,8 +519,8 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
     try {
       console.log(`📊 [ComprehensiveReport] 종합 리포트 생성 시작: ${symbol}`);
 
-      // 필요한 캔들 데이터 조회 (200개 캔들로 충분한 지표 계산)
-      const candles = await this.getCandleData(symbol, 200);
+      // 필요한 캔들 데이터 조회 (20000개 캔들로 충분한 지표 계산)
+      const candles = await this.getCandleData(symbol, 20000);
       if (candles.length < 50) {
         console.log(
           `⚠️ [ComprehensiveReport] 충분한 캔들 데이터 없음: ${symbol} (${candles.length}개)`,

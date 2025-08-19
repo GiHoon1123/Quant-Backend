@@ -786,8 +786,12 @@ export class NotificationService implements OnModuleInit {
         signal: analysisData.overallSignal || analysisData.signal || 'HOLD',
         indicators: {
           SMA5: analysisData.indicators?.SMA5 || 'N/A',
-          SMA10: analysisData.indicators?.SMA10 || 'N/A',
           SMA20: analysisData.indicators?.SMA20 || 'N/A',
+          SMA50: analysisData.indicators?.SMA50 || 'N/A',
+          SMA200: analysisData.indicators?.SMA200 || 'N/A',
+          EMA12: analysisData.indicators?.EMA12 || 'N/A',
+          EMA26: analysisData.indicators?.EMA26 || 'N/A',
+          VWAP: analysisData.indicators?.VWAP || 'N/A',
           RSI: analysisData.indicators?.RSI || 'N/A',
           MACD: analysisData.indicators?.MACD || 'N/A',
           Volume: analysisData.indicators?.Volume || 'N/A',
