@@ -701,18 +701,25 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
       const actualTakeProfitPercent = Math.abs(
         ((longTakeProfit - currentPrice) / currentPrice) * 100,
       );
-      const configuredStopLossPercent = stopLossMultiplier * 100;
-      const configuredTakeProfitPercent = takeProfitMultiplier * 100;
+      // ATR 배수를 현재가 대비 퍼센트로 변환
+      const configuredStopLossPercent =
+        ((atr * stopLossMultiplier) / currentPrice) * 100;
+      const configuredTakeProfitPercent =
+        ((atr * takeProfitMultiplier) / currentPrice) * 100;
 
       console.log(
         `✅ [ATR] 계산 완료: ${symbol} - ATR: ${atr.toFixed(2)} (${atrPercent.toFixed(2)}%)`,
       );
       console.log(`💰 [ATR] 현재가: $${currentPrice.toFixed(2)}`);
+      // 계산값 표시 (0.0%도 정확한 값으로 표시)
+      const stopLossDisplay = `${actualStopLossPercent.toFixed(1)}%`;
+      const takeProfitDisplay = `${actualTakeProfitPercent.toFixed(1)}%`;
+
       console.log(
-        `📉 [ATR] 손절 설정: ${configuredStopLossPercent.toFixed(1)}% → 계산값: ${actualStopLossPercent.toFixed(1)}% ($${longStopLoss.toFixed(2)})`,
+        `📉 [ATR] 손절 배율 설정: ${stopLossMultiplier.toFixed(1)} ATR → 계산값: ${stopLossDisplay} ($${longStopLoss.toFixed(2)})`,
       );
       console.log(
-        `📈 [ATR] 익절 설정: ${configuredTakeProfitPercent.toFixed(1)}% → 계산값: ${actualTakeProfitPercent.toFixed(1)}% ($${longTakeProfit.toFixed(2)})`,
+        `📈 [ATR] 익절 배율 설정: ${takeProfitMultiplier.toFixed(1)} ATR → 계산값: ${takeProfitDisplay} ($${longTakeProfit.toFixed(2)})`,
       );
 
       // ATR 업데이트 이벤트 발송

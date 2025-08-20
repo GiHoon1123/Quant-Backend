@@ -37,11 +37,11 @@ export class ATRController {
       stopLossMultiplier:
         this.cacheService.get('config:atr_stop_loss_multiplier') ||
         Number(process.env.ATR_STOP_LOSS_MULTIPLIER) ||
-        0.028,
+        2.8, // ATR 배수 (ATR의 2.8배)
       takeProfitMultiplier:
         this.cacheService.get('config:atr_take_profit_multiplier') ||
         Number(process.env.ATR_TAKE_PROFIT_MULTIPLIER) ||
-        0.013,
+        1.3, // ATR 배수 (ATR의 1.3배)
       riskRewardRatio:
         this.cacheService.get('config:atr_risk_reward_ratio') ||
         Number(process.env.ATR_RISK_REWARD_RATIO) ||

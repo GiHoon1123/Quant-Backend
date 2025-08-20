@@ -937,7 +937,7 @@ export class TechnicalIndicatorService {
    * @param atr ATR 값
    * @param currentPrice 현재가
    * @param side 포지션 방향 ('LONG' | 'SHORT')
-   * @param percentPercent 소수점 단위 손절 비율 (기본값: 0.028 = 2.8%)
+   * @param multiplier ATR 배수 (기본값: 2.8 = ATR의 2.8배)
    * @returns 손절가
    */
   calculateATRBasedStopLoss(
@@ -961,7 +961,7 @@ export class TechnicalIndicatorService {
    * @param atr ATR 값
    * @param currentPrice 현재가
    * @param side 포지션 방향 ('LONG' | 'SHORT')
-   * @param percentPercent 소수점 단위 익절 비율 (기본값: 0.013 = 1.3%)
+   * @param multiplier ATR 배수 (기본값: 1.3 = ATR의 1.3배)
    * @returns 익절가
    */
   calculateATRBasedTakeProfit(
@@ -985,8 +985,8 @@ export class TechnicalIndicatorService {
    * @param atr ATR 값
    * @param currentPrice 현재가
    * @param side 포지션 방향
-   * @param stopLossPercent 손절 소수점 비율 (기본값: 0.028 = 2.8%)
-   * @param takeProfitPercent 익절 소수점 비율 (기본값: 0.013 = 1.3%)
+   * @param stopLossMultiplier 손절 ATR 배수 (기본값: 2.8 = ATR의 2.8배)
+   * @param takeProfitMultiplier 익절 ATR 배수 (기본값: 1.3 = ATR의 1.3배)
    * @returns 손절가, 익절가, 리스크/리워드 비율
    */
   calculateATRBasedExitPrices(

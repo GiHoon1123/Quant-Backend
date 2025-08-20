@@ -654,7 +654,7 @@ export class AutoTradingService implements OnModuleInit {
     const stopLossMultiplier =
       this.cacheService.get('config:atr_stop_loss_multiplier') ||
       Number(process.env.ATR_STOP_LOSS_MULTIPLIER) ||
-      0.028;
+      2.8; // ATR 배수 (ATR의 2.8배)
 
     if (atrData && atrData.atr) {
       // ATR 배수 기반 거리 계산
@@ -694,7 +694,7 @@ export class AutoTradingService implements OnModuleInit {
     const takeProfitMultiplier =
       this.cacheService.get('config:atr_take_profit_multiplier') ||
       Number(process.env.ATR_TAKE_PROFIT_MULTIPLIER) ||
-      0.013;
+      1.3; // ATR 배수 (ATR의 1.3배)
 
     if (atrData && atrData.atr) {
       // ATR 배수 기반 거리 계산
