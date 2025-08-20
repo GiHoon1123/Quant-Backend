@@ -937,21 +937,22 @@ export class TechnicalIndicatorService {
    * @param atr ATR 값
    * @param currentPrice 현재가
    * @param side 포지션 방향 ('LONG' | 'SHORT')
-   * @param percentPercent 퍼센트 단위 손절 비율 (기본값: 0.28 = 28%)
+   * @param percentPercent 소수점 단위 손절 비율 (기본값: 0.028 = 2.8%)
    * @returns 손절가
    */
   calculateATRBasedStopLoss(
     atr: number,
     currentPrice: number,
     side: 'LONG' | 'SHORT',
-    percentPercent: number = 0.028,
+    multiplier: number,
   ): number {
-    const stopLossDistance = atr * percentPercent; // ATR 기반 거리 계산
+    // ATR 배수 기반 거리 계산
+    const stopLossDistance = atr * multiplier; // ATR * 배수
 
     if (side === 'LONG') {
-      return currentPrice - stopLossDistance; // 롱 포지션: 현재가 - ATR 거리
+      return currentPrice - stopLossDistance; // 롱 포지션: 현재가 - ATR 배수 거리
     } else {
-      return currentPrice + stopLossDistance; // 숏 포지션: 현재가 + ATR 거리
+      return currentPrice + stopLossDistance; // 숏 포지션: 현재가 + ATR 배수 거리
     }
   }
 
@@ -960,21 +961,22 @@ export class TechnicalIndicatorService {
    * @param atr ATR 값
    * @param currentPrice 현재가
    * @param side 포지션 방향 ('LONG' | 'SHORT')
-   * @param percentPercent 퍼센트 단위 익절 비율 (기본값: 1.13 = 113%)
+   * @param percentPercent 소수점 단위 익절 비율 (기본값: 0.013 = 1.3%)
    * @returns 익절가
    */
   calculateATRBasedTakeProfit(
     atr: number,
     currentPrice: number,
     side: 'LONG' | 'SHORT',
-    percentPercent: number = 0.113,
+    multiplier: number,
   ): number {
-    const takeProfitDistance = atr * percentPercent; // ATR 기반 거리 계산
+    // ATR 배수 기반 거리 계산
+    const takeProfitDistance = atr * multiplier; // ATR * 배수
 
     if (side === 'LONG') {
-      return currentPrice + takeProfitDistance; // 롱 포지션: 현재가 + ATR 거리
+      return currentPrice + takeProfitDistance; // 롱 포지션: 현재가 + ATR 배수 거리
     } else {
-      return currentPrice - takeProfitDistance; // 숏 포지션: 현재가 - ATR 거리
+      return currentPrice - takeProfitDistance; // 숏 포지션: 현재가 - ATR 배수 거리
     }
   }
 
@@ -983,8 +985,8 @@ export class TechnicalIndicatorService {
    * @param atr ATR 값
    * @param currentPrice 현재가
    * @param side 포지션 방향
-   * @param stopLossPercent 손절 퍼센트 (기본값: 0.28 = 28%)
-   * @param takeProfitPercent 익절 퍼센트 (기본값: 1.13 = 113%)
+   * @param stopLossPercent 손절 소수점 비율 (기본값: 0.028 = 2.8%)
+   * @param takeProfitPercent 익절 소수점 비율 (기본값: 0.013 = 1.3%)
    * @returns 손절가, 익절가, 리스크/리워드 비율
    */
   calculateATRBasedExitPrices(

@@ -37,11 +37,11 @@ export class ATRController {
       stopLossMultiplier:
         this.cacheService.get('config:atr_stop_loss_multiplier') ||
         Number(process.env.ATR_STOP_LOSS_MULTIPLIER) ||
-        2.0,
+        0.028,
       takeProfitMultiplier:
         this.cacheService.get('config:atr_take_profit_multiplier') ||
         Number(process.env.ATR_TAKE_PROFIT_MULTIPLIER) ||
-        4.0,
+        0.013,
       riskRewardRatio:
         this.cacheService.get('config:atr_risk_reward_ratio') ||
         Number(process.env.ATR_RISK_REWARD_RATIO) ||
@@ -52,11 +52,11 @@ export class ATRController {
       stopLossPercent:
         this.cacheService.get('config:emergency_stop_loss') ||
         Number(process.env.EMERGENCY_STOP_LOSS_PERCENT) ||
-        3.0,
+        0.03,
       takeProfitPercent:
         this.cacheService.get('config:emergency_take_profit') ||
         Number(process.env.EMERGENCY_TAKE_PROFIT_PERCENT) ||
-        6.0,
+        0.06,
       enabled:
         this.cacheService.get('config:emergency_enabled') !== false ||
         process.env.EMERGENCY_ENABLED === 'true',

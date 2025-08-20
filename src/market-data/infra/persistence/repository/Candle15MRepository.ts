@@ -246,8 +246,6 @@ export class Candle15MRepository {
     try {
       const startTime = Date.now();
 
-      console.log(`📊 [${symbol}_${market}] 최신 캔들 ${limit}개 조회 시작`);
-
       // 최신 데이터부터 역순으로 조회 (인덱스 활용)
       const entities = await this.repository.find({
         where: {
@@ -266,7 +264,7 @@ export class Candle15MRepository {
 
       const duration = Date.now() - startTime;
       console.log(
-        `✅ [${symbol}_${market}] 최신 캔들 ${candles.length}개 조회 완료 - 소요시간: ${duration}ms`,
+        `✅ [${symbol}_${market}] 최신 캔들 ${candles.length}개 조회 완료`,
       );
 
       return candles;

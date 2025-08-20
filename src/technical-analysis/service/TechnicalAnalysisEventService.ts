@@ -100,7 +100,7 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
       }
 
       console.log(
-        `🔍 [TechnicalAnalysis] 새 캔들 감지 - 분석 시작: ${symbol} ${timeframe}`,
+        `🔍 [TechnicalAnalysis] 새 캔들 감지: ${symbol} ${timeframe}`,
       );
 
       // 1. ATR 계산 및 캐시 저장
@@ -412,8 +412,6 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
     timeframe: TimeFrame,
   ): Promise<any[]> {
     try {
-      console.log(`🚀 [AdvancedStrategies] 고급 전략 분석 시작: ${symbol}`);
-
       const results: any[] = [];
 
       // 1. 스마트 머니 플로우 전략
@@ -529,8 +527,6 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
     candleData: any,
   ): Promise<void> {
     try {
-      console.log(`📊 [ComprehensiveReport] 종합 리포트 생성 시작: ${symbol}`);
-
       // 필요한 캔들 데이터 조회 (20000개 캔들로 충분한 지표 계산)
       const candles = await this.getCandleData(symbol, 20000);
       if (candles.length < 50) {
@@ -595,8 +591,6 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
    */
   private async initializeATR(): Promise<void> {
     try {
-      console.log('🚀 [ATR] 서버 시작 시 초기 ATR 계산 시작');
-
       // 모니터링 심볼 목록 (환경변수에서 가져오기)
       const monitoredSymbols = process.env.MONITORED_SYMBOLS?.split(',') || [
         'BTCUSDT',
@@ -662,12 +656,10 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
       // ATR 기반 손절/익절가 계산 (롱 포지션 기준)
       const stopLossMultiplier =
         this.cacheService.get('config:atr_stop_loss_multiplier') ||
-        Number(process.env.ATR_STOP_LOSS_MULTIPLIER) ||
-        2.0;
+        Number(process.env.ATR_STOP_LOSS_MULTIPLIER);
       const takeProfitMultiplier =
         this.cacheService.get('config:atr_take_profit_multiplier') ||
-        Number(process.env.ATR_TAKE_PROFIT_MULTIPLIER) ||
-        4.0;
+        Number(process.env.ATR_TAKE_PROFIT_MULTIPLIER);
 
       const longStopLoss =
         this.technicalIndicatorService.calculateATRBasedStopLoss(
@@ -701,19 +693,26 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
       // 캐시에 저장
       this.cacheService.set(`atr:${symbol}`, atrResult);
 
-      console.log(`✅ [ATR] 계산 완료: ${symbol} - ATR: ${atr.toFixed(2)}`);
+      // 설정값과 실제 계산된 비율 계산
+      const atrPercent = (atr / currentPrice) * 100; // ATR을 퍼센트로 변환
+      const actualStopLossPercent = Math.abs(
+        ((longStopLoss - currentPrice) / currentPrice) * 100,
+      );
+      const actualTakeProfitPercent = Math.abs(
+        ((longTakeProfit - currentPrice) / currentPrice) * 100,
+      );
+      const configuredStopLossPercent = stopLossMultiplier * 100;
+      const configuredTakeProfitPercent = takeProfitMultiplier * 100;
+
+      console.log(
+        `✅ [ATR] 계산 완료: ${symbol} - ATR: ${atr.toFixed(2)} (${atrPercent.toFixed(2)}%)`,
+      );
       console.log(`💰 [ATR] 현재가: $${currentPrice.toFixed(2)}`);
       console.log(
-        `📉 [ATR] 롱 손절: $${longStopLoss.toFixed(2)} (${(((longStopLoss - currentPrice) / currentPrice) * 100).toFixed(2)}%)`,
+        `📉 [ATR] 손절 설정: ${configuredStopLossPercent.toFixed(1)}% → 계산값: ${actualStopLossPercent.toFixed(1)}% ($${longStopLoss.toFixed(2)})`,
       );
       console.log(
-        `📈 [ATR] 롱 익절: $${longTakeProfit.toFixed(2)} (${(((longTakeProfit - currentPrice) / currentPrice) * 100).toFixed(2)}%)`,
-      );
-      console.log(
-        `📉 [ATR] 숏 손절: $${shortStopLoss.toFixed(2)} (${(((shortStopLoss - currentPrice) / currentPrice) * 100).toFixed(2)}%)`,
-      );
-      console.log(
-        `📈 [ATR] 숏 익절: $${shortTakeProfit.toFixed(2)} (${(((shortTakeProfit - currentPrice) / currentPrice) * 100).toFixed(2)}%)`,
+        `📈 [ATR] 익절 설정: ${configuredTakeProfitPercent.toFixed(1)}% → 계산값: ${actualTakeProfitPercent.toFixed(1)}% ($${longTakeProfit.toFixed(2)})`,
       );
 
       // ATR 업데이트 이벤트 발송

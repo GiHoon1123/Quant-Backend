@@ -654,10 +654,11 @@ export class AutoTradingService implements OnModuleInit {
     const stopLossMultiplier =
       this.cacheService.get('config:atr_stop_loss_multiplier') ||
       Number(process.env.ATR_STOP_LOSS_MULTIPLIER) ||
-      2.0;
+      0.028;
 
     if (atrData && atrData.atr) {
-      const stopLossDistance = atrData.atr * stopLossMultiplier;
+      // ATR 배수 기반 거리 계산
+      const stopLossDistance = atrData.atr * stopLossMultiplier; // ATR * 배수
 
       if (side === 'LONG') {
         return currentPrice - stopLossDistance;
@@ -693,10 +694,11 @@ export class AutoTradingService implements OnModuleInit {
     const takeProfitMultiplier =
       this.cacheService.get('config:atr_take_profit_multiplier') ||
       Number(process.env.ATR_TAKE_PROFIT_MULTIPLIER) ||
-      4.0;
+      0.013;
 
     if (atrData && atrData.atr) {
-      const takeProfitDistance = atrData.atr * takeProfitMultiplier;
+      // ATR 배수 기반 거리 계산
+      const takeProfitDistance = atrData.atr * takeProfitMultiplier; // ATR * 배수
 
       if (side === 'LONG') {
         return currentPrice + takeProfitDistance;
