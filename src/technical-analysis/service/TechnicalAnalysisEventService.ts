@@ -347,6 +347,13 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
         signal: event.analysisResult.signal,
         currentPrice: analysisResult.currentPrice || 0,
         indicators: event.analysisResult.indicators,
+        strategiesCount: event.analysisResult.strategies.length,
+        strategies: event.analysisResult.strategies.map((s) => ({
+          name: s.name,
+          signal: s.signal,
+          confidence: (s as any).details?.confidence || 0,
+          satisfiedConditions: (s as any).details?.satisfiedConditions || 0,
+        })),
       });
 
       // 🔔 분석 완료 이벤트 발송 (중복 방지: analysis.completed만 emit)
@@ -390,12 +397,27 @@ export class TechnicalAnalysisEventService implements OnModuleInit {
   private extractStrategyResults(analysisResult: any): Array<{
     name: string;
     signal: string;
+    type: string;
+    details: any;
   }> {
     // 분석 결과에서 전략별 결과를 추출
-    return [
-      // 기본적으로 빈 배열 반환, 실제 구현에서는 analysisResult 구조에 맞게 수정
-      // TODO: 실제 전략 결과 추출 로직 구현
-    ];
+    if (
+      !analysisResult.strategies ||
+      !Array.isArray(analysisResult.strategies)
+    ) {
+      return [];
+    }
+
+    return analysisResult.strategies.map((strategy) => ({
+      name: strategy.strategy || strategy.name || 'Unknown Strategy',
+      signal: strategy.signal || 'NEUTRAL',
+      type: strategy.strategy || strategy.type || 'UNKNOWN',
+      details: {
+        indicators: strategy.details?.indicators || {},
+        conditions: strategy.details?.conditions || [],
+        notes: strategy.details?.notes || '',
+      },
+    }));
   }
 
   /**

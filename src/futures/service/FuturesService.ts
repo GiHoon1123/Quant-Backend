@@ -1177,12 +1177,13 @@ export class FuturesService implements OnModuleInit {
           return;
         }
 
-        // 롱 포지션 진입
+        // 롱 포지션 진입 (레버리지 적용)
+        const leverage = Number(process.env.AUTO_TRADING_LEVERAGE) || 3;
         await this.openPosition(
           symbol,
           PositionSide.LONG,
           quantity,
-          1,
+          leverage,
           undefined,
           undefined,
         );
@@ -1197,12 +1198,13 @@ export class FuturesService implements OnModuleInit {
           return;
         }
 
-        // 숏 포지션 진입
+        // 숏 포지션 진입 (레버리지 적용)
+        const leverage = Number(process.env.AUTO_TRADING_LEVERAGE) || 3;
         await this.openPosition(
           symbol,
           PositionSide.SHORT,
           quantity,
-          1,
+          leverage,
           undefined,
           undefined,
         );

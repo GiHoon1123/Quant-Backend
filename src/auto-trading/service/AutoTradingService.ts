@@ -42,7 +42,6 @@ export class AutoTradingService implements OnModuleInit {
     RSI_OVERBOUGHT: 70, // RSI 과매수 기준
 
     // 리스크 관리
-    POSITION_SIZE_PERCENT: 2, // 포지션 크기 2%
     SWITCH_CONDITIONS_REQUIRED: 2, // 스위칭 조건 2개
 
     // 피벗 레벨 설정
@@ -129,13 +128,43 @@ export class AutoTradingService implements OnModuleInit {
     symbol: string,
     analysisResult: any,
   ): Promise<void> {
-    const { overallSignal, currentPrice } = analysisResult;
+    const { overallSignal, currentPrice, strategies } = analysisResult;
+
+    // 전략별 상세 분석 로깅
+    this.logger.log(`📊 [AUTO-TRADING] ${symbol} 전략 분석 결과:`);
+    if (strategies && Array.isArray(strategies)) {
+      strategies.forEach((strategy) => {
+        this.logger.log(`  • ${strategy.name}: ${strategy.signal}`);
+      });
+    }
 
     // STRONG_BUY 신호: 롱 진입 검토
     if (overallSignal === 'STRONG_BUY') {
       this.logger.log(
         `🔥🔥🔥 [AUTO-TRADING] ${symbol} STRONG_BUY 신호 감지 - 롱 진입 조건 검사 시작 🔥🔥🔥`,
       );
+
+      // 피벗 반전 전략 상세 확인
+      const pivotStrategy = strategies?.find(
+        (s) => s.type === 'PIVOT_REVERSAL',
+      );
+      if (pivotStrategy && pivotStrategy.signal === 'STRONG_BUY') {
+        const { details } = pivotStrategy;
+        this.logger.log(`🎯 [AUTO-TRADING] 피벗 반전 전략 상세:`);
+        this.logger.log(
+          `  • 피벗 포인트: ${details.indicators?.pivotPoint?.toFixed(2) || 'N/A'}`,
+        );
+        this.logger.log(
+          `  • 지지선 S1: ${details.indicators?.support1?.toFixed(2) || 'N/A'}`,
+        );
+        this.logger.log(
+          `  • RSI: ${details.indicators?.rsi?.toFixed(1) || 'N/A'}`,
+        );
+        this.logger.log(
+          `  • 거래량 비율: ${details.indicators?.volumeRatio?.toFixed(1) || 'N/A'}`,
+        );
+      }
+
       const canEnterLong = this.checkLongEntryConditions(analysisResult);
       if (canEnterLong) {
         this.logger.log(
@@ -153,6 +182,32 @@ export class AutoTradingService implements OnModuleInit {
       this.logger.log(
         `💥💥💥 [AUTO-TRADING] ${symbol} ${overallSignal} 신호 감지 - 숏 진입 조건 검사 시작 💥💥💥`,
       );
+
+      // 피벗 반전 전략 상세 확인
+      const pivotStrategy = strategies?.find(
+        (s) => s.type === 'PIVOT_REVERSAL',
+      );
+      if (
+        pivotStrategy &&
+        (pivotStrategy.signal === 'STRONG_SELL' ||
+          pivotStrategy.signal === 'SELL')
+      ) {
+        const { details } = pivotStrategy;
+        this.logger.log(`🎯 [AUTO-TRADING] 피벗 반전 전략 상세:`);
+        this.logger.log(
+          `  • 피벗 포인트: ${details.indicators?.pivotPoint?.toFixed(2) || 'N/A'}`,
+        );
+        this.logger.log(
+          `  • 저항선 R1: ${details.indicators?.resistance1?.toFixed(2) || 'N/A'}`,
+        );
+        this.logger.log(
+          `  • RSI: ${details.indicators?.rsi?.toFixed(1) || 'N/A'}`,
+        );
+        this.logger.log(
+          `  • 거래량 비율: ${details.indicators?.volumeRatio?.toFixed(1) || 'N/A'}`,
+        );
+      }
+
       const canEnterShort = this.checkShortEntryConditions(analysisResult);
       if (canEnterShort) {
         this.logger.log(
@@ -275,27 +330,22 @@ export class AutoTradingService implements OnModuleInit {
    */
   private checkLongEntryConditions(analysisResult: any): boolean {
     const indicators = analysisResult.indicators || {};
-
-    // 피벗 반전 전략 지표 추출
     const currentPrice = analysisResult.currentPrice || 0;
     const support1 = indicators?.support1 || indicators?.Support1 || 0;
     const support2 = indicators?.support2 || indicators?.Support2 || 0;
     const rsi = indicators?.RSI || indicators?.rsi || 50;
     const volumeRatio = indicators?.VolumeRatio || indicators?.volumeRatio || 1;
 
-    // 피벗 반전 전략 조건들
     const isPivotSupportTouch =
       currentPrice <=
         support1 * (1 + this.AUTO_TRADING_CONFIG.PIVOT_TOUCH_TOLERANCE) ||
       currentPrice <=
-        support2 * (1 + this.AUTO_TRADING_CONFIG.PIVOT_TOUCH_TOLERANCE); // 피벗 지지선 터치
+        support2 * (1 + this.AUTO_TRADING_CONFIG.PIVOT_TOUCH_TOLERANCE);
 
-    const isRsiOversold = rsi < this.AUTO_TRADING_CONFIG.RSI_OVERSOLD; // RSI 과매도
-
+    const isRsiOversold = rsi < this.AUTO_TRADING_CONFIG.RSI_OVERSOLD;
     const isVolumeSurge =
-      volumeRatio > this.AUTO_TRADING_CONFIG.MIN_VOLUME_RATIO; // 거래량 급증
+      volumeRatio > this.AUTO_TRADING_CONFIG.MIN_VOLUME_RATIO;
 
-    // 3개 조건 중 2개 이상 만족 (피벗 반전 전략)
     const conditions = [isPivotSupportTouch, isRsiOversold, isVolumeSurge];
     const satisfiedCount = conditions.filter(Boolean).length;
 
@@ -323,27 +373,22 @@ export class AutoTradingService implements OnModuleInit {
    */
   private checkShortEntryConditions(analysisResult: any): boolean {
     const indicators = analysisResult.indicators || {};
-
-    // 피벗 반전 전략 지표 추출
     const currentPrice = analysisResult.currentPrice || 0;
     const resistance1 = indicators?.resistance1 || indicators?.Resistance1 || 0;
     const resistance2 = indicators?.resistance2 || indicators?.Resistance2 || 0;
     const rsi = indicators?.RSI || indicators?.rsi || 50;
     const volumeRatio = indicators?.VolumeRatio || indicators?.volumeRatio || 1;
 
-    // 피벗 반전 전략 조건들
     const isPivotResistanceTouch =
       currentPrice >=
         resistance1 * (1 - this.AUTO_TRADING_CONFIG.PIVOT_TOUCH_TOLERANCE) ||
       currentPrice >=
-        resistance2 * (1 - this.AUTO_TRADING_CONFIG.PIVOT_TOUCH_TOLERANCE); // 피벗 저항선 터치
+        resistance2 * (1 - this.AUTO_TRADING_CONFIG.PIVOT_TOUCH_TOLERANCE);
 
-    const isRsiOverbought = rsi > this.AUTO_TRADING_CONFIG.RSI_OVERBOUGHT; // RSI 과매수
-
+    const isRsiOverbought = rsi > this.AUTO_TRADING_CONFIG.RSI_OVERBOUGHT;
     const isVolumeSurge =
-      volumeRatio > this.AUTO_TRADING_CONFIG.MIN_VOLUME_RATIO; // 거래량 급증
+      volumeRatio > this.AUTO_TRADING_CONFIG.MIN_VOLUME_RATIO;
 
-    // 3개 조건 중 2개 이상 만족 (피벗 반전 전략) - 숏 진입 조건 완화
     const conditions = [isPivotResistanceTouch, isRsiOverbought, isVolumeSurge];
     const satisfiedCount = conditions.filter(Boolean).length;
 
@@ -360,7 +405,6 @@ export class AutoTradingService implements OnModuleInit {
       `  • 거래량 급증 (≥${this.AUTO_TRADING_CONFIG.MIN_VOLUME_RATIO}): ${volumeRatio} → ${isVolumeSurge ? '✅' : '❌'}`,
     );
 
-    // 숏 진입 조건 완화: 3개 중 1개만 만족해도 진입 (더 적극적인 숏 진입)
     return satisfiedCount >= 1;
   }
 
@@ -448,10 +492,19 @@ export class AutoTradingService implements OnModuleInit {
     symbol: string,
     analysisResult: any,
   ): Promise<void> {
-    const { currentPrice } = analysisResult;
+    const { currentPrice, strategies } = analysisResult;
 
-    // 포지션 크기 계산
-    const quantity = this.calculatePositionSize(symbol, currentPrice);
+    // 피벗 반전 전략 상세 정보 추출
+    const pivotStrategy = strategies?.find((s) => s.type === 'PIVOT_REVERSAL');
+    const pivotDetails = pivotStrategy?.details;
+
+    // 포지션 크기 계산 (async)
+    const quantity = await this.calculatePositionSize(symbol, currentPrice);
+
+    if (quantity <= 0) {
+      this.logger.warn(`⚠️ [${symbol}] 포지션 크기가 0이므로 진입 취소`);
+      return;
+    }
 
     // ATR 기반 손절/익절 가격 계산
     const stopLoss = this.calculateATRBasedStopLoss(
@@ -465,13 +518,19 @@ export class AutoTradingService implements OnModuleInit {
       'LONG',
     );
 
+    // 레버리지 가져오기
+    const leverage = Number(process.env.AUTO_TRADING_LEVERAGE) || 3;
+
+    // 진입 조건 상세 정보 구성
+    const entryConditions = pivotDetails?.conditions || ['롱 진입 조건 만족'];
+
     // trading.signal 이벤트 발생
     const signalEvent: TradingSignalEvent = {
       eventId: `auto_trading_${Date.now()}`,
       timestamp: new Date(),
       symbol,
       signal: 'LONG',
-      strategy: 'AutoTradingService',
+      strategy: 'PIVOT_REVERSAL',
       entryPrice: currentPrice,
       stopLoss,
       takeProfit,
@@ -479,27 +538,58 @@ export class AutoTradingService implements OnModuleInit {
       source: 'AutoTradingService',
       metadata: {
         analysis: analysisResult,
-        conditions: '롱 진입 조건 만족',
+        conditions: entryConditions.join(', '),
+        leverage: leverage,
+        pivotDetails: {
+          pivotPoint: pivotDetails?.indicators?.pivotPoint,
+          support1: pivotDetails?.indicators?.support1,
+          support2: pivotDetails?.indicators?.support2,
+          rsi: pivotDetails?.indicators?.rsi,
+          volumeRatio: pivotDetails?.indicators?.volumeRatio,
+        },
       },
     };
 
     this.eventEmitter.emit('trading.signal', signalEvent);
+
+    // 상세한 진입 로그
     this.logger.log(`🚀🚀🚀 [AUTO-TRADING] ${symbol} 롱 진입 신호 발생 🚀🚀🚀`);
     this.logger.log(
       `💰💰💰 [AUTO-TRADING] ${symbol} 진입 가격: $${currentPrice.toFixed(2)} 💰💰💰`,
     );
     this.logger.log(
-      `📊📊📊 [AUTO-TRADING] ${symbol} 진입 수량: ${quantity.toFixed(4)} BTC 📊📊📊`,
+      `📊📊📊 [AUTO-TRADING] ${symbol} 진입 수량: ${quantity.toFixed(6)} 📊📊📊`,
     );
     this.logger.log(
       `💵💵💵 [AUTO-TRADING] ${symbol} 진입 금액: $${(currentPrice * quantity).toFixed(2)} 💵💵💵`,
     );
     this.logger.log(
-      `🛑🛑🛑 [AUTO-TRADING] ${symbol} 손절가: $${stopLoss.toFixed(2)}  🛑🛑🛑`,
+      `⚡⚡⚡ [AUTO-TRADING] ${symbol} 레버리지: ${leverage}배 ⚡⚡⚡`,
     );
     this.logger.log(
-      `🎯🎯🎯 [AUTO-TRADING] ${symbol} 익절가: $${takeProfit.toFixed(2)}  🎯🎯🎯`,
+      `🛑🛑🛑 [AUTO-TRADING] ${symbol} 손절가: $${stopLoss.toFixed(2)} 🛑🛑🛑`,
     );
+    this.logger.log(
+      `🎯🎯🎯 [AUTO-TRADING] ${symbol} 익절가: $${takeProfit.toFixed(2)} 🎯🎯🎯`,
+    );
+
+    // 피벗 전략 상세 정보 로그
+    if (pivotDetails) {
+      this.logger.log(`🎯 [AUTO-TRADING] 피벗 전략 진입 상세:`);
+      this.logger.log(
+        `  • 피벗 포인트: $${pivotDetails.indicators?.pivotPoint?.toFixed(2) || 'N/A'}`,
+      );
+      this.logger.log(
+        `  • 지지선 S1: $${pivotDetails.indicators?.support1?.toFixed(2) || 'N/A'}`,
+      );
+      this.logger.log(
+        `  • RSI: ${pivotDetails.indicators?.rsi?.toFixed(1) || 'N/A'}`,
+      );
+      this.logger.log(
+        `  • 거래량 비율: ${pivotDetails.indicators?.volumeRatio?.toFixed(1) || 'N/A'}`,
+      );
+      this.logger.log(`  • 진입 조건: ${entryConditions.join(', ')}`);
+    }
   }
 
   /**
@@ -512,10 +602,19 @@ export class AutoTradingService implements OnModuleInit {
     symbol: string,
     analysisResult: any,
   ): Promise<void> {
-    const { currentPrice } = analysisResult;
+    const { currentPrice, strategies } = analysisResult;
 
-    // 포지션 크기 계산
-    const quantity = this.calculatePositionSize(symbol, currentPrice);
+    // 피벗 반전 전략 상세 정보 추출
+    const pivotStrategy = strategies?.find((s) => s.type === 'PIVOT_REVERSAL');
+    const pivotDetails = pivotStrategy?.details;
+
+    // 포지션 크기 계산 (async)
+    const quantity = await this.calculatePositionSize(symbol, currentPrice);
+
+    if (quantity <= 0) {
+      this.logger.warn(`⚠️ [${symbol}] 포지션 크기가 0이므로 진입 취소`);
+      return;
+    }
 
     // ATR 기반 손절/익절 가격 계산
     const stopLoss = this.calculateATRBasedStopLoss(
@@ -529,13 +628,19 @@ export class AutoTradingService implements OnModuleInit {
       'SHORT',
     );
 
+    // 레버리지 가져오기
+    const leverage = Number(process.env.AUTO_TRADING_LEVERAGE) || 3;
+
+    // 진입 조건 상세 정보 구성
+    const entryConditions = pivotDetails?.conditions || ['숏 진입 조건 만족'];
+
     // trading.signal 이벤트 발생
     const signalEvent: TradingSignalEvent = {
       eventId: `auto_trading_${Date.now()}`,
       timestamp: new Date(),
       symbol,
       signal: 'SHORT',
-      strategy: 'AutoTradingService',
+      strategy: 'PIVOT_REVERSAL',
       entryPrice: currentPrice,
       stopLoss,
       takeProfit,
@@ -543,27 +648,58 @@ export class AutoTradingService implements OnModuleInit {
       source: 'AutoTradingService',
       metadata: {
         analysis: analysisResult,
-        conditions: '숏 진입 조건 만족',
+        conditions: entryConditions.join(', '),
+        leverage: leverage,
+        pivotDetails: {
+          pivotPoint: pivotDetails?.indicators?.pivotPoint,
+          resistance1: pivotDetails?.indicators?.resistance1,
+          resistance2: pivotDetails?.indicators?.resistance2,
+          rsi: pivotDetails?.indicators?.rsi,
+          volumeRatio: pivotDetails?.indicators?.volumeRatio,
+        },
       },
     };
 
     this.eventEmitter.emit('trading.signal', signalEvent);
+
+    // 상세한 진입 로그
     this.logger.log(`⚡⚡⚡ [AUTO-TRADING] ${symbol} 숏 진입 신호 발생 ⚡⚡⚡`);
     this.logger.log(
       `💰💰💰 [AUTO-TRADING] ${symbol} 진입 가격: $${currentPrice.toFixed(2)} 💰💰💰`,
     );
     this.logger.log(
-      `📊📊📊 [AUTO-TRADING] ${symbol} 진입 수량: ${quantity.toFixed(4)} BTC 📊📊📊`,
+      `📊📊📊 [AUTO-TRADING] ${symbol} 진입 수량: ${quantity.toFixed(6)} 📊📊📊`,
     );
     this.logger.log(
       `💵💵💵 [AUTO-TRADING] ${symbol} 진입 금액: $${(currentPrice * quantity).toFixed(2)} 💵💵💵`,
     );
     this.logger.log(
-      `🛑🛑🛑 [AUTO-TRADING] ${symbol} 손절가: $${stopLoss.toFixed(2)}  🛑🛑🛑`,
+      `⚡⚡⚡ [AUTO-TRADING] ${symbol} 레버리지: ${leverage}배 ⚡⚡⚡`,
     );
     this.logger.log(
-      `🎯🎯🎯 [AUTO-TRADING] ${symbol} 익절가: $${takeProfit.toFixed(2)}  🎯🎯🎯`,
+      `🛑🛑🛑 [AUTO-TRADING] ${symbol} 손절가: $${stopLoss.toFixed(2)} 🛑🛑🛑`,
     );
+    this.logger.log(
+      `🎯🎯🎯 [AUTO-TRADING] ${symbol} 익절가: $${takeProfit.toFixed(2)} 🎯🎯🎯`,
+    );
+
+    // 피벗 전략 상세 정보 로그
+    if (pivotDetails) {
+      this.logger.log(`🎯 [AUTO-TRADING] 피벗 전략 진입 상세:`);
+      this.logger.log(
+        `  • 피벗 포인트: $${pivotDetails.indicators?.pivotPoint?.toFixed(2) || 'N/A'}`,
+      );
+      this.logger.log(
+        `  • 저항선 R1: $${pivotDetails.indicators?.resistance1?.toFixed(2) || 'N/A'}`,
+      );
+      this.logger.log(
+        `  • RSI: ${pivotDetails.indicators?.rsi?.toFixed(1) || 'N/A'}`,
+      );
+      this.logger.log(
+        `  • 거래량 비율: ${pivotDetails.indicators?.volumeRatio?.toFixed(1) || 'N/A'}`,
+      );
+      this.logger.log(`  • 진입 조건: ${entryConditions.join(', ')}`);
+    }
   }
 
   /**
@@ -623,17 +759,49 @@ export class AutoTradingService implements OnModuleInit {
    * @param currentPrice 현재 가격
    * @returns 포지션 수량
    */
-  private calculatePositionSize(symbol: string, currentPrice: number): number {
-    // 계좌 잔고를 확인하여 동적으로 계산
-    // 현재는 고정 $100 노셔널 값 사용 (기존 방식 유지)
-    const notionalValue = 100; // USD
-    const quantity = notionalValue / currentPrice;
+  private async calculatePositionSize(
+    symbol: string,
+    currentPrice: number,
+  ): Promise<number> {
+    try {
+      // 선물 계정 잔고 조회
+      const balances = await this.futuresService.getFuturesBalances();
+      const usdtBalance = balances.find((b) => b.asset === 'USDT');
 
-    this.logger.debug(
-      `💰 [${symbol}] 포지션 크기 계산: 노셔널=${notionalValue}USD, 수량=${quantity.toFixed(6)}`,
-    );
+      if (!usdtBalance || usdtBalance.availableBalance <= 0) {
+        this.logger.warn(
+          `⚠️ [${symbol}] USDT 잔고 부족: ${usdtBalance?.availableBalance || 0}`,
+        );
+        return 0;
+      }
 
-    return quantity;
+      // 환경변수에서 포지션 크기 비율 가져오기 (기본값: 100% = 전체 자산)
+      const positionSizePercent =
+        Number(process.env.AUTO_TRADING_POSITION_SIZE_PERCENT) || 100;
+      const availableBalance = usdtBalance.availableBalance;
+      const positionAmount = (availableBalance * positionSizePercent) / 100;
+
+      // 레버리지 적용하여 수량 계산
+      const leverage = Number(process.env.AUTO_TRADING_LEVERAGE) || 3;
+      const notionalValue = positionAmount * leverage;
+      const quantity = notionalValue / currentPrice;
+
+      this.logger.log(`💰 [${symbol}] 포지션 크기 계산:`);
+      this.logger.log(`  • 사용가능 잔고: $${availableBalance.toFixed(2)}`);
+      this.logger.log(`  • 포지션 크기 비율: ${positionSizePercent}%`);
+      this.logger.log(`  • 포지션 금액: $${positionAmount.toFixed(2)}`);
+      this.logger.log(`  • 레버리지: ${leverage}배`);
+      this.logger.log(`  • 노셔널 값: $${notionalValue.toFixed(2)}`);
+      this.logger.log(`  • 진입 수량: ${quantity.toFixed(6)}`);
+
+      return quantity;
+    } catch (error) {
+      this.logger.error(
+        `❌ [${symbol}] 포지션 크기 계산 실패: ${error.message}`,
+      );
+      // 에러 시 기본값 반환
+      return 0.001; // 최소 수량
+    }
   }
 
   /**
